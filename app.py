@@ -15,7 +15,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # 블루프린트 임포트
 from routes.main import main_bp
 from routes.document import document_bp
-from routes.contract import contract_bp
 from routes.verified_contract import verified_contract_bp
 from routes.user_mgmt import send_account_recovery_email, user_mgmt_bp
 from routes.approval import approval_bp
@@ -37,6 +36,8 @@ from routes.school_bp import school_bp
 from routes.school_task import school_task_bp
 from routes.survey import init_survey_schema, survey_bp
 from routes.contacts import contacts_bp
+from routes.event_admin import ensure_event_schema, event_bp
+from routes.school_billing import billing_bp, ensure_billing_schema, portal_bp
 from routes.admin_management import admin_bp, get_active_theme
 from routes.ebook import ebook_bp, init_ebook_schema
 from routes.photobook import init_photobook_schema, photobook_bp
@@ -105,6 +106,12 @@ with app.app_context():
         ensure_interview_schema()
         ensure_mydesk_schema()
         init_survey_schema()
+        event_conn = get_db()
+        try:
+            ensure_event_schema(event_conn)
+            ensure_billing_schema(event_conn)
+        finally:
+            event_conn.close()
         password_conn = get_db()
         try:
             migrated_passwords = migrate_plaintext_passwords(password_conn)
@@ -160,10 +167,6 @@ EXEMPT_ROUTES = [
     'user_mgmt.register', 
     'user_mgmt.invite_page', 
     'static',
-    'contract.login', 
-    'contract.contract_list', 
-    'contract.contract', 
-    'contract.save_contract', 
     'verified_contract.public_contract',
     'verified_contract.send_otp',
     'verified_contract.verify_otp',
@@ -197,7 +200,9 @@ EXEMPT_ROUTES = [
 ]
 
 # 엔드포인트 이름과 무관하게 로그인을 요구하지 않는 공개 경로.
-PUBLIC_PATH_PREFIXES = ('/survey/r/',)
+# /portal 은 학교회원 전용 포털이다. 인트라넷 계정(emp_no)과 무관하게
+# 자체 로그인(billing_member_id)으로 보호하므로 인트라넷 로그인 검사에서 뺀다.
+PUBLIC_PATH_PREFIXES = ('/survey/r/', '/portal')
 
 def _is_script_request() -> bool:
     """브라우저 주소창이 아니라 화면 속 스크립트가 부른 요청인지 판단한다."""
@@ -255,7 +260,6 @@ NOTIFICATION_MUTATION_PREFIXES = (
     '/expense',
     '/school',
     '/document',
-    '/contract',
 )
 NOTIFICATION_MUTATING_GET_ENDPOINTS = {
     'document.generate_certificate',
@@ -306,7 +310,6 @@ def _classify_menu(path):
         ('/school', '학교업무메뉴'),
         ('/survey', '설문조사'),
         ('/document', '증명발급'),
-        ('/contract', '계약시스템'),
         ('/gall2', '갤러리'),
         ('/gallery', '갤러리'),
         ('/approval', '사내결재'),
@@ -1074,7 +1077,6 @@ def logout():
 app.register_blueprint(chat_bp)
 app.register_blueprint(main_bp)
 app.register_blueprint(document_bp, url_prefix='/document')
-app.register_blueprint(contract_bp, url_prefix='/contract')
 app.register_blueprint(verified_contract_bp, url_prefix='/verified-contract')
 app.register_blueprint(user_mgmt_bp, url_prefix='/user')
 app.register_blueprint(approval_bp, url_prefix='/approval')
@@ -1096,6 +1098,9 @@ app.register_blueprint(school_bp, url_prefix='/school')
 app.register_blueprint(school_task_bp, url_prefix='/school/tasks')
 app.register_blueprint(survey_bp, url_prefix='/survey')
 app.register_blueprint(contacts_bp)
+app.register_blueprint(event_bp, url_prefix='/event-admin')
+app.register_blueprint(billing_bp, url_prefix='/billing')
+app.register_blueprint(portal_bp, url_prefix='/portal')
 app.register_blueprint(gall2_bp)
 app.register_blueprint(admin_bp, url_prefix='/admin')
 app.register_blueprint(ebook_bp, url_prefix='/ebook')
