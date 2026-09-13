@@ -20,7 +20,6 @@
             --border-light: #f1f3f5;
             --text-dark: #333333;
             --text-gray: #64748b;
-            --main-bg: #f8fafc;
         }
 
         * { box-sizing: border-box; }
@@ -99,9 +98,6 @@
             justify-content: flex-end;
             position: relative;
             overflow: hidden;
-            background: var(--main-bg);
-            border: 1px solid var(--border-light);
-            border-radius: 12px;
         }
 
         .character-wrapper {
@@ -262,7 +258,7 @@
             <div class="character-panel">
                 <div class="character-wrapper">
                     <img
-                        src="{{ url_for('static', filename=('girl02.png' if flashed else 'girl01.png')) }}"
+                        src="{{ url_for('static', filename=('girl_noin.png' if flashed else 'girl_in.png')) }}"
                         class="character"
                         alt="{{ '비밀번호 오류 안내 캐릭터' if flashed else '증명서 발급 안내 캐릭터' }}"
                     >
