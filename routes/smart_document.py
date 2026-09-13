@@ -1614,19 +1614,20 @@ def _history_render_data(conn, history_id, prefer_sent=False):
 def _render_document_pdf(markup):
     try:
         import pdfkit
-        from .contract import PDF_CONFIG, get_pdf_font_css
+        from .verified_contract import _pdf_configuration, _pdf_font_css
     except ImportError as exc:
         raise RuntimeError('PDF 생성 모듈이 설치되어 있지 않습니다.') from exc
-    if not PDF_CONFIG:
+    pdf_config = _pdf_configuration()
+    if not pdf_config:
         raise RuntimeError('PDF 변환 엔진(wkhtmltopdf)을 찾을 수 없습니다.')
     html_source = f'''<!doctype html><html><head><meta charset="utf-8"><style>
-    {get_pdf_font_css()}
+    {_pdf_font_css()}
     @page{{size:A4;margin:14mm}}html,body{{margin:0;padding:0;background:#fff}}
     *{{box-sizing:border-box}}article{{page-break-inside:auto}}
     table,tr,td,th{{page-break-inside:avoid}}
     </style></head><body>{markup}</body></html>'''
     return pdfkit.from_string(
-        html_source, False, configuration=PDF_CONFIG,
+        html_source, False, configuration=pdf_config,
         options={
             'encoding': 'UTF-8', 'enable-local-file-access': None,
             'print-media-type': None, 'page-size': 'A4',

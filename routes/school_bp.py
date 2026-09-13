@@ -1131,7 +1131,16 @@ def school_detail(school_key):
         gallery_preview_items = [dict(row) for row in gallery_rows]
     except Exception as e:
         print(f"학교 업무공간 학교갤러리 미리보기 로드 에러: {e}")
-            
+
+    # 센터장 전용 업무공간 오른쪽 이벤트 탭 정보
+    # (진행 기간이 아니면 None이 되어 탭 자체가 나타나지 않는다)
+    center_event = None
+    try:
+        from routes.event_admin import build_center_event_context
+        center_event = build_center_event_context(conn, school_id)
+    except Exception as e:
+        print(f"센터장 이벤트 정보 로드 에러: {e}")
+
     conn.close()
     
     pagination = {
@@ -1164,6 +1173,7 @@ def school_detail(school_key):
                               gallery_preview_items=gallery_preview_items,
                               school_current_profile_path=(current_user_profile.get('profile_path') or session.get('profile_path') or ''),
                               school_current_profile_icon=(current_user_profile.get('profile_icon') or session.get('profile_icon') or '👤'),
+                              center_event=center_event,
                               view_type='detail')
 
 @school_bp.route('/center-weblink-file/<int:link_id>')
@@ -2203,3 +2213,55 @@ def full_calendar():
         public_holidays=public_holidays,
         solar_terms=solar_terms,
     )
+
+
+
+# =====================================================================
+# 센터장 전용 업무공간 · 이벤트 탭
+# 이벤트 생성/추첨은 [조직관리 > 이벤트관리]에서 하고, 여기서는
+# 진행중인 이벤트에 응모(추첨번호 발급)하는 입구만 제공한다.
+# =====================================================================
+
+@school_bp.route('/center-event/enter', methods=['POST'])
+def enter_center_event():
+    """이벤트 안내 탭의 [응모하기] 버튼이 호출한다."""
+    from routes.event_admin import (
+        event_is_running,
+        get_running_event,
+        issue_event_number,
+    )
+
+    if not session.get('user_name'):
+        return jsonify({'status': 'error', 'message': '로그인이 필요합니다.'}), 403
+
+    conn = get_db()
+    try:
+        event = get_running_event(conn)
+        if not event or not event_is_running(event):
+            return jsonify({
+                'status': 'error',
+                'message': '지금은 진행중인 이벤트가 없습니다.',
+            }), 404
+
+        school_id = None
+        if request.is_json:
+            school_id = (request.get_json(silent=True) or {}).get('school_id')
+
+        entry, error = issue_event_number(
+            conn,
+            event,
+            session.get('emp_no'),
+            session.get('user_name'),
+            session.get('department'),
+            school_id,
+        )
+        if error:
+            return jsonify({'status': 'error', 'message': error}), 400
+        return jsonify({
+            'status': 'success',
+            'draw_number': entry['draw_number'],
+            'number_text': f"{int(entry['draw_number']):02d}",
+            'issued_at': entry['created_at'],
+        })
+    finally:
+        conn.close()

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import html
-import os
 import re
 import shutil
 import uuid
@@ -9,21 +7,34 @@ from datetime import datetime
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
+from urllib.parse import quote
 
 from flask import (
-    Blueprint, abort, current_app, jsonify, redirect, render_template,
+    Blueprint, Response, abort, current_app, jsonify, redirect, render_template,
     request, send_from_directory, url_for
 )
 from .storage import MANUAL_UPLOADS
 from werkzeug.utils import secure_filename
 
 from routes.database import get_db
+from routes.manual_import import (
+    IMPORT_ACCEPT_ATTR,
+    SAMPLE_MARKDOWN,
+    SUPPORTED_IMPORT_EXTENSIONS,
+    ManualImportError,
+    file_extension,
+    manual_to_markdown,
+    parse_manual_file,
+    parse_markdown,
+)
 
 manual_bp = Blueprint("manual", __name__)
 
 ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "jpe", "jfif", "webp", "gif"}
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_TXT_BYTES = 2 * 1024 * 1024
+# 외부파일(TXT/MD/HTML/DOCX)로 메뉴얼을 등록할 때의 파일 용량 제한.
+MAX_IMPORT_BYTES = 20 * 1024 * 1024
 
 
 # ---------------------------------------------------------------------
@@ -182,93 +193,157 @@ def _get_sections(manual_id: int):
 # ---------------------------------------------------------------------
 # HTML sanitation
 # ---------------------------------------------------------------------
+ALLOWED_CSS_PROPERTIES = [
+    "color", "font-size",
+    "width", "height", "min-width", "max-width",
+    "text-align", "vertical-align",
+    "margin-left", "margin-right",
+    "table-layout",
+]
+
+ALLOWED_TAGS = [
+    "p", "br", "strong", "b", "em", "i", "u", "s",
+    "h2", "h3", "h4", "ul", "ol", "li",
+    "table", "thead", "tbody", "tfoot", "tr", "th", "td",
+    "div", "span", "a", "figure", "figcaption", "img",
+    "blockquote", "code", "pre", "hr",
+]
+
+ALLOWED_ATTRIBUTES = {
+    "*": ["class", "style"],
+    "a": ["href", "title", "target", "rel", "class", "style"],
+    "img": ["src", "alt", "title", "data-filename", "class", "style"],
+    "figure": ["data-filename", "class", "style"],
+    "td": ["colspan", "rowspan", "class", "style"],
+    "th": ["colspan", "rowspan", "class", "style"],
+    "table": ["class", "style"],
+}
+
+# 내용까지 통째로 버리는 태그. 나머지 비허용 태그는 글자만 남기고 태그를 벗겨냅니다.
+DROP_WITH_CONTENT_TAGS = {
+    "script", "style", "noscript", "iframe", "object", "embed",
+    "form", "input", "button", "select", "textarea", "svg",
+    "link", "meta", "head", "title",
+}
+
+
+def _clean_style_value(raw: str) -> str:
+    cleaned = []
+    for item in str(raw or "").split(";"):
+        if ":" not in item:
+            continue
+        prop, val = item.split(":", 1)
+        prop = prop.strip().lower()
+        val = val.strip()
+        if prop not in ALLOWED_CSS_PROPERTIES:
+            continue
+        if any(bad in val.lower() for bad in ("url(", "expression", "javascript:", "behavior:", "<", ">")):
+            continue
+        cleaned.append(f"{prop}:{val}")
+    return ";".join(cleaned)
+
+
+def _is_safe_url(value: str) -> bool:
+    url = str(value or "").strip()
+    if not url:
+        return False
+    if url.startswith(("#", "/")):
+        return True
+    return bool(re.match(r"^(https?:)?//", url, re.I))
+
+
+def _sanitize_with_bs4(value: str) -> str:
+    """bleach가 없는 환경에서 BeautifulSoup으로 태그/속성을 화이트리스트 처리합니다."""
+    from bs4 import BeautifulSoup  # type: ignore
+
+    soup = BeautifulSoup(value, "html.parser")
+
+    for tag in soup.find_all(list(DROP_WITH_CONTENT_TAGS)):
+        tag.decompose()
+
+    for tag in soup.find_all(True):
+        name = (tag.name or "").lower()
+        if name not in ALLOWED_TAGS:
+            tag.unwrap()
+            continue
+
+        allowed = set(ALLOWED_ATTRIBUTES.get("*", [])) | set(ALLOWED_ATTRIBUTES.get(name, []))
+        for attr in list(tag.attrs):
+            key = attr.lower()
+            if key not in allowed:
+                del tag[attr]
+                continue
+            if key == "style":
+                style = _clean_style_value(tag[attr])
+                if style:
+                    tag[attr] = style
+                else:
+                    del tag[attr]
+            elif key in ("href", "src"):
+                if not _is_safe_url(tag[attr]):
+                    del tag[attr]
+
+    return str(soup)
+
+
+def _sanitize_with_regex(value: str) -> str:
+    value = re.sub(
+        r"<\s*(script|iframe|object|embed|style)[^>]*>.*?<\s*/\s*\1\s*>",
+        "",
+        value,
+        flags=re.I | re.S,
+    )
+    value = re.sub(r'\son\w+\s*=\s*([\'\"]).*?\1', "", value, flags=re.I | re.S)
+    value = re.sub(r"\son\w+\s*=\s*[^\s>]+", "", value, flags=re.I)
+    value = re.sub(r"javascript\s*:", "", value, flags=re.I)
+
+    def clean_style(match):
+        quote = match.group(1)
+        cleaned = _clean_style_value(match.group(2))
+        if not cleaned:
+            return ""
+        return f' style={quote}{cleaned}{quote}'
+
+    return re.sub(
+        r'\sstyle\s*=\s*([\'\"])(.*?)\1',
+        clean_style,
+        value,
+        flags=re.I | re.S,
+    )
+
+
 def _sanitize_html(value: str) -> str:
     """
     메뉴얼 본문에 필요한 제한된 HTML/CSS만 허용합니다.
     글자색/글자크기, 표 셀 폭·높이를 저장하기 위해 style 속성을 허용하되
-    bleach가 있으면 CSS 속성을 화이트리스트로 제한합니다.
+    CSS 속성은 화이트리스트로 제한합니다.
+
+    bleach → BeautifulSoup → 정규식 순서로 사용 가능한 방법을 선택합니다.
     """
     value = value or ""
-
-    allowed_css_properties = [
-        "color", "font-size",
-        "width", "height", "min-width", "max-width",
-        "text-align", "vertical-align",
-        "margin-left", "margin-right",
-        "table-layout",
-    ]
 
     try:
         import bleach  # type: ignore
         from bleach.css_sanitizer import CSSSanitizer  # type: ignore
 
-        allowed_tags = [
-            "p", "br", "strong", "b", "em", "i", "u", "s",
-            "h2", "h3", "h4", "ul", "ol", "li",
-            "table", "thead", "tbody", "tfoot", "tr", "th", "td",
-            "div", "span", "a", "figure", "figcaption", "img",
-            "blockquote", "code", "pre", "hr"
-        ]
-        allowed_attributes = {
-            "*": ["class", "style"],
-            "a": ["href", "title", "target", "rel", "class", "style"],
-            "img": ["src", "alt", "title", "data-filename", "class", "style"],
-            "figure": ["data-filename", "class", "style"],
-            "td": ["colspan", "rowspan", "class", "style"],
-            "th": ["colspan", "rowspan", "class", "style"],
-            "table": ["class", "style"],
-        }
-        css_sanitizer = CSSSanitizer(allowed_css_properties=allowed_css_properties)
+        css_sanitizer = CSSSanitizer(allowed_css_properties=ALLOWED_CSS_PROPERTIES)
         return bleach.clean(
             value,
-            tags=allowed_tags,
-            attributes=allowed_attributes,
+            tags=ALLOWED_TAGS,
+            attributes=ALLOWED_ATTRIBUTES,
             protocols=["http", "https"],
             css_sanitizer=css_sanitizer,
             strip=True,
         )
+    except ImportError:
+        pass
     except Exception:
-        # bleach가 없는 환경에서도 script/event/javascript URL은 제거합니다.
-        value = re.sub(
-            r"<\s*(script|iframe|object|embed|style)[^>]*>.*?<\s*/\s*\1\s*>",
-            "",
-            value,
-            flags=re.I | re.S,
-        )
-        value = re.sub(r'\son\w+\s*=\s*([\'\"]).*?\1', "", value, flags=re.I | re.S)
-        value = re.sub(r"\son\w+\s*=\s*[^\s>]+", "", value, flags=re.I)
-        value = re.sub(r"javascript\s*:", "", value, flags=re.I)
+        pass
 
-        # style 속성도 메뉴얼에 필요한 속성만 남깁니다.
-        safe_props = set(allowed_css_properties)
-
-        def clean_style(match):
-            quote = match.group(1)
-            raw = match.group(2)
-            cleaned = []
-            for item in raw.split(";"):
-                if ":" not in item:
-                    continue
-                prop, val = item.split(":", 1)
-                prop = prop.strip().lower()
-                val = val.strip()
-                low = val.lower()
-                if prop not in safe_props:
-                    continue
-                if any(bad in low for bad in ("url(", "expression", "javascript:", "behavior:", "<", ">")):
-                    continue
-                cleaned.append(f"{prop}:{val}")
-            if not cleaned:
-                return ""
-            return f' style={quote}{";".join(cleaned)}{quote}'
-
-        value = re.sub(
-            r'\sstyle\s*=\s*([\'\"])(.*?)\1',
-            clean_style,
-            value,
-            flags=re.I | re.S,
-        )
-        return value
+    try:
+        return _sanitize_with_bs4(value)
+    except Exception:
+        return _sanitize_with_regex(value)
 
 
 def _first_image_url(sections) -> str:
@@ -281,88 +356,124 @@ def _first_image_url(sections) -> str:
 
 
 # ---------------------------------------------------------------------
-# TXT parser
+# 외부파일 임포트 helpers
 # ---------------------------------------------------------------------
-def _text_lines_to_html(lines):
-    out = []
-    list_mode = None
+def _make_image_saver(manual_id: int):
+    """
+    임포트 파서가 문서 안의 이미지(데이터 URI, DOCX 내장 이미지)를
+    메뉴얼 폴더에 저장할 때 사용하는 콜백을 만듭니다.
+    저장된 파일 목록은 saver.saved 에 쌓이며 임포트 성공 후 DB에 등록합니다.
+    """
+    folder = _manual_root() / str(manual_id)
+    saved = []
 
-    def close_list():
-        nonlocal list_mode
-        if list_mode:
-            out.append(f"</{list_mode}>")
-            list_mode = None
+    def saver(raw: bytes, ext: str, original_name: str = "") -> str:
+        if not raw or len(raw) > MAX_IMAGE_BYTES:
+            return ""
+        clean_ext = str(ext or "").lower().lstrip(".")
+        if clean_ext in {"jpeg", "jpe", "jfif"}:
+            clean_ext = "jpg"
+        if clean_ext not in ALLOWED_IMAGE_EXTENSIONS:
+            return ""
 
-    for raw in lines:
-        line = raw.rstrip()
+        folder.mkdir(parents=True, exist_ok=True)
+        filename = f"{uuid.uuid4().hex}.{clean_ext}"
+        (folder / filename).write_bytes(raw)
+        saved.append((filename, str(original_name or filename)[:255]))
+        return url_for("manual.media", manual_id=manual_id, filename=filename)
 
-        if not line.strip():
-            close_list()
-            continue
-
-        if line.startswith("### "):
-            close_list()
-            out.append(f'<h3 class="sub">{html.escape(line[4:].strip())}</h3>')
-        elif line.startswith("- "):
-            if list_mode != "ul":
-                close_list()
-                list_mode = "ul"
-                out.append("<ul>")
-            out.append(f"<li>{html.escape(line[2:].strip())}</li>")
-        elif re.match(r"^\d+\.\s+", line):
-            if list_mode != "ol":
-                close_list()
-                list_mode = "ol"
-                out.append("<ol>")
-            item = re.sub(r"^\d+\.\s+", "", line)
-            out.append(f"<li>{html.escape(item.strip())}</li>")
-        else:
-            close_list()
-            out.append(f"<p>{html.escape(line.strip())}</p>")
-
-    close_list()
-    return "\n".join(out)
+    saver.saved = saved
+    return saver
 
 
-def _parse_txt(text: str):
-    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    title = ""
+def _register_imported_images(manual_id: int, saved) -> None:
+    if not saved:
+        return
+    now = _now()
+    with _connect() as conn:
+        conn.executemany(
+            """
+            INSERT INTO manual_images(manual_id, filename, original_name, created_at)
+            VALUES(?, ?, ?, ?)
+            """,
+            [(manual_id, filename, original, now) for filename, original in saved],
+        )
+
+
+def _discard_imported_images(manual_id: int, saved) -> None:
+    folder = _manual_root() / str(manual_id)
+    for filename, _original in saved:
+        path = folder / secure_filename(filename)
+        if path.exists():
+            path.unlink()
+
+
+def _read_import_file(file):
+    """업로드된 임포트 파일을 검증하고 (원본파일명, bytes)를 돌려줍니다."""
+    if not file or not file.filename:
+        return None, None, "등록할 파일을 선택해 주세요."
+
+    original = str(file.filename).replace("\\", "/").rsplit("/", 1)[-1].strip()
+    ext = file_extension(original)
+    if ext not in SUPPORTED_IMPORT_EXTENSIONS:
+        return None, None, "TXT, MD, HTML, DOCX 파일만 메뉴얼로 등록할 수 있습니다."
+
+    data = file.read(MAX_IMPORT_BYTES + 1)
+    if len(data) > MAX_IMPORT_BYTES:
+        return None, None, "메뉴얼 파일은 20MB 이하만 등록할 수 있습니다."
+    if not data:
+        return None, None, "파일 내용이 비어 있습니다."
+
+    return original, data, ""
+
+
+def _normalize_imported_sections(raw_sections):
+    """파서 결과를 저장 가능한 형태(제목 보정 + 살균)로 다듬습니다."""
     sections = []
-    current = None
-
-    for line in lines:
-        if line.startswith("# ") and not line.startswith("## "):
-            if not title:
-                title = line[2:].strip()
-            continue
-
-        if line.startswith("## "):
-            if current is not None:
-                current["content_html"] = _text_lines_to_html(current.pop("_lines"))
-                sections.append(current)
-            current = {
-                "title": line[3:].strip() or "제목 없음",
-                "description": "",
-                "_lines": [],
+    for idx, sec in enumerate(raw_sections or []):
+        title = str(sec.get("title") or "").strip()[:200] or f"{idx + 1}. 제목 없음"
+        sections.append(
+            {
+                "section_no": idx + 1,
+                "title": title,
+                "description": str(sec.get("description") or "").strip()[:1000],
+                "content_html": _sanitize_html(str(sec.get("content_html") or "")),
+                "sort_order": idx,
             }
-            continue
-
-        if current is None:
-            current = {"title": "내용", "description": "", "_lines": []}
-        current["_lines"].append(line)
-
-    if current is not None:
-        current["content_html"] = _text_lines_to_html(current.pop("_lines"))
-        sections.append(current)
-
-    sections = [s for s in sections if s["title"].strip() or s["content_html"].strip()]
+        )
     if not sections:
-        sections = [{"title": "내용", "description": "", "content_html": ""}]
+        sections = [
+            {
+                "section_no": 1,
+                "title": "1. 내용",
+                "description": "",
+                "content_html": "",
+                "sort_order": 0,
+            }
+        ]
+    return sections
 
-    return {
-        "title": title,
-        "sections": sections,
-    }
+
+def _replace_sections(conn, manual_id: int, sections) -> None:
+    conn.execute("DELETE FROM manual_sections WHERE manual_id = ?", (manual_id,))
+    conn.executemany(
+        """
+        INSERT INTO manual_sections(
+            manual_id, section_no, title, description, content_html, sort_order
+        ) VALUES(?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                manual_id,
+                sec["section_no"],
+                sec["title"],
+                sec["description"],
+                sec["content_html"],
+                sec["sort_order"],
+            )
+            for sec in sections
+        ],
+    )
 
 
 # ---------------------------------------------------------------------
@@ -386,7 +497,11 @@ def list_manuals():
             """
         ).fetchall()
     manuals = [_rowdict(r) for r in rows]
-    return render_template("manual/manual_list.html", manuals=manuals)
+    return render_template(
+        "manual/manual_list.html",
+        manuals=manuals,
+        import_accept=IMPORT_ACCEPT_ATTR,
+    )
 
 
 @manual_bp.get("/new")
@@ -423,6 +538,7 @@ def edit_manual(manual_id):
         manual=manual,
         sections=sections,
         manual_payload={"manual": manual, "sections": sections},
+        import_accept=IMPORT_ACCEPT_ATTR,
     )
 
 
@@ -497,25 +613,7 @@ def save_manual(manual_id):
             """,
             (title, description, now, manual_id),
         )
-        conn.execute("DELETE FROM manual_sections WHERE manual_id = ?", (manual_id,))
-        conn.executemany(
-            """
-            INSERT INTO manual_sections(
-                manual_id, section_no, title, description, content_html, sort_order
-            ) VALUES(?, ?, ?, ?, ?, ?)
-            """,
-            [
-                (
-                    manual_id,
-                    sec["section_no"],
-                    sec["title"],
-                    sec["description"],
-                    sec["content_html"],
-                    sec["sort_order"],
-                )
-                for sec in sections
-            ],
-        )
+        _replace_sections(conn, manual_id, sections)
 
     return jsonify(ok=True, message="임시저장되었습니다.", updated_at=now)
 
@@ -568,14 +666,18 @@ def unpublish_manual(manual_id):
 @manual_write_required
 def delete_manual(manual_id):
     _get_manual_or_404(manual_id)
+    _delete_manual_record(manual_id)
+    return jsonify(ok=True, message="메뉴얼이 삭제되었습니다.")
+
+
+def _delete_manual_record(manual_id: int) -> None:
+    """메뉴얼 행과 업로드 폴더를 함께 삭제합니다."""
     with _connect() as conn:
         conn.execute("DELETE FROM manuals WHERE id = ?", (manual_id,))
 
     folder = _manual_root() / str(manual_id)
     if folder.exists():
         shutil.rmtree(folder, ignore_errors=True)
-
-    return jsonify(ok=True, message="메뉴얼이 삭제되었습니다.")
 
 
 # ---------------------------------------------------------------------
@@ -807,32 +909,166 @@ def media(manual_id, filename):
 
 
 # ---------------------------------------------------------------------
-# TXT import
+# 외부파일(TXT/MD/HTML/DOCX)로 메뉴얼 등록
 # ---------------------------------------------------------------------
+@manual_bp.post("/api/import-file")
+@manual_write_required
+def import_file():
+    """
+    외부파일을 읽어 메뉴얼로 등록합니다.
+
+    manual_id 를 함께 보내면 해당 메뉴얼 편집 화면에 채워 넣을 목차를 돌려주고,
+    보내지 않으면 새 메뉴얼을 만들어 저장한 뒤 편집 화면 주소를 돌려줍니다.
+    """
+    original, data, error = _read_import_file(request.files.get("file"))
+    if error:
+        return jsonify(ok=False, message=error), 400
+
+    try:
+        target_id = int(request.form.get("manual_id") or 0)
+    except (TypeError, ValueError):
+        target_id = 0
+
+    created_new = False
+    now = _now()
+
+    if target_id > 0:
+        _get_manual_or_404(target_id)
+        manual_id = target_id
+    else:
+        with _connect() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO manuals(title, description, status, created_at, updated_at)
+                VALUES(?, '', 'draft', ?, ?)
+                """,
+                ("새 메뉴얼", now, now),
+            )
+            manual_id = cur.lastrowid
+        created_new = True
+
+    saver = _make_image_saver(manual_id)
+
+    try:
+        document = parse_manual_file(original, data, saver)
+    except ManualImportError as exc:
+        _discard_imported_images(manual_id, saver.saved)
+        if created_new:
+            _delete_manual_record(manual_id)
+        return jsonify(ok=False, message=str(exc)), 400
+    except Exception:
+        current_app.logger.exception("메뉴얼 파일 임포트 실패: %s", original)
+        _discard_imported_images(manual_id, saver.saved)
+        if created_new:
+            _delete_manual_record(manual_id)
+        return jsonify(ok=False, message="파일을 읽는 중 오류가 발생했습니다. 파일 형식을 확인해 주세요."), 400
+
+    sections = _normalize_imported_sections(document.get("sections"))
+    title = str(document.get("title") or "").strip()[:200] or "새 메뉴얼"
+    description = str(document.get("description") or "").strip()[:1000]
+
+    _register_imported_images(manual_id, saver.saved)
+
+    if not created_new:
+        # 편집 화면에서 불러오기: 저장은 사용자가 [임시저장]을 누를 때 진행합니다.
+        return jsonify(
+            ok=True,
+            manual_id=manual_id,
+            title=title,
+            description=description,
+            image_count=len(saver.saved),
+            sections=[
+                {
+                    "title": sec["title"],
+                    "description": sec["description"],
+                    "content_html": sec["content_html"],
+                }
+                for sec in sections
+            ],
+        )
+
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE manuals SET title = ?, description = ?, updated_at = ? WHERE id = ?",
+            (title, description, _now(), manual_id),
+        )
+        _replace_sections(conn, manual_id, sections)
+
+    return jsonify(
+        ok=True,
+        manual_id=manual_id,
+        title=title,
+        description=description,
+        section_count=len(sections),
+        image_count=len(saver.saved),
+        edit_url=url_for("manual.edit_manual", manual_id=manual_id),
+        message=f"'{title}' 메뉴얼을 등록했습니다.",
+    )
+
+
 @manual_bp.post("/api/upload-txt")
 @manual_write_required
 def upload_txt():
+    """이전 버전 호환용 엔드포인트. TXT 내용을 목차 구조로만 변환해 돌려줍니다."""
     file = request.files.get("file")
     if not file or not file.filename:
         return jsonify(ok=False, message="TXT 파일을 선택해 주세요."), 400
 
-    if not file.filename.lower().endswith(".txt"):
+    if file_extension(file.filename) not in ("txt", "md", "markdown"):
         return jsonify(ok=False, message=".txt 파일만 불러올 수 있습니다."), 400
 
     data = file.read(MAX_TXT_BYTES + 1)
     if len(data) > MAX_TXT_BYTES:
         return jsonify(ok=False, message="TXT 파일은 2MB 이하만 불러올 수 있습니다."), 400
 
-    text = None
-    for enc in ("utf-8-sig", "utf-8", "cp949", "euc-kr"):
-        try:
-            text = data.decode(enc)
-            break
-        except UnicodeDecodeError:
-            pass
+    try:
+        from routes.manual_import import decode_text
 
-    if text is None:
-        return jsonify(ok=False, message="TXT 파일의 문자 인코딩을 읽을 수 없습니다."), 400
+        parsed = parse_markdown(decode_text(data))
+    except ManualImportError as exc:
+        return jsonify(ok=False, message=str(exc)), 400
 
-    parsed = _parse_txt(text)
+    parsed["sections"] = [
+        {
+            "title": sec["title"],
+            "description": sec["description"],
+            "content_html": _sanitize_html(sec["content_html"]),
+        }
+        for sec in parsed["sections"]
+    ]
     return jsonify(ok=True, **parsed)
+
+
+@manual_bp.get("/<int:manual_id>/export.md")
+def export_markdown(manual_id):
+    """메뉴얼을 다시 등록할 수 있는 .md 파일로 내려받습니다."""
+    manual = _get_manual_or_404(manual_id)
+    sections = _get_sections(manual_id)
+
+    text = manual_to_markdown(manual, sections)
+
+    safe_title = re.sub(r'[\\/:*?"<>|]', "_", str(manual.get("title") or "메뉴얼")).strip() or "메뉴얼"
+    filename = f"{safe_title[:80]}.md"
+    quoted = quote(filename)
+
+    return Response(
+        text.encode("utf-8-sig"),
+        mimetype="text/markdown; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quoted}",
+        },
+    )
+
+
+@manual_bp.get("/sample-format")
+def sample_format():
+    """메뉴얼 파일 작성 양식(.md) 내려받기."""
+    filename = "새담메뉴얼_작성양식.md"
+    quoted = quote(filename)
+    return Response(
+        SAMPLE_MARKDOWN.encode("utf-8-sig"),
+        mimetype="text/markdown; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quoted}",
+        },
+    )

@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import secrets
+import shutil
 from datetime import date, datetime
 
 from .storage import (
@@ -512,6 +513,44 @@ def migrate_legacy_certificates(conn):
             updated_at=CURRENT_TIMESTAMP
     ''', (migration_key, f'imported:{inserted_count}'))
     return inserted_count
+
+
+def purge_legacy_contract_system(conn):
+    """구 전자계약(사내결재 > 전자계약관리) 메뉴의 잔여 데이터를 1회 제거한다.
+
+    메뉴와 코드는 삭제했지만 Render Persistent Disk에는 계약 레코드와 이미
+    만들어진 PDF가 그대로 남는다. 배포 후 첫 기동에서 한 번만 정리하고
+    admin_settings 플래그를 남겨 이후 기동에서는 건너뛴다.
+    """
+    done = conn.execute(
+        "SELECT 1 FROM admin_settings WHERE key='legacy_contract_purged_v1'"
+    ).fetchone()
+    if done:
+        return
+
+    try:
+        removed_rows = int(conn.execute("SELECT COUNT(*) FROM contracts").fetchone()[0])
+    except sqlite3.Error:
+        removed_rows = 0
+
+    conn.execute("DROP INDEX IF EXISTS idx_contracts_name_ssn")
+    conn.execute("DROP INDEX IF EXISTS idx_contracts_completed")
+    conn.execute("DROP TABLE IF EXISTS contracts")
+    conn.execute("DROP TABLE IF EXISTS contracts_legacy_in_main")
+    conn.execute("DELETE FROM menu_access_permissions WHERE menu_key='contract_admin'")
+    conn.execute("DELETE FROM admin_settings WHERE key='contracts_db_merge_v1'")
+
+    contract_pdf_root = DATA_ROOT / 'contracts'
+    removed_files = 0
+    if contract_pdf_root.is_dir():
+        removed_files = sum(1 for item in contract_pdf_root.rglob('*') if item.is_file())
+        shutil.rmtree(contract_pdf_root, ignore_errors=True)
+
+    conn.execute('''
+        INSERT INTO admin_settings (key, value, updated_at)
+        VALUES ('legacy_contract_purged_v1', ?, CURRENT_TIMESTAMP)
+    ''', (f"rows:{removed_rows},files:{removed_files}",))
+    print(f"[정리] 구 전자계약 데이터 제거: 레코드 {removed_rows}건, PDF {removed_files}개")
 
 
 def init_db():
@@ -1592,10 +1631,9 @@ def init_db():
         ''')
 
     migrate_legacy_certificates(conn)
-    from .contract_repository import ensure_contract_schema_and_migrate
-    contract_count = ensure_contract_schema_and_migrate(conn)
     from .verified_contract_repository import ensure_verified_contract_schema
     ensure_verified_contract_schema(conn)
+    purge_legacy_contract_system(conn)
 
     tabs_count = c.execute("SELECT count(*) FROM gallery_tabs").fetchone()[0]
     if tabs_count == 0:
@@ -1607,9 +1645,6 @@ def init_db():
 
     conn.commit()
     conn.close()
-    if contract_count:
-        from .contract_repository import archive_legacy_contract_database
-        archive_legacy_contract_database()
     print("DATABASE INITIALIZED SUCCESSFULLY")
 
 if __name__ == "__main__":

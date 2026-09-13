@@ -133,13 +133,22 @@ def clear_certificate_form_password():
         session.pop(session_key, None)
 
 
-def certificate_form_template_context(workgroup=None, company=None):
+def certificate_form_template_context(
+    workgroup=None, company=None, force_standalone=False,
+):
+    """증명서 신청 폼의 레이아웃 정보를 만든다.
+
+    force_standalone=True 면 사내 사용자로 로그인한 상태여도 인트라넷 테마를
+    입히지 않고 외부 신청자와 똑같은 독립 화면으로 보여준다.
+    """
     is_intranet_user = bool(session.get("emp_no"))
     try:
         user_level = int(session.get("user_level", 99))
     except (TypeError, ValueError):
         user_level = 99
-    use_intranet_layout = is_intranet_user and user_level <= 5
+    use_intranet_layout = (
+        not force_standalone and is_intranet_user and user_level <= 5
+    )
     return {
         "certificate_layout": (
             "base.html"
@@ -651,7 +660,10 @@ def apply_excellent(token):
     return render_template(
         'certificate/excellent_form.html',
         lookup_url=url_for('document.lookup_excellent_instructor', token=token),
-        **certificate_form_template_context(workgroup, company),
+        # 우수강사인증서 신청은 외부인이 쓰는 화면이라 사내 테마를 입히지 않는다.
+        **certificate_form_template_context(
+            workgroup, company, force_standalone=True,
+        ),
     )
 
 

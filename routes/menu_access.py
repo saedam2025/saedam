@@ -68,7 +68,6 @@ MENU_GROUPS = (
         'default_max_level': 14,
         'children': (
             ('approval_main', '사내결재', 'fa-file-signature', 14),
-            ('contract_admin', '전자계약관리', 'fa-file-contract', 2),
             ('verified_contract_admin', '인증전자계약관리', 'fa-file-signature', 2),
             ('document_admin', '증명서 발급관리', 'fa-file-invoice', 14),
             ('expense_main', '지출결의 관리', 'fa-receipt', 14),
@@ -84,6 +83,7 @@ MENU_GROUPS = (
             ('school_tasks', '학교업무처리', 'fa-list-check', 14),
             ('school_calendar', '학교일정표', 'fa-calendar-week', 14),
             ('school_survey', '설문조사', 'fa-square-poll-vertical', 14),
+            ('school_billing', '청구업무', 'fa-file-invoice-dollar', 5),
             ('school_center_boards', '[센터장] 일반 게시판 (9개 메뉴 일괄)', 'fa-table-list', 14),
             ('school_center_shared', '[센터장] 본부공지사항·자료실 - 접근', 'fa-door-open', 8),
             ('school_center_shared_read', '[센터장] 본부공지사항·자료실 - 읽기', 'fa-book-open', 8),
@@ -130,6 +130,7 @@ MENU_GROUPS = (
             ('contacts_main', '본사연락망', 'fa-address-book', 14),
             ('attendance_main', '근태관리', 'fa-clock-rotate-left', 14),
             ('interview_main', '면접관리', 'fa-user-check', 4),
+            ('event_admin', '이벤트관리', 'fa-gift', 2),
             ('organization_invite', '가입초대메일발송', 'fa-paper-plane', 2),
         ),
     },
@@ -459,8 +460,6 @@ def resolve_request_menu(path, endpoint='', view_args=None):
         }:
             return 'organization_invite'
         return 'admin_people'
-    if path.startswith('/contract/admin'):
-        return 'contract_admin'
     if path.startswith('/verified-contract/admin'):
         return 'verified_contract_admin'
     if path.startswith('/document/admin/settings') or path.startswith('/document/api/') \
@@ -484,6 +483,11 @@ def resolve_request_menu(path, endpoint='', view_args=None):
         return None
     if path.startswith('/survey'):
         return 'school_survey'
+    # 학교회원 포털은 인트라넷 계정이 아닌 별도 로그인으로 보호한다.
+    if path == '/portal' or path.startswith('/portal/'):
+        return None
+    if path == '/billing' or path.startswith('/billing/'):
+        return 'school_billing'
     if path.startswith('/school/tasks'):
         return 'school_tasks'
     if path.startswith('/school/calendar'):
@@ -505,6 +509,8 @@ def resolve_request_menu(path, endpoint='', view_args=None):
         return 'ai_agent_main'
     if path.startswith('/excel-generator'):
         return 'excel_generator'
+    if path.startswith('/event-admin'):
+        return 'event_admin'
     if path.startswith('/attendance') or path.startswith('/api/attendance'):
         return 'attendance_main'
     # 면접자 사전질문지는 로그인 없는 공개 링크이므로 메뉴 권한 검사에서 제외한다.

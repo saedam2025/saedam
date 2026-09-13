@@ -32,7 +32,7 @@ def widget_notifications():
     expense_wait_count = 0
     school_task_wait_count = 0
     cert_wait_count = 0      # 증명서 대기
-    contract_miss_count = 0  # 전자계약 미계약
+    contract_miss_count = 0  # 인증전자계약 미완료
     
     # 1. 결재 및 쪽지, 학교업무 (SQLite DB 조회)
     try:
@@ -78,17 +78,17 @@ def widget_notifications():
     finally:
         conn.close()
 
-    # 2. 전자계약 미계약 건수 (saedam.db 통합 테이블)
+    # 2. 인증전자계약 미완료 건수 (saedam.db 통합 테이블)
     try:
         c_conn = get_db()
         c_row = c_conn.execute(
-            'SELECT COUNT(*) FROM contracts '
-            'WHERE "계약완료일시" = \'\' OR "계약완료일시" IS NULL'
+            "SELECT COUNT(*) FROM verified_contracts "
+            "WHERE LOWER(COALESCE(status,'')) NOT IN ('completed','signed')"
         ).fetchone()
         contract_miss_count = c_row[0] if c_row else 0
         c_conn.close()
     except Exception as e:
-        print("전자계약 DB 조회 오류:", e)
+        print("인증전자계약 DB 조회 오류:", e)
 
     notification_data = {
         'approval_vacation': approval_pending_count,

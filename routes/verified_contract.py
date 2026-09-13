@@ -200,6 +200,8 @@ AGREEMENTS = (
 )
 
 DEFAULTS_ROOT = APP_ROOT / "verified_contract_defaults"
+# 구 전자계약 메뉴가 제거된 뒤에도 신규 배포가 기본 계약양식을 확보할 수 있게 한다.
+BUNDLED_TERMS_ROOT = APP_ROOT / "terms"
 VERIFIED_CATEGORIES_FILE = VERIFIED_CONTRACT_ROOT / "categories.json"
 VERIFIED_TITLES_FILE = VERIFIED_CONTRACT_ROOT / "contract_titles.json"
 VERIFIED_COMPANY_FILE = VERIFIED_CONTRACT_ROOT / "company_settings.json"
@@ -347,6 +349,8 @@ def _bootstrap_verified_storage() -> None:
             source = TERMS_ROOT / filename
             if not source.is_file():
                 source = default_terms / filename
+            if not source.is_file():
+                source = BUNDLED_TERMS_ROOT / filename
             _copy_if_missing(source, target)
 
     if not VERIFIED_CATEGORIES_FILE.exists():

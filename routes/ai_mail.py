@@ -709,7 +709,7 @@ def import_recipients(group_id):
     conn = _db()
     try:
         if not _owned_group(conn, group_id):
-            return _error('작업그룹을 찾을 수문을 수 없습니다.', 404, code='GROUP_NOT_FOUND')
+            return _error('작업그룹을 찾을 수 없습니다.', 404, code='GROUP_NOT_FOUND')
         conn.execute('BEGIN IMMEDIATE')
         existing_rows = conn.execute('SELECT email FROM ai_mail_recipients WHERE group_id=?', (group_id,)).fetchall()
         existing = {row['email'].lower() for row in existing_rows}
@@ -1807,7 +1807,7 @@ def add_campaign_attachments(campaign_id):
     try:
         campaign = _owned_campaign(conn, campaign_id)
         if not campaign:
-            return _error('발송작업을 찾을 수문을 수 없습니다.', 404, code='CAMPAIGN_NOT_FOUND')
+            return _error('발송작업을 찾을 수 없습니다.', 404, code='CAMPAIGN_NOT_FOUND')
         if campaign['status'] != 'staged':
             return _error('발송 전 임시 저장 상태에서만 첨부파일을 추가할 수 있습니다.', 409, code='CAMPAIGN_LOCKED')
         conn.execute('BEGIN IMMEDIATE')
@@ -2522,16 +2522,19 @@ def _send_campaign_worker(app, campaign_id, cancel_event=None):
                         conn.execute("UPDATE ai_mail_campaign_recipients SET status='failed', error_message=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (error_msg, recipient['id']))
                         failed_count += 1
 
-                finally:
-                    processed_count += 1
-                    conn.execute('''
-                        UPDATE ai_mail_campaigns 
-                        SET processed_count=?, sent_count=?, failed_count=?, cancelled_count=?, updated_at=CURRENT_TIMESTAMP
-                        WHERE id=?
-                    ''', (processed_count, sent_count, failed_count, cancelled_count, campaign_id))
-                    conn.commit()
-                    if cancel_event.wait(float(campaign['send_interval'] or 1.0)):
-                        break
+                # 진행상황 저장과 발송 간격 대기는 try/except 밖에서 처리한다.
+                # finally 안에서 break 하면 그 시점에 올라가던 예외가 조용히 사라져
+                # 발송 실패가 기록되지 않은 채 루프만 끝나 버린다.
+                processed_count += 1
+                conn.execute('''
+                    UPDATE ai_mail_campaigns
+                    SET processed_count=?, sent_count=?, failed_count=?, cancelled_count=?, updated_at=CURRENT_TIMESTAMP
+                    WHERE id=?
+                ''', (processed_count, sent_count, failed_count, cancelled_count, campaign_id))
+                conn.commit()
+
+                if cancel_event.wait(float(campaign['send_interval'] or 1.0)):
+                    break
 
             if server:
                 try:
