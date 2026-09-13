@@ -9,9 +9,14 @@
       <h1>새담메뉴얼</h1>
       <p>업무 메뉴얼을 한 곳에서 작성하고 열람할 수 있습니다.</p>
     </div>
-    <a class="manual-btn manual-btn-primary" href="{{ url_for('manual.new_manual') }}">
-      <span aria-hidden="true">＋</span> 메뉴얼 작성
-    </a>
+    <div class="manual-library-head-actions">
+      <button class="manual-btn manual-btn-light" type="button" id="manualImportOpenBtn">
+        <span aria-hidden="true">⬆</span> 파일로 등록
+      </button>
+      <a class="manual-btn manual-btn-primary" href="{{ url_for('manual.new_manual') }}">
+        <span aria-hidden="true">＋</span> 메뉴얼 작성
+      </a>
+    </div>
   </div>
 
   <div class="manual-library-tools">
@@ -57,6 +62,12 @@
       <div class="manual-card-actions">
         <a href="{{ url_for('manual.edit_manual', manual_id=item.id) }}">수정</a>
         <a href="{{ url_for('manual.preview_manual', manual_id=item.id) }}">미리보기</a>
+        <a href="{{ url_for('manual.export_markdown', manual_id=item.id) }}"
+           download title="이 메뉴얼을 MD 파일로 내려받습니다.">MD 저장</a>
+        <button type="button"
+                class="manual-card-delete"
+                data-delete-url="{{ url_for('manual.delete_manual', manual_id=item.id) }}"
+                data-title="{{ item.title }}">삭제</button>
       </div>
     </article>
     {% endfor %}
@@ -70,9 +81,56 @@
     <div class="manual-empty-icon">☰</div>
     <h2>아직 등록된 메뉴얼이 없습니다.</h2>
     <p>첫 번째 업무 메뉴얼을 작성해 보세요.</p>
-    <a class="manual-btn manual-btn-primary" href="{{ url_for('manual.new_manual') }}">메뉴얼 작성</a>
+    <div class="manual-empty-actions">
+      <a class="manual-btn manual-btn-primary" href="{{ url_for('manual.new_manual') }}">메뉴얼 작성</a>
+      <button class="manual-btn manual-btn-light" type="button" data-open-import>파일로 등록</button>
+    </div>
   </div>
   {% endif %}
+</div>
+
+<div class="manual-modal" id="manualImportModal" hidden>
+  <div class="manual-modal-backdrop" data-close-import></div>
+  <div class="manual-modal-panel" role="dialog" aria-modal="true" aria-labelledby="manualImportTitle">
+    <header class="manual-modal-head">
+      <div>
+        <h2 id="manualImportTitle">외부파일로 메뉴얼 등록</h2>
+        <p>작성해 둔 메뉴얼 파일을 올리면 목차별로 나누어 등록합니다.</p>
+      </div>
+      <button type="button" class="manual-modal-close" data-close-import aria-label="닫기">×</button>
+    </header>
+
+    <label class="manual-dropzone" id="manualDropzone" for="manualImportInput">
+      <span class="manual-dropzone-icon" aria-hidden="true">⬆</span>
+      <strong>파일을 끌어다 놓거나 클릭하여 선택하세요</strong>
+      <small>TXT · MD · HTML · DOCX / 20MB 이하</small>
+      <input id="manualImportInput" type="file" accept="{{ import_accept }}" hidden>
+    </label>
+
+    <div class="manual-import-file" id="manualImportFile" hidden>
+      <span class="name"></span>
+      <button type="button" class="manual-import-file-clear" aria-label="선택 취소">×</button>
+    </div>
+
+    <details class="manual-import-guide">
+      <summary>파일 작성 규칙 보기</summary>
+      <ul>
+        <li><code>#&nbsp;제목</code> → 메뉴얼 제목 (HTML은 <code>&lt;h1&gt;</code>, DOCX는 제목1 스타일)</li>
+        <li><code>##&nbsp;제목</code> → 목차 한 개 (HTML은 <code>&lt;h2&gt;</code>, DOCX는 제목2 스타일)</li>
+        <li><code>:&nbsp;설명</code> → 바로 위 제목의 한 줄 설명</li>
+        <li><code>###&nbsp;제목</code> · 목록 · 표 · <code>&gt; [!주의]</code> 안내상자 사용 가능</li>
+        <li>HTML 안의 이미지와 DOCX에 삽입된 이미지는 자동으로 함께 등록됩니다.</li>
+      </ul>
+      <a class="manual-import-sample" href="{{ url_for('manual.sample_format') }}">작성 양식 파일 내려받기</a>
+    </details>
+
+    <p class="manual-import-status" id="manualImportStatus" hidden></p>
+
+    <footer class="manual-modal-foot">
+      <button type="button" class="manual-btn manual-btn-light" data-close-import>취소</button>
+      <button type="button" class="manual-btn manual-btn-primary" id="manualImportSubmit" disabled>등록하기</button>
+    </footer>
+  </div>
 </div>
 
 <script>
@@ -80,17 +138,138 @@
   const input = document.getElementById('manualSearch');
   const cards = [...document.querySelectorAll('.manual-card')];
   const empty = document.getElementById('manualSearchEmpty');
-  if (!input) return;
 
-  input.addEventListener('input', () => {
-    const q = input.value.trim().toLowerCase();
-    let visible = 0;
-    cards.forEach(card => {
-      const show = !q || card.dataset.title.includes(q);
-      card.hidden = !show;
-      if (show) visible++;
+  if (input){
+    input.addEventListener('input', () => {
+      const q = input.value.trim().toLowerCase();
+      let visible = 0;
+      cards.forEach(card => {
+        const show = !q || card.dataset.title.includes(q);
+        card.hidden = !show;
+        if (show) visible++;
+      });
+      if (empty) empty.hidden = visible !== 0;
     });
-    if (empty) empty.hidden = visible !== 0;
+  }
+
+  // 목록에서 바로 삭제
+  document.querySelectorAll('.manual-card-delete').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const title = btn.dataset.title || '이 메뉴얼';
+      if (!confirm(`'${title}' 메뉴얼을 삭제할까요?\n작성 내용과 등록된 이미지도 함께 삭제되며 되돌릴 수 없습니다.`)) return;
+
+      btn.disabled = true;
+      try{
+        const res = await fetch(btn.dataset.deleteUrl, {method:'POST'});
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.message || '삭제하지 못했습니다.');
+        window.location.reload();
+      }catch(err){
+        btn.disabled = false;
+        alert(err.message);
+      }
+    });
+  });
+})();
+
+(() => {
+  const IMPORT_URL = {{ url_for('manual.import_file')|tojson }};
+  const modal = document.getElementById('manualImportModal');
+  if (!modal) return;
+
+  const fileInput = document.getElementById('manualImportInput');
+  const dropzone = document.getElementById('manualDropzone');
+  const fileBox = document.getElementById('manualImportFile');
+  const fileName = fileBox.querySelector('.name');
+  const clearBtn = fileBox.querySelector('.manual-import-file-clear');
+  const submitBtn = document.getElementById('manualImportSubmit');
+  const status = document.getElementById('manualImportStatus');
+
+  let selected = null;
+  let busy = false;
+
+  function setStatus(message, isError=false){
+    status.textContent = message || '';
+    status.hidden = !message;
+    status.classList.toggle('error', !!isError);
+  }
+
+  function setFile(file){
+    selected = file || null;
+    fileBox.hidden = !selected;
+    fileName.textContent = selected ? selected.name : '';
+    submitBtn.disabled = !selected || busy;
+    setStatus('');
+  }
+
+  function openModal(){
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal(){
+    if (busy) return;
+    modal.hidden = true;
+    document.body.style.overflow = '';
+    fileInput.value = '';
+    setFile(null);
+  }
+
+  document.getElementById('manualImportOpenBtn')?.addEventListener('click', openModal);
+  document.querySelectorAll('[data-open-import]').forEach(btn => {
+    btn.addEventListener('click', openModal);
+  });
+  modal.querySelectorAll('[data-close-import]').forEach(btn => {
+    btn.addEventListener('click', closeModal);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !modal.hidden) closeModal();
+  });
+
+  fileInput.addEventListener('change', () => setFile(fileInput.files?.[0] || null));
+  clearBtn.addEventListener('click', () => {
+    fileInput.value = '';
+    setFile(null);
+  });
+
+  ['dragenter','dragover'].forEach(type => {
+    dropzone.addEventListener(type, e => {
+      e.preventDefault();
+      dropzone.classList.add('is-over');
+    });
+  });
+  ['dragleave','drop'].forEach(type => {
+    dropzone.addEventListener(type, e => {
+      e.preventDefault();
+      dropzone.classList.remove('is-over');
+    });
+  });
+  dropzone.addEventListener('drop', e => {
+    const file = e.dataTransfer?.files?.[0];
+    if (file) setFile(file);
+  });
+
+  submitBtn.addEventListener('click', async () => {
+    if (!selected || busy) return;
+    busy = true;
+    submitBtn.disabled = true;
+    setStatus('파일을 읽고 메뉴얼을 만들고 있습니다.');
+
+    const form = new FormData();
+    form.append('file', selected);
+
+    try{
+      const res = await fetch(IMPORT_URL, {method:'POST', body:form});
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.message || '메뉴얼 등록에 실패했습니다.');
+
+      setStatus(`목차 ${data.section_count}개, 이미지 ${data.image_count}개를 등록했습니다. 편집 화면으로 이동합니다.`);
+      window.location.href = data.edit_url;
+    }catch(err){
+      busy = false;
+      submitBtn.disabled = false;
+      setStatus(err.message, true);
+    }
   });
 })();
 </script>

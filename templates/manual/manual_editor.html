@@ -14,8 +14,11 @@
     </div>
 
     <div class="manual-editor-actions">
-      <label class="manual-btn manual-btn-light" for="txtImportInput">TXT 불러오기</label>
-      <input id="txtImportInput" type="file" accept=".txt,text/plain" hidden>
+      <label class="manual-btn manual-btn-light" for="txtImportInput" title="TXT · MD · HTML · DOCX 파일의 내용을 이 메뉴얼로 불러옵니다.">파일 불러오기</label>
+      <input id="txtImportInput" type="file" accept="{{ import_accept }}" hidden>
+      <a class="manual-btn manual-btn-light"
+         href="{{ url_for('manual.export_markdown', manual_id=manual.id) }}"
+         download title="지금 저장된 내용을 MD 파일로 내려받습니다.">MD 내보내기</a>
       <button class="manual-btn manual-btn-light" type="button" id="saveBtn">임시저장</button>
       <button class="manual-btn manual-btn-light" type="button" id="previewBtn">미리보기</button>
       <button class="manual-btn manual-btn-primary" type="button" id="publishBtn">작성완료</button>
@@ -184,7 +187,9 @@ window.SAEDAM_MANUAL_EDITOR = {
   deleteImageUrl: {{ url_for('manual.delete_image')|tojson }},
   uploadThumbnailUrl: {{ url_for('manual.upload_thumbnail')|tojson }},
   deleteThumbnailUrl: {{ url_for('manual.delete_thumbnail')|tojson }},
-  uploadTxtUrl: {{ url_for('manual.upload_txt')|tojson }}
+  uploadTxtUrl: {{ url_for('manual.upload_txt')|tojson }},
+  importFileUrl: {{ url_for('manual.import_file')|tojson }},
+  sampleFormatUrl: {{ url_for('manual.sample_format')|tojson }}
 };
 </script>
 <script src="{{ url_for('static', filename='js/manual_editor.js') }}"></script>
