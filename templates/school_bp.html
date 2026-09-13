@@ -1672,6 +1672,184 @@
 <footer class="school-page-copyright">Copyright © 2026 Saedam Youth Education &amp; Culture Center. All Rights Reserved.</footer>
 {% endif %}
 
+{% if view_type == 'detail' and center_event %}
+<style>
+    /* === 센터장 전용 업무공간 · 오른쪽 이벤트 탭 === */
+    .ev-dock{position:fixed;right:0;top:140px;z-index:940;display:flex;align-items:flex-start;
+        transform:translateX(calc(100% - 62px));transition:transform .34s cubic-bezier(.2,.9,.3,1)}
+    .ev-dock.open{transform:translateX(0)}
+    .ev-dock-tab{position:relative;z-index:2;flex:0 0 62px;width:62px;min-height:132px;
+        margin:30px -1px 0 0;padding:12px 0 14px;border:0;cursor:pointer;border-radius:22px 0 0 22px;
+        background:linear-gradient(90deg,#ffdcef 0%,#ffeedd 44%,#f2ecff 78%,#fff7f4 100%);
+        box-shadow:-8px 0 20px -6px rgba(214,140,180,.42);display:flex;flex-direction:column;align-items:center;
+        justify-content:center;gap:6px;font-family:inherit;transition:filter .18s}
+    .ev-dock-tab:hover{filter:brightness(1.03) saturate(1.06)}
+    .ev-dock-tab img{width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 3px 5px rgba(240,170,60,.45));
+        animation:evStarPop 2.4s ease-in-out infinite}
+    .ev-dock.open .ev-dock-tab img{animation-play-state:paused}
+    .ev-dock-tab span.ev-dock-text{writing-mode:vertical-rl;text-orientation:upright;letter-spacing:.16em;
+        font-size:.72rem;font-weight:800;color:#b4557f}
+    @keyframes evStarPop{0%,100%{transform:scale(1) rotate(0)}18%{transform:scale(1.18) rotate(-12deg)}
+        36%{transform:scale(1) rotate(9deg)}54%{transform:scale(1.1) rotate(0)}}
+    .ev-dock-badge{position:absolute;top:9px;right:9px;width:9px;height:9px;border-radius:50%;
+        background:#ff5d8f;box-shadow:0 0 0 0 rgba(255,93,143,.6);animation:evPing 1.8s ease-out infinite}
+    .ev-dock.open .ev-dock-badge{display:none}
+    @keyframes evPing{0%{box-shadow:0 0 0 0 rgba(255,93,143,.55)}70%{box-shadow:0 0 0 11px rgba(255,93,143,0)}
+        100%{box-shadow:0 0 0 0 rgba(255,93,143,0)}}
+
+    .ev-panel{position:relative;flex:0 0 266px;width:266px;box-sizing:border-box;padding:20px 18px 18px;
+        border-radius:22px 0 0 22px;overflow:hidden;text-align:center;border:0;
+        background:linear-gradient(90deg,#fff7f4 0px,rgba(255,247,244,0) 44px),
+            linear-gradient(170deg,#fff8fb 0%,#fff3e6 46%,#f2eeff 100%);
+        box-shadow:-14px 0 36px -12px rgba(150,110,170,.3)}
+    .ev-panel::before,.ev-panel::after{content:'';position:absolute;border-radius:50%;pointer-events:none}
+    .ev-panel::before{width:140px;height:140px;top:-58px;right:-46px;background:rgba(255,197,221,.45)}
+    .ev-panel::after{width:110px;height:110px;bottom:-46px;left:-40px;background:rgba(198,222,255,.45)}
+    .ev-panel>*{position:relative;z-index:1}
+    .ev-close{position:absolute;top:10px;right:12px;z-index:2;border:0;background:rgba(255,255,255,.7);
+        width:24px;height:24px;border-radius:50%;color:#b0789a;cursor:pointer;font-size:.8rem;line-height:1}
+    .ev-close:hover{background:#fff}
+    .ev-eyebrow{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
+        background:rgba(255,255,255,.78);color:#e0759e;font-size:.64rem;font-weight:800;letter-spacing:.06em}
+    .ev-title{margin:11px 0 6px;font-size:1.02rem;font-weight:900;line-height:1.4;letter-spacing:-.02em;
+        color:#8e4a70;word-break:keep-all}
+    .ev-period{margin:0 0 13px;font-size:.65rem;font-weight:800;color:#bb96ad;letter-spacing:.01em}
+
+    .ev-ticket{position:relative;padding:15px 12px 13px;border-radius:18px;background:#fff;
+        box-shadow:0 8px 20px rgba(206,150,180,.2);border:2px dashed #ffc9dd}
+    .ev-ticket-label{font-size:.63rem;font-weight:800;letter-spacing:.14em;color:#c98bab}
+    .ev-number{display:flex;align-items:baseline;justify-content:center;gap:3px;margin-top:5px;
+        font-weight:900;line-height:1;color:#ff5d8f}
+    .ev-number b{font-size:2.7rem;letter-spacing:.02em;
+        background:linear-gradient(180deg,#ff7fa8,#f0568c);-webkit-background-clip:text;background-clip:text;
+        -webkit-text-fill-color:transparent}
+    .ev-number i{font-style:normal;font-size:.95rem;font-weight:800;color:#e0759e}
+    .ev-number.pop{animation:evNumPop .5s cubic-bezier(.2,1.4,.4,1)}
+    @keyframes evNumPop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
+
+    /* 응모 전 안내 + 응모 버튼 */
+    .ev-enter-box{padding:16px 12px 15px;border-radius:18px;background:#fff;
+        box-shadow:0 8px 20px rgba(206,150,180,.2);border:2px dashed #ffc9dd}
+    .ev-enter-box p{margin:0 0 11px;font-size:.7rem;font-weight:800;color:#c98bab;line-height:1.6}
+    .ev-enter-btn{width:100%;border:0;border-radius:13px;padding:12px 10px;cursor:pointer;font-family:inherit;
+        font-size:.86rem;font-weight:900;color:#fff;letter-spacing:.02em;
+        background:linear-gradient(135deg,#ffa2c4,#ff5d8f 58%,#c982e8);
+        box-shadow:0 9px 20px rgba(255,120,165,.36);transition:filter .16s,transform .16s}
+    .ev-enter-btn:hover{filter:brightness(1.05);transform:translateY(-1px)}
+    .ev-enter-btn:disabled{opacity:.62;cursor:progress;transform:none}
+    .ev-enter-btn i{margin-right:5px}
+
+    .ev-desc{margin-top:14px;font-size:.76rem;line-height:1.72;font-weight:700;color:#7c6a86;word-break:keep-all;
+        white-space:pre-line}
+    .ev-hint{margin-top:13px;padding-top:11px;border-top:1px dashed rgba(190,150,180,.45);
+        font-size:.63rem;color:#a695b0;line-height:1.6}
+    .ev-err{margin-top:10px;font-size:.7rem;font-weight:700;color:#d4506f}
+    @media(max-width:640px){
+        .ev-dock{top:auto;bottom:96px;transform:translateX(calc(100% - 54px))}
+        .ev-dock-tab{flex:0 0 54px;width:54px;min-height:112px;margin-top:26px;border-radius:20px 0 0 20px}
+        .ev-dock-tab img{width:28px;height:28px}
+        .ev-panel{flex:0 0 232px;width:232px}
+    }
+</style>
+
+<div class="ev-dock" id="evDock">
+    <button type="button" class="ev-dock-tab" id="evDockTab" onclick="toggleEventDock()"
+            aria-expanded="false" aria-controls="evDockPanel" title="이벤트 안내 열기">
+        <span class="ev-dock-badge" aria-hidden="true"></span>
+        <img src="{{ url_for('static', filename='star.png') }}" alt="">
+        <span class="ev-dock-text">이벤트</span>
+    </button>
+    <aside class="ev-panel" id="evDockPanel" aria-label="이벤트 안내">
+        <button type="button" class="ev-close" onclick="toggleEventDock(false)" aria-label="이벤트 안내 닫기">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+        <span class="ev-eyebrow"><i class="fa-solid fa-gift"></i> EVENT</span>
+        <div class="ev-title">{{ center_event.title }}</div>
+        {% if center_event.start_date or center_event.end_date %}
+        <div class="ev-period">
+            <i class="fa-regular fa-calendar"></i>
+            {{ center_event.start_date or '' }}{% if center_event.end_date %} ~ {{ center_event.end_date }}{% endif %}
+        </div>
+        {% endif %}
+
+        <div class="ev-enter-box" id="evEnterBox" {% if center_event.draw_number %}hidden{% endif %}>
+            <p>아래 버튼을 누르면<br>나만의 추첨번호가 발급됩니다.</p>
+            <button type="button" class="ev-enter-btn" id="evEnterBtn" onclick="enterEvent()">
+                <i class="fa-solid fa-ticket"></i>응모하기</button>
+        </div>
+
+        <div class="ev-ticket" id="evTicket" {% if not center_event.draw_number %}hidden{% endif %}>
+            <div class="ev-ticket-label">나의 추첨번호</div>
+            <div class="ev-number" id="evNumber">
+                <i>[</i><b id="evNumberValue">{% if center_event.draw_number %}{{ '%02d'|format(center_event.draw_number) }}{% else %}··{% endif %}</b><i>번 ]</i>
+            </div>
+        </div>
+
+        <div class="ev-desc">{{ center_event.description }}</div>
+        <div class="ev-hint" id="evHint">
+            {% if center_event.draw_number %}발급일 {{ center_event.issued_at }}{% else %}1인 1회만 응모할 수 있습니다.{% endif %}
+        </div>
+        <div class="ev-err" id="evError" hidden></div>
+    </aside>
+</div>
+
+<script>
+(function () {
+    const dock = document.getElementById('evDock');
+    if (!dock) return;
+    const enterBox = document.getElementById('evEnterBox');
+    const enterBtn = document.getElementById('evEnterBtn');
+    const ticket = document.getElementById('evTicket');
+    const numberBox = document.getElementById('evNumber');
+    const numberValue = document.getElementById('evNumberValue');
+    const hintBox = document.getElementById('evHint');
+    const errorBox = document.getElementById('evError');
+    let entering = false;
+
+    window.enterEvent = async function () {
+        if (entering) return;
+        entering = true;
+        enterBtn.disabled = true;
+        enterBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>번호 뽑는 중…';
+        errorBox.hidden = true;
+        try {
+            const res = await fetch('{{ url_for("school.enter_center_event") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ school_id: {{ school.id }} })
+            });
+            const data = await res.json();
+            if (data.status !== 'success') throw new Error(data.message || '응모하지 못했습니다.');
+            numberValue.textContent = data.number_text;
+            enterBox.hidden = true;
+            ticket.hidden = false;
+            numberBox.classList.add('pop');
+            hintBox.textContent = '발급일 ' + (data.issued_at || '');
+        } catch (e) {
+            errorBox.textContent = e.message || '응모하지 못했습니다.';
+            errorBox.hidden = false;
+            enterBtn.disabled = false;
+            enterBtn.innerHTML = '<i class="fa-solid fa-ticket"></i>응모하기';
+        } finally {
+            entering = false;
+        }
+    };
+
+    window.toggleEventDock = function (open) {
+        const on = (typeof open === 'boolean') ? open : !dock.classList.contains('open');
+        dock.classList.toggle('open', on);
+        document.getElementById('evDockTab').setAttribute('aria-expanded', on ? 'true' : 'false');
+    };
+
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') toggleEventDock(false); });
+    document.addEventListener('click', function (e) {
+        if (dock.classList.contains('open') && !dock.contains(e.target)) toggleEventDock(false);
+    });
+})();
+</script>
+{% endif %}
+
+
 <div id="regModal" class="sd-modal">
     <div class="sd-modal-content" style="width:650px;">
         <h2 style="margin-top:0; border-bottom:2px solid var(--school-navy); padding-bottom:15px; color:var(--school-navy);">학교 신규 등록</h2>

@@ -1,0 +1,859 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    /* ===== 이벤트관리 · 이벤트 탭과 같은 파스텔 톤 ===== */
+    .evm-page{
+        --evm-pink:#ff5d8f; --evm-deep:#8e4a70; --evm-soft:#c98bab; --evm-ink:#6f5f7d;
+        position:relative; max-width:1180px; margin:0 auto; padding:34px 20px 90px; color:var(--evm-ink);
+    }
+    /* 페이지 배경은 인트라넷 테마(--body-bg)를 그대로 쓴다.
+       카드·버튼·글자색 등 이벤트 페이지 고유 색상만 따로 지정한다. */
+
+    .evm-hero{display:flex;align-items:center;gap:16px;margin-bottom:24px}
+    .evm-hero-icon{width:58px;height:58px;flex:0 0 auto;border-radius:20px;display:grid;place-items:center;
+        font-size:1.4rem;color:#fff;background:linear-gradient(140deg,#ff9ec1,#ff5d8f 60%,#b47ae0);
+        box-shadow:0 12px 26px rgba(255,120,165,.32)}
+    .evm-hero h1{margin:0;font-size:1.6rem;font-weight:900;letter-spacing:-.04em;color:var(--evm-deep)}
+    .evm-hero p{margin:6px 0 0;font-size:.88rem;line-height:1.6;color:#9a86a8}
+
+    .evm-layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:22px;align-items:start}
+    .evm-card{position:relative;border-radius:24px;padding:24px;background:rgba(255,255,255,.82);
+        border:1px solid rgba(255,255,255,.9);box-shadow:0 16px 40px rgba(160,120,175,.16);
+        backdrop-filter:blur(6px);overflow:hidden}
+    .evm-card::after{content:'';position:absolute;width:150px;height:150px;border-radius:50%;
+        top:-70px;right:-58px;background:rgba(255,205,228,.35);pointer-events:none}
+    .evm-card>*{position:relative;z-index:1}
+    .evm-card-title{display:flex;align-items:center;gap:8px;margin:0 0 18px;font-size:1rem;font-weight:900;
+        color:var(--evm-deep)}
+    .evm-card-title i{color:var(--evm-pink)}
+
+    /* ---- 이벤트 목록 ---- */
+    .evm-list{display:flex;flex-direction:column;gap:14px}
+    .evm-item{border-radius:20px;padding:18px 18px 16px;background:#fff;border:2px dashed #ffd7e6;
+        box-shadow:0 8px 20px rgba(206,150,180,.14);transition:border-color .16s,transform .16s}
+    .evm-item:hover{border-color:#ffb3d0;transform:translateY(-2px)}
+    .evm-item.is-selected{border-style:solid;border-color:var(--evm-pink);
+        box-shadow:0 10px 26px rgba(255,120,165,.22)}
+    .evm-item-head{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+    .evm-item-title{margin:0;font-size:1.02rem;font-weight:900;color:var(--evm-deep);word-break:keep-all}
+    .evm-badge{padding:3px 10px;border-radius:999px;font-size:.68rem;font-weight:800;white-space:nowrap}
+    .evm-badge.running{background:#e4f9ef;color:#11815f}
+    .evm-badge.upcoming{background:#e9f0ff;color:#3d62b8}
+    .evm-badge.ended{background:#f1eef5;color:#8a7e97}
+    .evm-badge.paused{background:#f1eef5;color:#8a7e97}
+    .evm-btn.close-ev{color:#9a7a3f;border-color:#f0e0bd}
+    .evm-btn.close-ev:hover{background:#fff9ec;border-color:#e3bf72;color:#7d5f28}
+    .evm-btn.result{color:#5f6fa8;border-color:#d9e0f4}
+    .evm-btn.result:hover{background:#f4f7ff;border-color:#94a7dd;color:#41508a}
+    .evm-item-desc{margin:9px 0 0;font-size:.79rem;line-height:1.7;color:#8a7b95;white-space:pre-line}
+    .evm-item-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+    .evm-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;
+        background:#fdf3f8;color:#a4708c;font-size:.7rem;font-weight:800}
+    .evm-chip i{opacity:.75}
+    .evm-item-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;padding-top:13px;
+        border-top:1px dashed #f0dfe8}
+    .evm-empty{padding:44px 18px;text-align:center;color:#a99bb4;font-size:.86rem;line-height:1.8}
+    .evm-empty i{display:block;font-size:2.2rem;margin-bottom:12px;color:#ffc4da}
+
+    /* ---- 버튼 ---- */
+    .evm-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid #f3dbe6;border-radius:12px;
+        padding:9px 14px;background:#fff;color:#96718a;font:inherit;font-size:.78rem;font-weight:800;
+        cursor:pointer;transition:.16s ease}
+    .evm-btn:hover{border-color:var(--evm-pink);color:var(--evm-pink);transform:translateY(-1px)}
+    .evm-btn.primary{border-color:transparent;color:#fff;
+        background:linear-gradient(135deg,#ff8fb6,#ff5d8f);box-shadow:0 8px 18px rgba(255,120,165,.3)}
+    .evm-btn.primary:hover{color:#fff;filter:brightness(1.05)}
+    .evm-btn.lucky{border-color:transparent;color:#5b3b7a;
+        background:linear-gradient(135deg,#ffe29a,#ffc3e0 55%,#c9b6ff);
+        box-shadow:0 8px 18px rgba(180,140,220,.3)}
+    .evm-btn.lucky:hover{color:#4a2e66}
+    .evm-btn.danger{color:#c9516c;border-color:#f6cdd7}
+    .evm-btn.danger:hover{background:#fff2f5;border-color:#e98aa2;color:#b8394f}
+    .evm-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+    /* ---- 입력 폼 ---- */
+    .evm-field{margin-bottom:15px}
+    .evm-field label{display:block;margin-bottom:7px;font-size:.78rem;font-weight:800;color:var(--evm-deep)}
+    .evm-input{width:100%;box-sizing:border-box;padding:11px 13px;border:1px solid #f0dce6;border-radius:12px;
+        background:#fffafc;color:#5f5069;font:inherit;font-size:.84rem;outline:none;transition:.16s}
+    .evm-input:focus{border-color:#ffa6c6;box-shadow:0 0 0 3px rgba(255,166,198,.22)}
+    textarea.evm-input{min-height:96px;resize:vertical;line-height:1.7}
+    .evm-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .evm-help{margin-top:7px;font-size:.7rem;line-height:1.6;color:#ab9cb6}
+    .evm-switch{display:flex;align-items:center;gap:9px;padding:11px 13px;border-radius:12px;
+        background:#fffafc;border:1px solid #f0dce6;font-size:.8rem;font-weight:800;color:var(--evm-deep)}
+    .evm-switch input{width:17px;height:17px;accent-color:var(--evm-pink)}
+    .evm-form-actions{display:flex;gap:9px;margin-top:18px}
+    .evm-form-actions .evm-btn{flex:1;justify-content:center}
+
+    .evm-toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(14px);z-index:3000;
+        padding:12px 20px;border-radius:14px;background:rgba(70,45,65,.93);color:#fff;font-size:.84rem;
+        font-weight:700;opacity:0;pointer-events:none;transition:.24s ease}
+    .evm-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+    /* ===== 추첨 기계 모달 ===== */
+    .evm-modal{position:fixed;inset:0;z-index:2600;display:none;align-items:center;justify-content:center;
+        padding:20px;background:rgba(74,50,70,.42);backdrop-filter:blur(3px)}
+    .evm-modal.open{display:flex}
+    .evm-modal-box{position:relative;width:min(720px,96vw);max-height:92vh;overflow:auto;border-radius:28px;
+        padding:26px 26px 24px;text-align:center;
+        background:
+            radial-gradient(circle at 14% 10%, rgba(255,206,229,.6) 0, rgba(255,206,229,0) 45%),
+            radial-gradient(circle at 86% 88%, rgba(206,222,255,.55) 0, rgba(206,222,255,0) 45%),
+            linear-gradient(168deg,#fffafc 0%,#fff5ec 50%,#f5f1ff 100%);
+        box-shadow:0 26px 70px rgba(120,80,130,.34)}
+    .evm-modal-close{position:absolute;top:14px;right:16px;width:30px;height:30px;border:0;border-radius:50%;
+        background:rgba(255,255,255,.8);color:#a9799a;cursor:pointer;font-size:.9rem}
+    .evm-modal-title{margin:0 0 4px;font-size:1.15rem;font-weight:900;color:var(--evm-deep)}
+    .evm-modal-sub{margin:0 0 18px;font-size:.78rem;color:#a18fae}
+
+    /* 마니또 볼 기계 */
+    .evm-machine{position:relative;width:230px;height:262px;margin:0 auto 8px}
+    .evm-drum{position:relative;width:210px;height:210px;margin:0 auto;border-radius:50%;overflow:hidden;
+        border:9px solid #fff;
+        background:radial-gradient(circle at 32% 26%, #ffffff 0 12%, rgba(255,255,255,.35) 30%, rgba(255,214,234,.5) 62%, rgba(206,222,255,.55) 100%);
+        box-shadow:0 14px 32px rgba(170,120,175,.3), inset 0 -10px 22px rgba(180,140,190,.22)}
+    .evm-drum::after{content:'';position:absolute;left:16%;top:9%;width:36%;height:26%;border-radius:50%;
+        background:rgba(255,255,255,.7);filter:blur(6px);pointer-events:none}
+    .evm-ball{position:absolute;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+        font-size:.76rem;font-weight:900;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.18);
+        box-shadow:inset -3px -4px 7px rgba(0,0,0,.14), inset 3px 4px 7px rgba(255,255,255,.55)}
+    .evm-machine.spinning .evm-ball{animation:evmTumble .9s ease-in-out infinite}
+    @keyframes evmTumble{
+        0%{transform:translate(0,0) rotate(0)}
+        25%{transform:translate(26px,-30px) rotate(70deg)}
+        50%{transform:translate(-16px,22px) rotate(160deg)}
+        75%{transform:translate(-30px,-18px) rotate(255deg)}
+        100%{transform:translate(0,0) rotate(360deg)}}
+    .evm-neck{width:56px;height:34px;margin:-6px auto 0;border-radius:0 0 16px 16px;
+        background:linear-gradient(180deg,#ffd9e8,#f3e3ff);box-shadow:0 6px 14px rgba(170,120,175,.22)}
+    .evm-tray{width:150px;height:16px;margin:0 auto;border-radius:0 0 22px 22px;
+        background:linear-gradient(180deg,#f6e6ff,#e4d6f5)}
+    .evm-machine-caption{margin:12px 0 0;font-size:.8rem;font-weight:800;color:#a5799c;min-height:1.2em}
+
+    /* 당첨자 */
+    .evm-winners{display:flex;flex-direction:column;gap:9px;margin-top:18px;text-align:left}
+    .evm-winner{display:flex;align-items:center;gap:12px;padding:12px 15px;border-radius:16px;background:#fff;
+        border:2px solid #ffe3ee;box-shadow:0 7px 16px rgba(206,150,180,.15);
+        animation:evmWinPop .45s cubic-bezier(.2,1.4,.4,1)}
+    @keyframes evmWinPop{0%{opacity:0;transform:scale(.82) translateY(8px)}100%{opacity:1;transform:none}}
+    .evm-winner-rank{flex:0 0 auto;min-width:46px;padding:5px 9px;border-radius:999px;text-align:center;
+        font-size:.72rem;font-weight:900;color:#fff;background:linear-gradient(135deg,#ffb0cc,#ff5d8f)}
+    .evm-winner.rank-1 .evm-winner-rank{background:linear-gradient(135deg,#ffd984,#f5a623)}
+    .evm-winner.rank-2 .evm-winner-rank{background:linear-gradient(135deg,#d6dbe6,#98a4b8)}
+    .evm-winner.rank-3 .evm-winner-rank{background:linear-gradient(135deg,#f3c49a,#c58048)}
+    .evm-winner-ball{flex:0 0 auto;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;
+        font-size:.88rem;font-weight:900;color:#fff;background:linear-gradient(140deg,#ffa8c8,#ff6f9d);
+        box-shadow:inset -3px -4px 7px rgba(0,0,0,.13)}
+    .evm-winner-who{min-width:0;flex:1}
+    .evm-winner-who b{display:block;font-size:.92rem;font-weight:900;color:var(--evm-deep)}
+    .evm-winner-who small{font-size:.7rem;color:#a596b0}
+
+    /* 등수 설정 */
+    .evm-prizes{display:flex;flex-direction:column;gap:8px;margin:4px 0 16px;text-align:left}
+    .evm-prize,.evm-prize-head{display:grid;grid-template-columns:1fr 108px 38px;gap:8px;align-items:center}
+    .evm-prize-head span{font-size:.72rem;font-weight:900;color:var(--evm-deep);
+        text-align:left;padding-left:4px}
+    .evm-prize-head em{font-style:normal;font-weight:800;color:var(--evm-pink)}
+    .evm-prize .evm-input{padding:9px 11px;font-size:.8rem}
+    .evm-prize-del{border:1px solid #f6cdd7;border-radius:10px;background:#fff;color:#c9516c;cursor:pointer;
+        height:37px;font-size:.8rem}
+    .evm-prize-del:hover{background:#fff2f5}
+    .evm-prize-sum{font-size:.74rem;font-weight:800;color:#a5799c;margin-bottom:14px}
+
+    /* ===== 결과보기(응모자·당첨자 통합 명단) ===== */
+    .evm-modal-box.roster{width:min(860px,96vw);height:min(92vh,980px);overflow:hidden;
+        display:flex;flex-direction:column;padding:24px 24px 20px}
+
+    /* 이벤트 요약 */
+    .evm-summary{flex:0 0 auto;text-align:left;padding:16px 18px;margin-bottom:14px;border-radius:18px;
+        background:rgba(255,255,255,.78);border:2px dashed #ffd7e6}
+    .evm-sum-label{flex:0 0 auto;font-size:.74rem;font-weight:800;color:#b49ec0;white-space:nowrap}
+    .evm-summary-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .evm-summary-head h4{margin:0;font-size:1.02rem;font-weight:900;color:var(--evm-deep);word-break:keep-all}
+    .evm-summary-body{display:flex;align-items:flex-start;gap:8px;margin-top:9px}
+    .evm-summary-body .evm-sum-label{padding-top:1px}
+    .evm-summary-desc{margin:0;font-size:.78rem;line-height:1.7;color:#8a7b95;white-space:pre-line}
+    .evm-summary-stats{display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:13px;padding-top:12px;
+        border-top:1px dashed #f0dfe8}
+    .evm-stat{display:inline-flex;align-items:baseline;gap:6px;font-size:.76rem;font-weight:800;
+        color:var(--evm-deep)}
+    .evm-stat b{font-weight:900;color:var(--evm-pink)}
+
+    /* 명단 */
+    .evm-roster-caption{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;
+        margin:0 2px 9px;font-size:.74rem;font-weight:800;color:var(--evm-deep)}
+    .evm-roster-caption span{font-size:.68rem;font-weight:700;color:#ad9ab6}
+    .evm-roster-list{flex:1 1 auto;min-height:0;text-align:left;overflow:auto;
+        background:rgba(255,255,255,.72);border-radius:14px;padding:2px 4px 4px}
+    .evm-roster-table{width:100%;border-collapse:collapse;font-size:.8rem}
+    .evm-roster-table th{position:sticky;top:0;z-index:1;padding:10px 12px;text-align:left;white-space:nowrap;
+        font-size:.7rem;font-weight:800;color:#a290ae;background:#fdf6fa;
+        border-bottom:1px solid #eedfe8}
+    .evm-roster-table td{padding:11px 12px;border-bottom:1px solid #f4ecf2;color:#6f5f7d;vertical-align:middle}
+    .evm-roster-table tr.is-winner td{background:#fffcf3}
+    .evm-roster-table .col-rank{width:64px;font-weight:900}
+    .evm-roster-table .col-no{width:58px;font-weight:800;color:#b07c99}
+    .evm-roster-table .col-name{font-weight:800;color:var(--evm-deep)}
+    .evm-roster-table .col-dept{color:#a596b0}
+    .evm-roster-table .col-time{width:150px;white-space:nowrap;font-size:.72rem;color:#ab9ab5}
+    .evm-roster-table .rank-none{color:#cdbfd6;font-weight:700}
+    .evm-roster-table .rank-1{color:#d99a1f}
+    .evm-roster-table .rank-2{color:#7f8a9c}
+    .evm-roster-table .rank-3{color:#b87a45}
+    .evm-roster-table .rank-etc{color:var(--evm-pink)}
+    .evm-roster-empty{padding:38px 16px;text-align:center;color:#a99bb4;font-size:.84rem;line-height:1.8}
+    .evm-roster-empty i{display:block;font-size:2rem;margin-bottom:10px;color:#ffc4da}
+    @media(max-width:560px){
+        .evm-modal-box.roster{padding:20px 16px 16px}
+        .evm-roster-table .col-dept,.evm-roster-table .col-time{display:none}
+    }
+
+    @media(max-width:960px){
+        .evm-layout{grid-template-columns:1fr}
+    }
+    @media(max-width:560px){
+        .evm-page{padding:24px 12px 70px}
+        .evm-card{padding:18px;border-radius:20px}
+        .evm-row{grid-template-columns:1fr}
+        .evm-prize{grid-template-columns:1fr 86px 36px}
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="evm-page">
+    <div class="evm-hero">
+        <div class="evm-hero-icon"><i class="fa-solid fa-gift"></i></div>
+        <div>
+            <h1>이벤트관리</h1>
+            <p>센터장 업무공간 오른쪽 별 탭에 뜨는 이벤트를 만들고, 응모자 중에서 당첨자를 추첨합니다.</p>
+        </div>
+    </div>
+
+    <div class="evm-layout">
+        <div class="evm-card">
+            <h2 class="evm-card-title"><i class="fa-solid fa-list-ul"></i>진행 이벤트 목록</h2>
+            <div class="evm-list" id="evmList">
+                {% if not events %}
+                <div class="evm-empty">
+                    <i class="fa-regular fa-star"></i>
+                    아직 만든 이벤트가 없습니다.<br>오른쪽에서 첫 이벤트를 만들어 보세요.
+                </div>
+                {% endif %}
+                {% for event in events %}
+                <article class="evm-item" data-event-id="{{ event.id }}">
+                    <div class="evm-item-head">
+                        <h3 class="evm-item-title">{{ event.title }}</h3>
+                        <span class="evm-badge {{ event.status }}">
+                            {% if event.status == 'running' %}진행중
+                            {% elif event.status == 'upcoming' %}시작 전
+                            {% elif event.status == 'ended' %}기간종료
+                            {% else %}종료됨{% endif %}
+                        </span>
+                    </div>
+                    <p class="evm-item-desc">{{ event.description }}</p>
+                    <div class="evm-item-meta">
+                        <span class="evm-chip"><i class="fa-regular fa-calendar"></i>
+                            {% if event.start_date or event.end_date %}
+                                {{ event.start_date or '제한 없음' }} ~ {{ event.end_date or '제한 없음' }}
+                            {% else %}기간 제한 없음{% endif %}
+                        </span>
+                        <span class="evm-chip"><i class="fa-solid fa-hashtag"></i>번호 {{ event.number_min }}~{{ event.number_max }}</span>
+                        <span class="evm-chip"><i class="fa-solid fa-users"></i>응모 {{ event.entry_count }}명</span>
+                        <span class="evm-chip"><i class="fa-solid fa-trophy"></i>당첨 {{ event.winner_count }}명</span>
+                    </div>
+                    <div class="evm-item-actions">
+                        <button type="button" class="evm-btn lucky" onclick="openDrawModal({{ event.id }})">
+                            <i class="fa-solid fa-dice"></i>{% if event.winner_count %}재추첨{% else %}추첨하기{% endif %}</button>
+                        <button type="button" class="evm-btn" onclick="editEvent({{ event.id }})">
+                            <i class="fa-solid fa-pen"></i>수정</button>
+                        {% if event.is_active %}
+                        <button type="button" class="evm-btn close-ev" onclick="closeEvent({{ event.id }}, this)"
+                                title="기간이 남아 있어도 지금 종료합니다">
+                            <i class="fa-solid fa-flag-checkered"></i>종료</button>
+                        {% endif %}
+                        <button type="button" class="evm-btn danger" onclick="deleteEvent({{ event.id }}, this)">
+                            <i class="fa-regular fa-trash-can"></i>삭제</button>
+                        <button type="button" class="evm-btn result" onclick="openRosterModal({{ event.id }})"
+                                title="응모자와 당첨자 명단을 봅니다">
+                            <i class="fa-solid fa-clipboard-list"></i>결과보기</button>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="evm-card">
+            <h2 class="evm-card-title"><i class="fa-solid fa-wand-magic-sparkles"></i><span id="evmFormTitle">이벤트 만들기</span></h2>
+            <form id="evmForm" onsubmit="return false;">
+                <input type="hidden" id="evmId" value="">
+                <div class="evm-field">
+                    <label for="evmTitle">이벤트 제목</label>
+                    <input class="evm-input" id="evmTitle" maxlength="80" value="{{ default_event.title }}">
+                </div>
+                <div class="evm-field">
+                    <label for="evmDesc">이벤트 내용</label>
+                    <textarea class="evm-input" id="evmDesc">{{ default_event.description }}</textarea>
+                    <div class="evm-help">줄바꿈한 그대로 이벤트 탭에 표시됩니다.</div>
+                </div>
+                <div class="evm-field">
+                    <label>이벤트 기간</label>
+                    <div class="evm-row">
+                        <input class="evm-input" id="evmStart" type="date" value="{{ today }}">
+                        <input class="evm-input" id="evmEnd" type="date" value="{{ today }}">
+                    </div>
+                    <div class="evm-help">비워 두면 기간 제한 없이 계속 진행합니다.
+                        기간이 지나면 센터장 화면에서 이벤트 탭이 사라집니다.<br>
+                        진행중인 이벤트와 기간이 겹치면 만들 수 없습니다. 먼저 그 이벤트를 종료해 주세요.</div>
+                </div>
+                <div class="evm-field">
+                    <label>추첨번호 범위</label>
+                    <div class="evm-row">
+                        <input class="evm-input" id="evmMin" type="number" min="0" value="{{ default_event.number_min }}">
+                        <input class="evm-input" id="evmMax" type="number" min="1" value="{{ default_event.number_max }}">
+                    </div>
+                    <div class="evm-help">이 범위 안에서 겹치지 않게 무작위로 발급합니다.</div>
+                </div>
+                <div class="evm-field">
+                    <label class="evm-switch">
+                        <input type="checkbox" id="evmActive" checked>
+                        이벤트 진행 (끄면 종료되어 탭이 바로 숨겨집니다)
+                    </label>
+                </div>
+                <div class="evm-form-actions">
+                    <button type="button" class="evm-btn" id="evmResetBtn" onclick="resetForm()">새로 작성</button>
+                    <button type="button" class="evm-btn primary" id="evmSaveBtn" onclick="saveEvent()">
+                        <i class="fa-solid fa-floppy-disk"></i>이벤트 만들기</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+<div class="evm-modal" id="evmDrawModal">
+    <div class="evm-modal-box">
+        <button type="button" class="evm-modal-close" onclick="closeDrawModal()" aria-label="닫기">
+            <i class="fa-solid fa-xmark"></i></button>
+        <h3 class="evm-modal-title" id="evmDrawTitle">당첨자 추첨</h3>
+        <p class="evm-modal-sub" id="evmDrawSub">응모자를 불러오는 중입니다…</p>
+
+        <div class="evm-prize-head">
+            <span>추첨할 순위</span>
+            <span>당첨인원수 <em id="evmPrizeTotal">( 총 0명 )</em></span>
+            <span></span>
+        </div>
+        <div class="evm-prizes" id="evmPrizeRows"></div>
+        <div class="evm-prize-sum" id="evmPrizeSum"></div>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:6px">
+            <button type="button" class="evm-btn" onclick="addPrizeRow()"><i class="fa-solid fa-plus"></i>등수 추가</button>
+            <button type="button" class="evm-btn lucky" id="evmDrawBtn" onclick="runDraw()">
+                <i class="fa-solid fa-dice"></i>추첨 시작!</button>
+            <button type="button" class="evm-btn danger" onclick="resetWinners()">
+                <i class="fa-solid fa-rotate-left"></i>결과 지우기</button>
+        </div>
+
+        <div class="evm-machine" id="evmMachine">
+            <div class="evm-drum" id="evmDrum"></div>
+            <div class="evm-neck"></div>
+            <div class="evm-tray"></div>
+        </div>
+        <p class="evm-machine-caption" id="evmCaption"></p>
+
+        <div class="evm-winners" id="evmWinners"></div>
+    </div>
+</div>
+
+<div class="evm-modal" id="evmRosterModal">
+    <div class="evm-modal-box roster">
+        <button type="button" class="evm-modal-close" onclick="closeRosterModal()" aria-label="닫기">
+            <i class="fa-solid fa-xmark"></i></button>
+        <h3 class="evm-modal-title">이벤트 결과</h3>
+        <p class="evm-modal-sub" id="evmRosterSub">불러오는 중입니다…</p>
+
+        <div class="evm-summary" id="evmSummary" hidden>
+            <div class="evm-summary-head">
+                <span class="evm-sum-label">제목:</span>
+                <h4 id="evmSummaryTitle"></h4>
+                <span class="evm-badge" id="evmSummaryBadge"></span>
+            </div>
+            <div class="evm-summary-body">
+                <span class="evm-sum-label">내용:</span>
+                <p class="evm-summary-desc" id="evmSummaryDesc"></p>
+            </div>
+            <div class="evm-summary-stats" id="evmSummaryStats"></div>
+        </div>
+
+        <div class="evm-roster-caption">
+            <strong id="evmRosterHeading">응모자 명단</strong>
+            <span id="evmRosterNote"></span>
+        </div>
+        <div class="evm-roster-list" id="evmRosterList"></div>
+    </div>
+</div>
+
+<div class="evm-toast" id="evmToast"></div>
+
+<script>
+(function () {
+    // 본문은 z-index가 낮은 쌓임 맥락 안에 있어, 그대로 두면 상단 메뉴가
+    // 모달 위에 그려진다. 모달과 토스트는 body 바로 밑으로 옮겨 띄운다.
+    ['evmDrawModal', 'evmRosterModal', 'evmToast'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el && el.parentNode !== document.body) document.body.appendChild(el);
+    });
+
+    // 응모자 수가 많아도 색이 잘 겹치지 않도록 넉넉히 준비한다.
+    const BALL_COLORS = ['#ff8fb6', '#ffc46b', '#8fd3c0', '#9fb8ff', '#d3a4f5',
+                         '#ff9f7f', '#7fd0ef', '#f5a3cd', '#b2d78a', '#ffb3a0',
+                         '#c2b3f0', '#6fc9a8', '#ffd36b', '#8ea9e8', '#ef9ab8',
+                         '#9ad9d9', '#e8b57a', '#a8c98f', '#f28fa0', '#7fb8d9'];
+    let currentEventId = null;
+    let currentPool = [];
+    let drawing = false;
+    let ballColors = {};
+
+    function assignBallColors(pool) {
+        ballColors = {};
+        pool.forEach(function (entry, index) {
+            ballColors[entry.draw_number] = BALL_COLORS[index % BALL_COLORS.length];
+        });
+    }
+
+    function ballColorOf(drawNumber) {
+        return ballColors[drawNumber] || '#ff6f9d';
+    }
+
+    /* ---------------------------------------------------- 공통 */
+    function toast(message) {
+        const box = document.getElementById('evmToast');
+        box.textContent = message;
+        box.classList.add('show');
+        clearTimeout(box._timer);
+        box._timer = setTimeout(() => box.classList.remove('show'), 2600);
+    }
+
+    async function api(url, options) {
+        const res = await fetch(url, options || {});
+        const data = await res.json().catch(() => ({
+            status: 'error', message: '처리 결과를 확인할 수 없습니다.'
+        }));
+        if (!res.ok || data.status !== 'success') {
+            throw new Error(data.message || '처리 중 오류가 발생했습니다.');
+        }
+        return data;
+    }
+
+    function val(id) { return document.getElementById(id).value.trim(); }
+
+    /* ---------------------------------------------------- 이벤트 저장/수정/삭제 */
+    window.resetForm = function () {
+        document.getElementById('evmId').value = '';
+        document.getElementById('evmTitle').value = {{ default_event.title|tojson }};
+        document.getElementById('evmDesc').value = {{ default_event.description|tojson }};
+        document.getElementById('evmStart').value = {{ today|tojson }};
+        document.getElementById('evmEnd').value = {{ today|tojson }};
+        document.getElementById('evmMin').value = {{ default_event.number_min }};
+        document.getElementById('evmMax').value = {{ default_event.number_max }};
+        document.getElementById('evmActive').checked = true;
+        document.getElementById('evmFormTitle').textContent = '이벤트 만들기';
+        document.getElementById('evmSaveBtn').innerHTML =
+            '<i class="fa-solid fa-floppy-disk"></i>이벤트 만들기';
+        document.querySelectorAll('.evm-item').forEach(el => el.classList.remove('is-selected'));
+    };
+
+    window.saveEvent = async function () {
+        const btn = document.getElementById('evmSaveBtn');
+        const payload = {
+            id: val('evmId') || null,
+            title: val('evmTitle'),
+            description: document.getElementById('evmDesc').value,
+            start_date: val('evmStart'),
+            end_date: val('evmEnd'),
+            number_min: val('evmMin'),
+            number_max: val('evmMax'),
+            is_active: document.getElementById('evmActive').checked
+        };
+        btn.disabled = true;
+        try {
+            const data = await api('/event-admin/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            toast(data.message);
+            setTimeout(() => location.reload(), 600);
+        } catch (e) {
+            if (e.message.indexOf('\n') > -1) alert(e.message);
+            else toast(e.message);
+            btn.disabled = false;
+        }
+    };
+
+    window.editEvent = async function (eventId) {
+        try {
+            const data = await api('/event-admin/' + eventId);
+            const ev = data.event;
+            document.getElementById('evmId').value = ev.id;
+            document.getElementById('evmTitle').value = ev.title || '';
+            document.getElementById('evmDesc').value = ev.description || '';
+            document.getElementById('evmStart').value = ev.start_date || '';
+            document.getElementById('evmEnd').value = ev.end_date || '';
+            document.getElementById('evmMin').value = ev.number_min;
+            document.getElementById('evmMax').value = ev.number_max;
+            document.getElementById('evmActive').checked = !!ev.is_active;
+            document.getElementById('evmFormTitle').textContent = '이벤트 수정';
+            document.getElementById('evmSaveBtn').innerHTML =
+                '<i class="fa-solid fa-floppy-disk"></i>수정 내용 저장';
+            document.querySelectorAll('.evm-item').forEach(el =>
+                el.classList.toggle('is-selected', Number(el.dataset.eventId) === ev.id));
+            document.getElementById('evmTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } catch (e) { toast(e.message); }
+    };
+
+    window.closeEvent = async function (eventId, btn) {
+        if (!confirm('이 이벤트를 지금 종료할까요?\n\n'
+                   + '센터장 화면에서 이벤트 탭이 사라지고, 더 이상 응모할 수 없습니다.\n'
+                   + '응모·추첨 기록은 그대로 남습니다.')) return;
+        btn.disabled = true;
+        try {
+            const data = await api('/event-admin/' + eventId + '/close', { method: 'POST' });
+            toast(data.message);
+            setTimeout(() => location.reload(), 700);
+        } catch (e) {
+            toast(e.message);
+            btn.disabled = false;
+        }
+    };
+
+    window.deleteEvent = async function (eventId, btn) {
+        if (!confirm('이 이벤트와 응모·추첨 기록을 모두 삭제합니다. 계속할까요?')) return;
+        btn.disabled = true;
+        try {
+            const data = await api('/event-admin/' + eventId + '/delete', { method: 'POST' });
+            toast(data.message);
+            setTimeout(() => location.reload(), 600);
+        } catch (e) {
+            toast(e.message);
+            btn.disabled = false;
+        }
+    };
+
+    /* ---------------------------------------------------- 등수 설정 */
+    function prizeRowHtml(rank, label, count) {
+        return '<div class="evm-prize" data-rank="' + rank + '">' +
+            '<input class="evm-input evm-prize-label" value="' + label + '" placeholder="등수 이름">' +
+            '<input class="evm-input evm-prize-count" type="number" min="0" value="' + count + '">' +
+            '<button type="button" class="evm-prize-del" title="이 등수 삭제">' +
+            '<i class="fa-solid fa-xmark"></i></button></div>';
+    }
+
+    function renderPrizes(prizes) {
+        const box = document.getElementById('evmPrizeRows');
+        box.innerHTML = prizes.map(p =>
+            prizeRowHtml(p.rank_no, p.rank_label || (p.rank_no + '등'), p.winner_count)).join('');
+        box.querySelectorAll('.evm-prize-del').forEach(btn => {
+            btn.onclick = () => { btn.closest('.evm-prize').remove(); updatePrizeSum(); };
+        });
+        box.querySelectorAll('.evm-prize-count').forEach(input => {
+            input.oninput = updatePrizeSum;
+        });
+        updatePrizeSum();
+    }
+
+    window.addPrizeRow = function () {
+        const box = document.getElementById('evmPrizeRows');
+        const nextRank = box.querySelectorAll('.evm-prize').length + 1;
+        box.insertAdjacentHTML('beforeend', prizeRowHtml(nextRank, nextRank + '등', 1));
+        renderPrizes(collectPrizes());
+    };
+
+    function collectPrizes() {
+        return Array.from(document.querySelectorAll('#evmPrizeRows .evm-prize')).map((row, index) => ({
+            rank_no: index + 1,
+            rank_label: row.querySelector('.evm-prize-label').value.trim() || ((index + 1) + '등'),
+            winner_count: Number(row.querySelector('.evm-prize-count').value || 0)
+        }));
+    }
+
+    function updatePrizeSum() {
+        const total = collectPrizes().reduce((sum, p) => sum + p.winner_count, 0);
+        document.getElementById('evmPrizeTotal').textContent = '( 총 ' + total + '명 )';
+        document.getElementById('evmPrizeSum').textContent =
+            '응모 ' + currentPool.length + '명 중 ' + total + '명을 뽑습니다.';
+    }
+
+    /* ---------------------------------------------------- 볼 기계 */
+    function fillDrum(pool) {
+        const drum = document.getElementById('evmDrum');
+        const balls = pool.slice(0, 14);
+        drum.innerHTML = balls.map((entry, i) => {
+            const angle = (i / Math.max(balls.length, 1)) * Math.PI * 2;
+            const radius = 52 + (i % 3) * 13;
+            const x = 88 + Math.cos(angle) * radius;
+            const y = 88 + Math.sin(angle) * radius;
+            return '<span class="evm-ball" style="left:' + x.toFixed(1) + 'px;top:' + y.toFixed(1) +
+                'px;background:' + ballColorOf(entry.draw_number) +
+                ';animation-delay:-' + (i * 0.13).toFixed(2) + 's">' +
+                String(entry.draw_number).padStart(2, '0') + '</span>';
+        }).join('');
+    }
+
+    function setDrawButtonLabel(hasWinners) {
+        document.getElementById('evmDrawBtn').innerHTML = hasWinners
+            ? '<i class="fa-solid fa-rotate"></i>재추첨'
+            : '<i class="fa-solid fa-dice"></i>추첨 시작!';
+    }
+
+    /* ---------------------------------------------------- 추첨 모달 */
+    window.openDrawModal = async function (eventId) {
+        currentEventId = eventId;
+        currentPool = [];
+        document.getElementById('evmDrawModal').classList.add('open');
+        document.getElementById('evmWinners').innerHTML = '';
+        document.getElementById('evmCaption').textContent = '';
+        document.getElementById('evmDrawSub').textContent = '응모자를 불러오는 중입니다…';
+        try {
+            const data = await api('/event-admin/' + eventId);
+            currentPool = data.entries || [];
+            document.getElementById('evmDrawTitle').textContent = data.event.title;
+            document.getElementById('evmDrawSub').textContent =
+                '응모자 ' + currentPool.length + '명 · 등수와 인원수를 정하고 추첨을 시작하세요.';
+            renderPrizes(data.prizes || []);
+            assignBallColors(currentPool);
+            fillDrum(currentPool);
+            const hasWinners = (data.winners || []).length > 0;
+            setDrawButtonLabel(hasWinners);
+            if (hasWinners) showWinners(data.winners, false);
+        } catch (e) {
+            document.getElementById('evmDrawSub').textContent = e.message;
+        }
+    };
+
+    window.closeDrawModal = function () {
+        if (drawing) return;
+        document.getElementById('evmDrawModal').classList.remove('open');
+        document.getElementById('evmMachine').classList.remove('spinning');
+    };
+
+    function showWinners(winners, animate) {
+        const box = document.getElementById('evmWinners');
+        box.innerHTML = '';
+        winners.forEach((winner, index) => {
+            const html = '<div class="evm-winner rank-' + winner.rank_no + '">' +
+                '<span class="evm-winner-rank">' + (winner.rank_label || winner.rank_no + '등') + '</span>' +
+                '<span class="evm-winner-ball" style="background:' +
+                    ballColorOf(winner.draw_number) + '">' +
+                    String(winner.draw_number).padStart(2, '0') + '</span>' +
+                '<span class="evm-winner-who"><b>' + (winner.user_name || '이름 없음') + '</b>' +
+                '<small>' + (winner.department || '') + '</small></span></div>';
+            if (animate) {
+                setTimeout(() => box.insertAdjacentHTML('beforeend', html), index * 620);
+            } else {
+                box.insertAdjacentHTML('beforeend', html);
+            }
+        });
+    }
+
+    window.runDraw = async function () {
+        if (drawing) return;
+        const prizes = collectPrizes();
+        const total = prizes.reduce((sum, p) => sum + p.winner_count, 0);
+        if (!total) { toast('당첨 인원수를 1명 이상 지정해 주세요.'); return; }
+        if (!currentPool.length) { toast('아직 응모한 사람이 없습니다.'); return; }
+        if (total > currentPool.length) {
+            toast('응모자(' + currentPool.length + '명)보다 많은 인원은 뽑을 수 없습니다.');
+            return;
+        }
+
+        drawing = true;
+        const btn = document.getElementById('evmDrawBtn');
+        btn.disabled = true;
+        document.getElementById('evmWinners').innerHTML = '';
+        document.getElementById('evmMachine').classList.add('spinning');
+        document.getElementById('evmCaption').textContent = '볼을 섞는 중…';
+
+        try {
+            const data = await api('/event-admin/' + currentEventId + '/draw', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prizes: prizes })
+            });
+            await new Promise(resolve => setTimeout(resolve, 2200));
+            document.getElementById('evmMachine').classList.remove('spinning');
+            document.getElementById('evmCaption').textContent = '🎉 당첨자 발표!';
+            showWinners(data.winners, true);
+            setDrawButtonLabel(true);
+            toast(data.message);
+        } catch (e) {
+            document.getElementById('evmMachine').classList.remove('spinning');
+            document.getElementById('evmCaption').textContent = '';
+            toast(e.message);
+        } finally {
+            drawing = false;
+            btn.disabled = false;
+        }
+    };
+
+    window.resetWinners = async function () {
+        if (!currentEventId || drawing) return;
+        if (!confirm('이 이벤트의 추첨 결과를 지울까요?')) return;
+        try {
+            const data = await api('/event-admin/' + currentEventId + '/winners/reset',
+                { method: 'POST' });
+            document.getElementById('evmWinners').innerHTML = '';
+            document.getElementById('evmCaption').textContent = '';
+            setDrawButtonLabel(false);
+            toast(data.message);
+        } catch (e) { toast(e.message); }
+    };
+
+    /* ---------------------------------------------------- 결과보기(통합 명단) */
+    const STATUS_LABELS = {
+        running: '진행중', upcoming: '시작 전', ended: '기간종료', paused: '종료됨'
+    };
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function periodLabel(event) {
+        const start = (event.start_date || '').trim();
+        const end = (event.end_date || '').trim();
+        if (!start && !end) return '기간 제한 없음';
+        return (start || '제한 없음') + ' ~ ' + (end || '제한 없음');
+    }
+
+    function renderSummary(event, entries, winners) {
+        document.getElementById('evmSummaryTitle').textContent = event.title || '';
+        document.getElementById('evmSummaryDesc').textContent = event.description || '';
+        const badge = document.getElementById('evmSummaryBadge');
+        badge.className = 'evm-badge ' + (event.status || '');
+        badge.textContent = STATUS_LABELS[event.status] || '';
+        document.getElementById('evmSummaryStats').innerHTML =
+            '<span class="evm-stat"><span class="evm-sum-label">응모기간:</span>' +
+                escapeHtml(periodLabel(event)) + '</span>' +
+            '<span class="evm-stat"><span class="evm-sum-label">추첨부여번호:</span>' +
+                event.number_min + '~' + event.number_max + '번</span>' +
+            '<span class="evm-stat"><span class="evm-sum-label">응모자:</span><b>' +
+                entries.length + '명</b></span>' +
+            '<span class="evm-stat"><span class="evm-sum-label">당첨자:</span><b>' +
+                winners.length + '명</b></span>';
+        document.getElementById('evmSummary').hidden = false;
+    }
+
+    function rankClass(rankNo) {
+        if (rankNo === 1) return 'rank-1';
+        if (rankNo === 2) return 'rank-2';
+        if (rankNo === 3) return 'rank-3';
+        return 'rank-etc';
+    }
+
+    function renderRoster(entries, winners) {
+        const list = document.getElementById('evmRosterList');
+        const heading = document.getElementById('evmRosterHeading');
+        const note = document.getElementById('evmRosterNote');
+
+        // 응모자 행에 당첨 정보를 붙인다(응모번호는 이벤트 안에서 유일하다).
+        const winnerByEntry = {};
+        winners.forEach(function (winner) {
+            const key = winner.entry_id != null ? 'e' + winner.entry_id : 'n' + winner.draw_number;
+            winnerByEntry[key] = winner;
+        });
+
+        const rows = entries.map(function (entry, index) {
+            return {
+                entry: entry,
+                order: index,
+                winner: winnerByEntry['e' + entry.id] || winnerByEntry['n' + entry.draw_number] || null
+            };
+        });
+
+        // 추첨했으면 1등·2등·3등 순으로, 아직이면 응모순 그대로 보여준다.
+        if (winners.length) {
+            rows.sort(function (a, b) {
+                if (a.winner && b.winner) {
+                    return (a.winner.rank_no - b.winner.rank_no) || (a.order - b.order);
+                }
+                if (a.winner) return -1;
+                if (b.winner) return 1;
+                return a.order - b.order;
+            });
+            heading.textContent = '당첨자 · 응모자 명단';
+            note.textContent = '등수 순으로 정렬했습니다.';
+        } else {
+            heading.textContent = '응모자 명단';
+            note.textContent = '아직 추첨하지 않았습니다. 응모한 순서로 보여줍니다.';
+        }
+
+        if (!rows.length) {
+            list.innerHTML = '<div class="evm-roster-empty"><i class="fa-regular fa-face-smile"></i>' +
+                '아직 응모한 사람이 없습니다.</div>';
+            return;
+        }
+
+        const body = rows.map(function (row) {
+            const entry = row.entry;
+            const winner = row.winner;
+            const rank = winner
+                ? '<span class="' + rankClass(winner.rank_no) + '">' +
+                      escapeHtml(winner.rank_label || (winner.rank_no + '등')) + '</span>'
+                : '<span class="rank-none">–</span>';
+            return '<tr' + (winner ? ' class="is-winner"' : '') + '>' +
+                '<td class="col-rank">' + rank + '</td>' +
+                '<td class="col-no">' + String(entry.draw_number == null ? '-' : entry.draw_number)
+                    .padStart(2, '0') + '번</td>' +
+                '<td class="col-name">' + escapeHtml(entry.user_name || '이름 없음') + '</td>' +
+                '<td class="col-dept">' + escapeHtml(entry.department || '-') + '</td>' +
+                '<td class="col-time">' + escapeHtml(entry.created_at || '-') + '</td>' +
+                '<td class="col-time">' + (winner ? escapeHtml(winner.created_at || '-') : '–') + '</td>' +
+                '</tr>';
+        }).join('');
+
+        list.innerHTML = '<table class="evm-roster-table"><thead><tr>' +
+            '<th>등수</th><th>번호</th><th>이름</th><th>소속</th><th>응모일시</th><th>당첨일시</th>' +
+            '</tr></thead><tbody>' + body + '</tbody></table>';
+    }
+
+    window.openRosterModal = async function (eventId) {
+        document.getElementById('evmRosterModal').classList.add('open');
+        document.getElementById('evmSummary').hidden = true;
+        document.getElementById('evmRosterList').innerHTML = '';
+        document.getElementById('evmRosterNote').textContent = '';
+        document.getElementById('evmRosterSub').textContent = '불러오는 중입니다…';
+        try {
+            const data = await api('/event-admin/' + eventId);
+            const entries = data.entries || [];
+            const winners = data.winners || [];
+            renderSummary(data.event, entries, winners);
+            renderRoster(entries, winners);
+            document.getElementById('evmRosterSub').textContent =
+                winners.length
+                    ? '추첨을 마친 이벤트입니다. 당첨자가 등수 순으로 먼저 나옵니다.'
+                    : '아직 추첨 전이라 응모한 순서로 보여줍니다.';
+        } catch (e) {
+            document.getElementById('evmRosterSub').textContent = e.message;
+        }
+    };
+
+    window.closeRosterModal = function () {
+        document.getElementById('evmRosterModal').classList.remove('open');
+    };
+
+    document.getElementById('evmRosterModal').addEventListener('click', function (e) {
+        if (e.target === this) closeRosterModal();
+    });
+    document.getElementById('evmDrawModal').addEventListener('click', function (e) {
+        if (e.target === this) closeDrawModal();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        closeDrawModal();
+        closeRosterModal();
+    });
+})();
+</script>
+{% endblock %}

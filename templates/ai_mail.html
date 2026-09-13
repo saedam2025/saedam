@@ -418,7 +418,7 @@
                         </div>
                         <div class="aim-compose-section">
                             <h3 class="aim-subtitle"><i class="fa-solid fa-sliders"></i> 발송 설정</h3>
-                            <div class="aim-field"><label class="aim-label" for="sendInterval">발송 간격 <small>초</small></label><input class="aim-input" id="sendInterval" type="number" min="0.5" max="60" step="0.5" value="2"></div>
+                            <div class="aim-field"><label class="aim-label" for="sendInterval">발송 간격 <small>0.5~30초</small></label><input class="aim-input" id="sendInterval" type="number" min="0.5" max="30" step="0.5" value="2"><p class="aim-help">메일 한 통을 보낸 뒤 다음 메일까지 기다리는 시간입니다. 건수가 많을 때는 2초 이상을 권장합니다.</p></div>
                             <div class="aim-send-summary" style="margin-top:13px">
                                 <div class="aim-send-summary-row"><span>작업그룹</span><strong id="composeGroupName">선택 안 됨</strong></div>
                                 <div class="aim-send-summary-row"><span>발송 대상</span><strong><span id="composeRecipientCount">0</span>명</strong></div>
@@ -829,7 +829,9 @@
 
     function composePayload() {
         const modes = $$('input[name="attachmentMode"]:checked').map(input => input.value);
-        const interval = Number($('#sendInterval').value || 2);
+        // 서버에서 허용하는 범위(0.5~30초)로 맞춰 보내고, 화면에도 실제 적용값을 되돌려 준다.
+        const interval = Math.min(30, Math.max(0.5, Number($('#sendInterval').value) || 2));
+        $('#sendInterval').value = interval;
         return {
             group_id: Number(state.activeGroupId), sender_id: Number($('#composeSender').value), template_id: $('#composeTemplate').value ? Number($('#composeTemplate').value) : null,
             subject: $('#composeSubject').value.trim(), body_html: $('#composeEditor').innerHTML.trim(), html_content: $('#composeEditor').innerHTML.trim(),

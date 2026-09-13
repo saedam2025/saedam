@@ -171,12 +171,12 @@
             <span class="card-sub">대기 <span class="count-highlight">{{ data.cert_wait | default(0) }}</span>건</span>
         </a>
         
-        <a href="/contract/admin" class="design-card">
+        <a href="/verified-contract/admin" class="design-card">
             <div class="card-icon" style="background: linear-gradient(135deg, #3b82f6, #60a5fa); -webkit-background-clip: text;">
-                <i class="fa-solid fa-file-contract"></i>
+                <i class="fa-solid fa-file-signature"></i>
             </div>
-            <span class="card-label">전자계약</span>
-            <span class="card-sub">미계약 <span class="count-highlight">{{ data.contract_miss | default(0) }}</span>건</span>
+            <span class="card-label">인증전자계약</span>
+            <span class="card-sub">미완료 <span class="count-highlight">{{ data.contract_miss | default(0) }}</span>건</span>
         </a>
         
         <a href="/expense" class="design-card">
