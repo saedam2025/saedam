@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import calendar
 import html
+import json
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -576,26 +577,33 @@ def _contract_end_date(period: Any) -> date | None:
 
 
 def get_contract_expirations(arguments: dict[str, Any], context: dict[str, Any]) -> ToolExecution:
-    _require(context, "contract_admin", "전자계약")
+    _require(context, "verified_contract_admin", "인증전자계약")
     start, end = _date_range(arguments)
     limit = _limit(arguments.get("limit"), 20)
     conn = get_db()
     try:
         rows = conn.execute(
-            'SELECT id, "계약구분", "수탁학교명", "부서명", "성명", "계약기간" FROM contracts '
-            'WHERE COALESCE("계약기간",\'\')<>\'\' ORDER BY id DESC'
+            "SELECT id, contract_type, school_name, department, signer_name, contract_data_json "
+            "FROM verified_contracts ORDER BY id DESC"
         ).fetchall()
     finally:
         conn.close()
     matches, unparsed = [], 0
     for row in rows:
-        expires = _contract_end_date(row["계약기간"])
+        try:
+            data = json.loads(row["contract_data_json"] or "{}")
+        except (TypeError, ValueError):
+            data = {}
+        period = data.get("계약기간") if isinstance(data, dict) else ""
+        if not str(period or "").strip():
+            continue
+        expires = _contract_end_date(period)
         if not expires:
             unparsed += 1
             continue
         if start <= expires <= end:
-            matches.append({"name": row["성명"], "school": row["수탁학교명"], "department": row["부서명"],
-                            "contract_type": row["계약구분"], "expires_on": expires.isoformat(), "period": row["계약기간"]})
+            matches.append({"name": row["signer_name"], "school": row["school_name"], "department": row["department"],
+                            "contract_type": row["contract_type"], "expires_on": expires.isoformat(), "period": str(period)})
     matches.sort(key=lambda item: (item["expires_on"], item["name"]))
     matches = matches[:limit]
     message = f"{_period_label(start, end)} 계약 만료 예정 {len(matches)}건입니다."
@@ -605,55 +613,33 @@ def get_contract_expirations(arguments: dict[str, Any], context: dict[str, Any])
         "계약 만료 예정자", message,
         [("name", "성명"), ("school", "학교"), ("department", "부서"),
          ("contract_type", "계약구분"), ("expires_on", "만료일")], matches,
-        [{"label": "전자계약관리로 이동", "url": "/contract/admin", "style": "primary"}],
+        [{"label": "인증전자계약관리로 이동", "url": "/verified-contract/admin", "style": "primary"}],
     )
     return ToolExecution({"period": _period_label(start, end), "contracts": matches, "unparsed_count": unparsed}, display)
 
 
 def get_incomplete_contracts(arguments: dict[str, Any], context: dict[str, Any]) -> ToolExecution:
-    _require(context, "contract_admin", "전자계약")
-    system = _clean(arguments.get("contract_system"), 20).lower() or "all"
-    if system not in {"all", "general", "verified"}:
-        raise ValueError("contract_system은 all, general, verified 중 하나여야 합니다.")
+    _require(context, "verified_contract_admin", "인증전자계약")
     limit = _limit(arguments.get("limit"), 20)
     conn = get_db()
     try:
-        items: list[dict[str, Any]] = []
-        if system in {"all", "general"}:
-            general_limit = max(1, limit // 2) if system == "all" else limit
-            rows = conn.execute(
-                'SELECT id, "계약구분", "수탁학교명", "부서명", "성명", "created_at" FROM contracts '
-                'WHERE COALESCE(TRIM("계약완료일시"),\'\')=\'\' ORDER BY id DESC LIMIT ?', (general_limit,)
-            ).fetchall()
-            items.extend({"system": "일반 전자계약", "name": row["성명"], "school": row["수탁학교명"],
-                          "department": row["부서명"], "status": "미완료", "created_at": str(row["created_at"] or "")[:10]}
-                         for row in rows)
-        if system in {"all", "verified"}:
-            table_exists = conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='verified_contracts'"
-            ).fetchone()
-            if table_exists:
-                remaining = max(0, limit - len(items)) if system == "all" else limit
-                rows = conn.execute(
-                    """
-                    SELECT signer_name, school_name, department, status, created_at
-                    FROM verified_contracts
-                    WHERE LOWER(COALESCE(status,'')) NOT IN ('completed','signed')
-                    ORDER BY id DESC LIMIT ?
-                    """, (remaining,),
-                ).fetchall()
-                items.extend({"system": "인증 전자계약", "name": row["signer_name"], "school": row["school_name"],
-                              "department": row["department"], "status": row["status"],
-                              "created_at": str(row["created_at"] or "")[:10]} for row in rows)
+        rows = conn.execute(
+            """
+            SELECT signer_name, school_name, department, status, created_at
+            FROM verified_contracts
+            WHERE LOWER(COALESCE(status,'')) NOT IN ('completed','signed')
+            ORDER BY id DESC LIMIT ?
+            """, (limit,),
+        ).fetchall()
     finally:
         conn.close()
-    items = items[:limit]
+    items = [{"name": row["signer_name"], "school": row["school_name"], "department": row["department"],
+              "status": row["status"], "created_at": str(row["created_at"] or "")[:10]} for row in rows]
     display = _table(
-        "미완료 전자계약", f"완료되지 않은 전자계약 {len(items)}건입니다.",
-        [("system", "구분"), ("name", "성명"), ("school", "학교"),
+        "미완료 인증전자계약", f"완료되지 않은 인증전자계약 {len(items)}건입니다.",
+        [("name", "성명"), ("school", "학교"),
          ("department", "부서"), ("status", "상태"), ("created_at", "등록일")], items,
-        [{"label": "일반 전자계약", "url": "/contract/admin", "style": "secondary"},
-         {"label": "인증 전자계약", "url": "/verified-contract/admin", "style": "primary"}],
+        [{"label": "인증전자계약관리로 이동", "url": "/verified-contract/admin", "style": "primary"}],
     )
     return ToolExecution({"count": len(items), "contracts": items}, display)
 
@@ -1650,9 +1636,8 @@ TOOL_DEFINITIONS = [
            "limit": _nullable_integer("최대 표시 건수. 기본 20, 최대 20")}),
     _tool("get_contract_expirations", "계약기간 문자열에서 종료일을 추출해 기간 내 만료 예정자를 찾는다.",
           {**DATE_PROPERTIES, "limit": _nullable_integer("결과 건수. 기본 20, 최대 20")}),
-    _tool("get_incomplete_contracts", "일반 전자계약과 인증 전자계약 중 완료되지 않은 계약을 찾는다.",
-          {"contract_system": _nullable_string("all, general, verified 중 하나. 기본 all"),
-           "limit": _nullable_integer("결과 건수. 기본 20, 최대 20")}),
+    _tool("get_incomplete_contracts", "인증전자계약 중 완료되지 않은 계약을 찾는다.",
+          {"limit": _nullable_integer("결과 건수. 기본 20, 최대 20")}),
     _tool("search_employees", "승인된 직원의 이름, 직급, 소속, 팀, 연락처, 이메일, 담당 학교를 검색한다. "
           "연락처·이메일은 본사연락망 메뉴에 공개된 정보이므로 함께 제공한다. 주소·주민번호·계좌번호 등은 반환하지 않는다.",
           {"keyword": _nullable_string("이름·소속·학교 검색어. 전체면 null"),
