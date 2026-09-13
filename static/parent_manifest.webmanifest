@@ -1,0 +1,16 @@
+{
+  "name": "새담 방과후학교 학부모알림",
+  "short_name": "새담알림",
+  "start_url": "/parent/",
+  "scope": "/parent/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#155e75",
+  "icons": [
+    {
+      "src": "/static/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}
