@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    {% include 'school_billing/_portal_head.html' %}
+    <title>새담 청구업무 · {{ member.school_name }}</title>
+    <style>
+        .pt-user{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:.82rem}
+        .pt-user b{font-weight:800}
+        .pt-user a{color:#fff;text-decoration:none;padding:7px 12px;border-radius:9px;background:rgba(255,255,255,.14)}
+        .pt-user a:hover{background:rgba(255,255,255,.24)}
+        .pt-section-title{display:flex;align-items:center;gap:8px;margin:22px 0 10px;font-size:1rem;font-weight:900;color:#1f3a5f}
+        .pt-start{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(230px,1fr);gap:12px}
+        .pt-start-card{display:flex;align-items:center;gap:14px;padding:18px;border-radius:16px;background:#fff;
+            border:1px solid #e2e8f0;cursor:pointer;text-align:left;font:inherit;transition:.15s ease;
+            box-shadow:0 6px 18px rgba(15,23,42,.05)}
+        .pt-start-card:hover{border-color:#2563eb;transform:translateY(-2px);box-shadow:0 12px 26px rgba(37,99,235,.14)}
+        .pt-start-card > i{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;flex:0 0 auto;
+            font-size:1.2rem;color:#fff;background:linear-gradient(135deg,#3b82f6,#1d4ed8)}
+        .pt-start-card.material_fee > i{background:linear-gradient(135deg,#f59e0b,#d97706)}
+        .pt-start-card.data_request > i{background:linear-gradient(135deg,#10b981,#059669)}
+        .pt-start-card b{display:block;font-size:.98rem;font-weight:900;color:#1f3a5f}
+        .pt-start-card small{display:block;margin-top:3px;font-size:.74rem;color:#64748b;line-height:1.5}
+        /* 오른쪽 끝 '+ 시작' — 옆으로 넘어가는 화살표 대신, 누르면 새 업무를 여는 버튼으로 보이게 한다 */
+        .pt-start-card .go{margin-left:auto;flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;padding:5px 10px;
+            border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:.72rem;font-weight:800;white-space:nowrap;transition:.15s}
+        .pt-start-card .go i{font-size:.66rem}
+        .pt-start-card:hover .go{background:#2563eb;color:#fff}
+        /* 본사 담당자 상태 — [업무 시작하기] 오른쪽 끝 */
+        .pt-status{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;
+            background:color-mix(in srgb,var(--stc) 9%,#fff);border:1px solid color-mix(in srgb,var(--stc) 35%,#fff);
+            box-shadow:0 6px 18px rgba(15,23,42,.05)}
+        .pt-status .emo{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;font-size:1.75rem;
+            background:#fff;box-shadow:0 3px 10px color-mix(in srgb,var(--stc) 30%,transparent);animation:ptBob 2.8s ease-in-out infinite}
+        @keyframes ptBob{50%{transform:translateY(-3px) rotate(-5deg)}}
+        .pt-status small{display:flex;align-items:center;gap:5px;font-size:.66rem;font-weight:800;color:#64748b}
+        .pt-status small::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--stc)}
+        .pt-status b{display:block;margin-top:2px;font-size:.98rem;font-weight:900;color:var(--stc)}
+        .pt-status em{display:block;margin-top:2px;font-style:normal;font-size:.72rem;line-height:1.45;color:#475569;word-break:keep-all}
+        @media (prefers-reduced-motion:reduce){.pt-status .emo{animation:none}}
+        @media (max-width:1100px){.pt-start{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        .pt-field{margin-bottom:12px}
+        /* 처리 요청 — 순차적 · 금일 이내 · 긴급 */
+        .pt-priority{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+        .pt-priority-opt{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:12px;
+            background:#fff;cursor:pointer;transition:.15s}
+        .pt-priority-opt input{margin:3px 0 0;accent-color:var(--pc)}
+        .pt-priority-opt b{display:flex;align-items:center;gap:5px;font-size:.84rem;font-weight:900;color:var(--pc)}
+        .pt-priority-opt small{display:block;margin-top:3px;font-size:.7rem;line-height:1.5;color:#64748b;word-break:keep-all}
+        .pt-priority-opt:hover{border-color:var(--pc)}
+        .pt-priority-opt:has(input:checked){border-color:var(--pc);box-shadow:inset 0 0 0 1px var(--pc);
+            background:color-mix(in srgb,var(--pc) 7%,#fff)}
+        .pt-priority-opt.normal{--pc:#2563eb}
+        .pt-priority-opt.today{--pc:#d97706}
+        .pt-priority-opt.urgent{--pc:#dc2626}
+        @media (max-width:560px){.pt-priority{grid-template-columns:1fr}}
+        /* 내 정보 */
+        .pt-me-sec{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:18px 0 8px;padding-top:12px;border-top:1px dashed #dce4ef;
+            font-size:.84rem;font-weight:900;color:#1f3a5f}
+        .pt-me-sec small{font-weight:600;color:#64748b}
+        .pt-me-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .pt-me-grid .full{grid-column:1/-1}
+        .pt-me-inline{display:grid;grid-template-columns:1fr auto;gap:8px}
+        .pt-me-grid input[readonly]{background:#f1f5f9;color:#64748b}
+        @media (max-width:560px){.pt-me-grid{grid-template-columns:1fr}}
+        .pt-new-box{position:relative;width:min(620px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;
+            box-shadow:0 30px 80px rgba(15,23,42,.35);padding:22px}
+        .pt-new-box h3{margin:0 0 4px;font-size:1.1rem;font-weight:900;color:#1f3a5f}
+        .pt-new-box p.lead{margin:0 0 16px;font-size:.8rem;color:#64748b}
+        /* 상단 새담 로고(200x120) — 남색 머리글 위에서도 보이도록 흰 바탕에 올린다 */
+        .pt-logo{display:inline-flex;align-items:center;background:#fff;border-radius:10px;padding:3px 8px;flex:0 0 auto}
+        .pt-brand .pt-logo img{width:auto;height:40px;padding:0;border-radius:0;background:none;display:block}
+
+        /* ===== 오른쪽 [이용안내] 탭 — 현황 요약 탭과 같은 방식 ===== */
+        .pt-dock{position:fixed;right:0;top:96px;z-index:900;display:flex;align-items:flex-start;
+            transform:translateX(calc(100% - 38px));transition:transform .26s cubic-bezier(.2,.8,.3,1)}
+        .pt-dock.open{transform:translateX(0)}
+        /* 패널 왼쪽 위 둥근 모서리(12px)만큼 내려서 탭과 패널 사이 틈이 보이지 않게 한다 */
+        .pt-dock-tab{position:relative;flex:0 0 38px;width:38px;min-height:124px;margin-top:12px;padding:14px 0;border:1px solid #dce4ef;
+            border-right:0;border-radius:12px 0 0 12px;background:linear-gradient(180deg,#24456f,#1f3a5f);color:#fff;
+            font-family:inherit;font-size:.74rem;font-weight:800;cursor:pointer;display:flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:8px;box-shadow:-3px 2px 12px rgba(20,35,58,.18);transition:background .15s}
+        .pt-dock-tab:hover{background:linear-gradient(180deg,#2b5183,#24456f)}
+        .pt-dock-tab .label{writing-mode:vertical-rl;text-orientation:upright;letter-spacing:.08em}
+        .pt-dock-tab i{font-size:.82rem;opacity:.92}
+        .pt-dock-tab .dot{position:absolute;top:7px;right:7px;width:8px;height:8px;border-radius:50%;background:#ef4444;
+            box-shadow:0 0 0 2px #1f3a5f}
+        .pt-guide{flex:0 0 300px;width:300px;box-sizing:border-box;max-height:calc(100vh - 120px);overflow:auto;
+            padding:16px 15px 18px;border:1px solid #dce4ef;border-right:0;border-radius:12px 0 0 12px;
+            background:linear-gradient(180deg,#fff,#f7fafd);box-shadow:0 8px 26px rgba(20,35,58,.14)}
+        .pt-guide-title{display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:.86rem;font-weight:900;color:#1f3a5f}
+        .pt-guide-sec{margin:14px 0 8px;padding-top:12px;border-top:1px dashed #dce4ef;font-size:.68rem;font-weight:800;
+            letter-spacing:.06em;color:#94a3b8}
+        .pt-guide-sec.first{margin-top:0;padding-top:0;border-top:0}
+        .pt-muted{padding:4px 0;font-size:.74rem;color:#94a3b8}
+        .pt-notice{margin-bottom:6px;border-radius:10px;background:#fff;border:1px solid #e2e8f0}
+        .pt-notice summary{list-style:none;display:flex;align-items:center;gap:6px;padding:9px 10px;cursor:pointer;
+            font-size:.8rem;font-weight:700;color:#1f3a5f}
+        .pt-notice summary::-webkit-details-marker{display:none}
+        .pt-notice summary::after{content:'\f078';font-family:'Font Awesome 6 Free';font-weight:900;font-size:.6rem;
+            margin-left:auto;color:#94a3b8;transition:transform .15s}
+        .pt-notice[open] summary::after{transform:rotate(180deg)}
+        .pt-notice .pin{flex:0 0 auto;padding:1px 6px;border-radius:999px;background:#fee2e2;color:#b91c1c;font-size:.62rem;font-weight:800}
+        .pt-notice-body{padding:0 10px 10px;font-size:.76rem;line-height:1.65;color:#475569;white-space:pre-line;word-break:keep-all}
+        .pt-notice-date{margin-top:6px;font-size:.66rem;color:#94a3b8}
+        .pt-contact-row{padding:4px 0;font-size:.78rem;font-weight:400;color:#334155;word-break:break-all}
+        .pt-contact-row a{color:#1d4ed8;text-decoration:none;font-weight:400}
+        @media (max-width:640px){.pt-dock{top:auto;bottom:14px}.pt-guide{flex-basis:270px;width:270px;max-height:70vh}}
+
+        .pt-preview{background:#fef3c7;border-bottom:1px solid #fcd34d;color:#78350f;font-size:.82rem}
+        .pt-preview-inner{max-width:1100px;margin:0 auto;padding:9px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+        .pt-preview a{margin-left:auto;color:#78350f;font-weight:800}
+        @media (max-width:760px){.pt-start{grid-template-columns:1fr}.pt-user{margin-left:0;width:100%;justify-content:space-between}}
+    </style>
+</head>
+<body>
+    <header class="pt-top"><div class="pt-top-inner">
+        <div class="pt-brand"><span class="pt-logo"><img src="{{ url_for('static', filename='logo_s.gif') }}" alt="사단법인 새담청소년교육문화원"></span>
+            <div><b>새담 청구업무</b><small>학교회원 전용페이지</small></div></div>
+        <div class="pt-user">
+            <span><i class="fa-solid fa-school"></i> <b>{{ member.school_name }}</b> · <span class="pt-my-name">{{ member.name }}</span> 선생님</span>
+            <a href="#" id="ptMyInfoLink"><i class="fa-solid fa-user-gear"></i> 내 정보</a>
+            <a href="{{ url_for('school_portal.portal_logout') }}"><i class="fa-solid fa-right-from-bracket"></i> 로그아웃</a>
+        </div>
+    </div></header>
+    {% if preview_by %}
+    <div class="pt-preview"><div class="pt-preview-inner">
+        <i class="fa-solid fa-eye"></i>
+        <span><b>본사 미리보기</b> · {{ preview_by }}님이 {{ member.school_name }} {{ member.name }} 선생님 화면을 보고 있습니다.
+            읽기 전용이라 저장·처리 버튼은 동작하지 않습니다.</span>
+        <a href="{{ url_for('school_portal.portal_logout') }}">미리보기 종료</a>
+    </div></div>
+    {% endif %}
+
+    <main class="pt-wrap bl-scope">
+        <div class="pt-section-title" style="margin-top:0"><i class="fa-solid fa-play"></i>업무 시작하기</div>
+        <div class="pt-start">
+            {% set descriptions = {
+                'lecture_fee': '강사료 청구서를 올리고 본사와 처리합니다.',
+                'material_fee': '교구재비 청구 내역과 증빙을 주고받습니다.',
+                'data_request': '필요한 서류·자료를 본사에 요청합니다.'
+            } %}
+            {% for key, label in task_types.items() %}
+            <button type="button" class="pt-start-card {{ key }}" onclick="openNewTask('{{ key }}')">
+                <i class="fa-solid {{ task_type_icons[key] }}"></i>
+                <span><b>{{ label }}</b><small>{{ descriptions[key] }}</small></span>
+                <span class="go"><i class="fa-solid fa-plus"></i>시작</span>
+            </button>
+            {% endfor %}
+            <div class="pt-status" id="ptStatus" style="--stc:{{ staff_status.color }}" aria-live="polite">
+                <span class="emo" id="ptStatusEmoji" aria-hidden="true">{{ staff_status.emoji }}</span>
+                <span><small>본사 담당자 상태<span id="ptStatusTime">{% if staff_status.updated_at %} · {{ staff_status.updated_clock }}{% endif %}</span></small>
+                    <b id="ptStatusLabel">{{ staff_status.label }}</b>
+                    <em id="ptStatusMsg">{{ staff_status.message }}</em></span>
+            </div>
+        </div>
+
+        <div class="pt-section-title"><i class="fa-solid fa-chart-simple"></i>우리 학교 업무 현황</div>
+        <div class="bl-card"><div id="ptSummary"></div></div>
+
+        <div class="pt-section-title"><i class="fa-solid fa-list-check"></i>업무 목록</div>
+        <div class="bl-card">
+            <div class="bl-filters">
+                <select class="bl-input" id="ptStage">
+                    <option value="">전체 단계</option>
+                    <option value="open">진행중(미완료) 전체</option>
+                    <option value="cancel">취소요청</option>
+                    {% for key, label in stage_labels.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+                </select>
+                <select class="bl-input" id="ptType">
+                    <option value="">전체 업무</option>
+                    {% for key, label in task_types.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+                </select>
+                <input class="bl-input grow" id="ptSearch" placeholder="제목 검색">
+            </div>
+            <div id="ptList"></div>
+        </div>
+    </main>
+
+    <div class="pt-dock" id="ptDock">
+        <button type="button" class="pt-dock-tab" id="ptDockTab" aria-expanded="false" aria-controls="ptGuide">
+            <span class="dot" id="ptDockDot" hidden></span>
+            <i class="fa-solid fa-circle-info"></i><span class="label">이용안내</span>
+        </button>
+        <aside class="pt-guide" id="ptGuide" aria-label="이용안내">
+            <div class="pt-guide-title"><i class="fa-solid fa-circle-info"></i>이용안내</div>
+
+            <div class="pt-guide-sec first">새담 공지사항</div>
+            <div id="ptNotices"><div class="pt-muted">불러오는 중…</div></div>
+
+            <div class="pt-guide-sec">본사 연락처 · 담당자</div>
+            <div id="ptContact"><div class="pt-muted">불러오는 중…</div></div>
+        </aside>
+    </div>
+
+    <div class="bl-modal bl-scope" id="ptMeModal">
+        <div class="pt-new-box">
+            <button type="button" class="bl-modal-close" onclick="closeMyInfo()" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>
+            <h3><i class="fa-solid fa-user-gear"></i> 내 정보</h3>
+            <p class="lead">학교명과 아이디는 바꿀 수 없습니다. 학교명이 다르면 새담 본사로 알려 주세요.</p>
+            <div class="pt-me-sec" style="border-top:0;padding-top:0;margin-top:0">기본 정보</div>
+            <div class="pt-me-grid">
+                <div><label class="bl-label">학교명</label><input class="bl-input" id="ptMeSchool" readonly></div>
+                <div><label class="bl-label">아이디</label><input class="bl-input" id="ptMeLogin" readonly></div>
+                <div><label class="bl-label">성명<em>*</em></label><input class="bl-input" id="ptMeName" maxlength="30"></div>
+                <div><label class="bl-label">전화번호 <span style="font-weight:500;color:#94a3b8">(선택)</span></label>
+                    <input class="bl-input" id="ptMeTel" maxlength="14" inputmode="tel" placeholder="예: 031-123-4567"></div>
+                <div class="full"><label class="bl-label">이메일<em>*</em></label><input class="bl-input" id="ptMeEmail" type="email"></div>
+            </div>
+            <div style="text-align:right;margin-top:10px">
+                <button type="button" class="bl-btn primary" id="ptMeSave"><i class="fa-solid fa-floppy-disk"></i>기본 정보 저장</button></div>
+
+            <div class="pt-me-sec">휴대폰번호 변경 <small>지금 번호: <b id="ptMePhoneNow"></b></small></div>
+            <div class="pt-me-grid">
+                <div class="full"><label class="bl-label">새 휴대폰번호</label>
+                    <div class="pt-me-inline"><input class="bl-input" id="ptMePhone" inputmode="numeric" placeholder="010-0000-0000">
+                        <button type="button" class="bl-btn" id="ptMePhoneOtp"><i class="fa-solid fa-message"></i>인증번호 받기</button></div></div>
+                <div class="full"><label class="bl-label">인증번호</label>
+                    <div class="pt-me-inline"><input class="bl-input" id="ptMePhoneCode" inputmode="numeric" maxlength="6" placeholder="새 번호로 받은 6자리">
+                        <button type="button" class="bl-btn primary" id="ptMePhoneSave">번호 변경</button></div></div>
+            </div>
+
+            <div class="pt-me-sec">비밀번호 변경</div>
+            <div class="pt-me-grid">
+                <div class="full"><label class="bl-label">현재 비밀번호</label>
+                    <input class="bl-input" id="ptMePwNow" type="password" autocomplete="current-password"></div>
+                <div><label class="bl-label">새 비밀번호</label>
+                    <input class="bl-input" id="ptMePwNew" type="password" autocomplete="new-password" placeholder="영문+숫자 8자 이상"></div>
+                <div><label class="bl-label">새 비밀번호 확인</label>
+                    <input class="bl-input" id="ptMePwConfirm" type="password" autocomplete="new-password"></div>
+            </div>
+            <div style="text-align:right;margin-top:10px">
+                <button type="button" class="bl-btn primary" id="ptMePwSave"><i class="fa-solid fa-key"></i>비밀번호 변경</button></div>
+        </div>
+    </div>
+
+    <div class="bl-modal bl-scope" id="ptNewModal">
+        <form class="pt-new-box" id="ptNewForm">
+            <button type="button" class="bl-modal-close" onclick="closeNewTask()" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>
+            <h3 id="ptNewTitle">업무 시작</h3>
+            <p class="lead">내용을 적고 필요한 문서를 첨부하면 본사로 전달됩니다. 이후 [시작 → 진행 → 확인 → 완료] 순서로 처리됩니다.</p>
+            <input type="hidden" name="task_type" id="ptNewType">
+            <div class="pt-field"><label class="bl-label">제목<em>*</em></label>
+                <input class="bl-input" name="title" maxlength="100" id="ptNewTitleInput"></div>
+            <div class="pt-field" id="ptAmountField"><label class="bl-label">청구금액</label>
+                <input class="bl-input" name="amount" maxlength="30" placeholder="예: 1,250,000원"></div>
+            <div class="pt-field"><label class="bl-label">처리 요청</label>
+                <div class="pt-priority" role="radiogroup" aria-label="처리 요청">
+                    {% for key, p in priorities.items() %}
+                    <label class="pt-priority-opt {{ key }}">
+                        <input type="radio" name="priority" value="{{ key }}"{% if key == 'normal' %} checked{% endif %}>
+                        <span><b><i class="fa-solid {{ p.icon }}"></i>{{ p.label }}</b><small>{{ p.message }}</small></span>
+                    </label>
+                    {% endfor %}
+                </div></div>
+            <div class="pt-field"><label class="bl-label">내용</label>
+                <textarea class="bl-input" name="content" rows="5" placeholder="청구 기간, 강사명, 요청 사항 등을 적어 주세요."></textarea></div>
+            <div class="pt-field"><label class="bl-label">첨부 문서</label>
+                <div id="ptNewDrop"></div></div>
+            <label class="bl-check" style="margin:4px 0 14px"><input type="checkbox" name="notify" value="1" checked>본사에 문자 알림 보내기</label>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button type="button" class="bl-btn" onclick="closeNewTask()">취소</button>
+                <button type="submit" class="bl-btn primary" id="ptNewSubmit"><i class="fa-solid fa-play"></i>업무 시작</button>
+            </div>
+        </form>
+    </div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='school_billing/billing.js') }}?v=20260913-16"></script>
+<script>
+(function () {
+    const CSRF = {{ csrf_token|tojson }};
+    const TYPES = {{ task_types|tojson }};
+    const PLACEHOLDERS = {
+        lecture_fee: '예: 2026년 9월 방과후 강사료 청구',
+        material_fee: '예: 2학기 과학실험 교구재비 청구',
+        data_request: '예: 강사 경력증명서 발급 요청'
+    };
+
+    let searchTimer = null;
+    Billing.init({
+        viewer: 'member',
+        csrf: CSRF,
+        urls: {
+            summary: '/portal/api/summary',
+            tasks: '/portal/api/tasks',
+            task: id => '/portal/api/tasks/' + id,
+            messages: id => '/portal/api/tasks/' + id + '/messages',
+            advance: id => '/portal/api/tasks/' + id + '/advance',
+            cancelRequest: id => '/portal/api/tasks/' + id + '/cancel',
+            cancelWithdraw: id => '/portal/api/tasks/' + id + '/cancel/withdraw',
+            cancelApprove: id => '/portal/api/tasks/' + id + '/cancel/approve',
+            cancelReject: id => '/portal/api/tasks/' + id + '/cancel/reject',
+            uploads: '/portal/api/uploads'
+        },
+        // 실시간 신호 — 학교 전용 통로. 서버가 로그인한 학교회원 자신의 방에만 넣는다.
+        socketNamespace: '/billing-portal',
+        onRealtime: socket => {
+            socket.on('billing_status', () => { if (window.ptLoadStaffStatus) window.ptLoadStaffStatus(); });
+        },
+        summaryEl: document.getElementById('ptSummary'),
+        listEl: document.getElementById('ptList'),
+        getFilters: () => {
+            const f = {};
+            const stage = document.getElementById('ptStage').value;
+            const type = document.getElementById('ptType').value;
+            const q = document.getElementById('ptSearch').value.trim();
+            if (stage) f.stage = stage;
+            if (type) f.type = type;
+            if (q) f.q = q;
+            return f;
+        },
+        onStatClick: stage => { document.getElementById('ptStage').value = stage; Billing.refresh(); }
+    });
+
+    ['ptStage', 'ptType'].forEach(id => document.getElementById(id).onchange = () => Billing.refresh());
+    document.getElementById('ptSearch').oninput = () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => Billing.refresh(), 300);
+    };
+
+    const modal = document.getElementById('ptNewModal');
+    const form = document.getElementById('ptNewForm');
+    document.body.appendChild(modal);
+    const drop = Billing.createDropZone(document.getElementById('ptNewDrop'));
+    let uploading = false;
+
+    window.openNewTask = function (type) {
+        form.reset();
+        drop.clear();
+        document.getElementById('ptNewType').value = type;
+        document.getElementById('ptNewTitle').textContent = TYPES[type] + ' 시작';
+        document.getElementById('ptNewTitleInput').placeholder = PLACEHOLDERS[type] || '';
+        document.getElementById('ptAmountField').hidden = type === 'data_request';
+        modal.classList.add('open');
+        setTimeout(() => document.getElementById('ptNewTitleInput').focus(), 50);
+    };
+    // 바깥을 클릭하거나 드래그해도 닫히지 않는다. [X]나 [취소] 버튼으로만 닫는다.
+    window.closeNewTask = function () {
+        if (uploading) return;
+        if (drop.count() && !confirm('첨부한 파일이 있습니다. 닫으면 첨부가 취소됩니다. 닫을까요?')) return;
+        drop.clear();
+        modal.classList.remove('open');
+    };
+
+    // 파일은 넣는 즉시 전송되고, 모두 끝나야 [업무 시작]을 누를 수 있다.
+    const submitBtn = document.getElementById('ptNewSubmit');
+    const submitHtml = submitBtn.innerHTML;
+    drop.onChange(c => {
+        const busy = c.waiting + c.uploading;
+        submitBtn.disabled = busy > 0 || uploading;
+        submitBtn.innerHTML = busy
+            ? '<i class="fa-solid fa-spinner fa-spin"></i>파일 전송 중 (' + (c.total - busy) + '/' + c.total + ')'
+            : submitHtml;
+    });
+
+    form.onsubmit = async function (e) {
+        e.preventDefault();
+        if (uploading) return;
+        if (drop.pending()) { Billing.toast('파일 전송이 끝난 뒤 업무를 시작할 수 있습니다.'); return; }
+        if (drop.errors()) { Billing.toast('전송에 실패한 파일을 [다시 시도]하거나 빼 주세요.'); return; }
+        const closers = modal.querySelectorAll('button[onclick="closeNewTask()"]');
+        const fd = new FormData(form);
+        drop.uploadIds().forEach(id => fd.append('upload_ids', id));
+        uploading = true;
+        submitBtn.disabled = true;
+        drop.setBusy(true);
+        closers.forEach(b => b.disabled = true);
+        try {
+            const data = await Billing.request('/portal/api/tasks', { method: 'POST', body: fd });
+            drop.clear({ keepServer: true });
+            uploading = false;
+            modal.classList.remove('open');
+            Billing.toast([data.message, data.notify_result].filter(Boolean).join(String.fromCharCode(10)));
+            await Billing.refresh();
+            Billing.openTask(data.task_id);
+        } catch (err) {
+            Billing.toast(err.message);
+        } finally {
+            uploading = false;
+            submitBtn.disabled = drop.pending() > 0;
+            drop.setBusy(false);
+            closers.forEach(b => b.disabled = false);
+        }
+    };
+})();
+</script>
+<script>
+(function () {
+    const dock = document.getElementById('ptDock');
+    const tab = document.getElementById('ptDockTab');
+    const dot = document.getElementById('ptDockDot');
+    const esc = Billing.esc;
+    let latestNoticeId = 0;
+
+    function markSeen() {
+        if (!latestNoticeId) return;
+        try { localStorage.setItem('ptGuideSeen', String(latestNoticeId)); } catch (e) {}
+        dot.hidden = true;
+    }
+
+    function setOpen(on) {
+        dock.classList.toggle('open', on);
+        tab.setAttribute('aria-expanded', on ? 'true' : 'false');
+        try { localStorage.setItem('ptGuideOpen', on ? '1' : '0'); } catch (e) {}
+        if (on) markSeen();
+    }
+
+    tab.onclick = () => setOpen(!dock.classList.contains('open'));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+    document.addEventListener('click', e => {
+        if (dock.classList.contains('open') && !dock.contains(e.target) && !e.target.closest('.bl-modal')) {
+            setOpen(false);
+        }
+    });
+
+    // '대표전화: 031-8016-1900' 처럼 제목 옆에 내용을 붙여 쓴다(굵게 표시 없음).
+    function contactRow(label, value) {
+        return '<div class="pt-contact-row">' + label + ': ' + value + '</div>';
+    }
+
+    async function loadGuide() {
+        try {
+            const data = await Billing.request('/portal/api/guide');
+            const notices = data.notices || [];
+            document.getElementById('ptNotices').innerHTML = notices.length
+                ? notices.map((n, i) =>
+                    '<details class="pt-notice"' + (i === 0 ? ' open' : '') + '><summary>' +
+                    (n.is_pinned ? '<span class="pin">고정</span>' : '') + '<span>' + esc(n.title) + '</span></summary>' +
+                    '<div class="pt-notice-body">' + esc(n.body) +
+                    '<div class="pt-notice-date">' + esc(String(n.updated_at || n.created_at || '').slice(0, 10)) + '</div></div></details>'
+                ).join('')
+                : '<div class="pt-muted">등록된 공지사항이 없습니다.</div>';
+
+            latestNoticeId = notices.reduce((max, n) => Math.max(max, Number(n.id) || 0), 0);
+            let seen = 0;
+            try { seen = Number(localStorage.getItem('ptGuideSeen') || 0); } catch (e) {}
+            if (dock.classList.contains('open')) markSeen();
+            else dot.hidden = !(latestNoticeId > seen);
+
+            const c = data.contact || {};
+            const telHref = String(c.phone || '').replace(/[^\d+]/g, '');
+            document.getElementById('ptContact').innerHTML =
+                contactRow('대표전화', c.phone ? '<a href="tel:' + esc(telHref) + '">' + esc(c.phone) + '</a>' : '-') +
+                (c.fax ? contactRow('팩스', esc(c.fax)) : '') +
+                contactRow('담당자', esc(c.manager || '-')) +
+                contactRow('이메일', c.email ? '<a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a>' : '-');
+        } catch (e) {
+            document.getElementById('ptNotices').innerHTML = '<div class="pt-muted">' + esc(e.message) + '</div>';
+        }
+    }
+
+    /* ---------- 내 정보 — 성명 · 전화 · 이메일, 휴대폰번호(문자 인증), 비밀번호 ---------- */
+    const meModal = document.getElementById('ptMeModal');
+    document.body.appendChild(meModal);
+    const byId = id => document.getElementById(id);
+
+    async function runButton(btn, work) {
+        btn.disabled = true;
+        try { await work(); } catch (e) { Billing.toast(e.message); } finally { btn.disabled = false; }
+    }
+
+    byId('ptMyInfoLink').onclick = async e => {
+        e.preventDefault();
+        try {
+            const m = (await Billing.request('/portal/api/me')).member;
+            byId('ptMeSchool').value = m.school_name;
+            byId('ptMeLogin').value = m.login_id;
+            byId('ptMeName').value = m.name;
+            byId('ptMeTel').value = m.tel;
+            byId('ptMeEmail').value = m.email;
+            byId('ptMePhoneNow').textContent = m.phone_display;
+            ['ptMePhone', 'ptMePhoneCode', 'ptMePwNow', 'ptMePwNew', 'ptMePwConfirm'].forEach(id => { byId(id).value = ''; });
+            meModal.classList.add('open');
+        } catch (err) { Billing.toast(err.message); }
+    };
+    window.closeMyInfo = () => meModal.classList.remove('open');
+
+    byId('ptMeSave').onclick = () => runButton(byId('ptMeSave'), async () => {
+        const data = await Billing.postJSON('/portal/api/me',
+            { name: byId('ptMeName').value, tel: byId('ptMeTel').value, email: byId('ptMeEmail').value });
+        document.querySelectorAll('.pt-my-name').forEach(el => { el.textContent = data.member.name; });
+        Billing.toast(data.message);
+    });
+
+    byId('ptMePhone').addEventListener('input', function () {
+        const d = this.value.replace(/\D/g, '').slice(0, 11);
+        this.value = d.length > 7 ? d.slice(0, 3) + '-' + d.slice(3, d.length - 4) + '-' + d.slice(-4)
+                   : d.length > 3 ? d.slice(0, 3) + '-' + d.slice(3) : d;
+    });
+    byId('ptMePhoneOtp').onclick = () => runButton(byId('ptMePhoneOtp'), async () => {
+        Billing.toast((await Billing.postJSON('/portal/api/me/phone-otp', { phone: byId('ptMePhone').value })).message);
+        byId('ptMePhoneCode').focus();
+    });
+    byId('ptMePhoneSave').onclick = () => runButton(byId('ptMePhoneSave'), async () => {
+        const data = await Billing.postJSON('/portal/api/me/phone',
+            { phone: byId('ptMePhone').value, code: byId('ptMePhoneCode').value });
+        byId('ptMePhoneNow').textContent = data.phone_display;
+        byId('ptMePhone').value = '';
+        byId('ptMePhoneCode').value = '';
+        Billing.toast(data.message);
+    });
+    byId('ptMePwSave').onclick = () => runButton(byId('ptMePwSave'), async () => {
+        const data = await Billing.postJSON('/portal/api/me/password', {
+            current_password: byId('ptMePwNow').value, password: byId('ptMePwNew').value,
+            password_confirm: byId('ptMePwConfirm').value
+        });
+        ['ptMePwNow', 'ptMePwNew', 'ptMePwConfirm'].forEach(id => { byId(id).value = ''; });
+        Billing.toast(data.message);
+    });
+
+    // 본사 담당자 상태는 1분마다, 그리고 창으로 돌아올 때 새로 확인한다.
+    async function loadStaffStatus() {
+        try {
+            // 주기적 확인은 '사용'으로 치지 않는다 — 6시간 동안 아무 작업이 없으면 서버가 로그아웃시키고 로그인 화면으로 보낸다.
+            const s = (await Billing.request('/portal/api/staff-status',
+                { headers: { 'X-Portal-Background': '1' } })).staff_status;
+            document.getElementById('ptStatus').style.setProperty('--stc', s.color);
+            document.getElementById('ptStatusEmoji').textContent = s.emoji;
+            document.getElementById('ptStatusLabel').textContent = s.label;
+            document.getElementById('ptStatusMsg').textContent = s.message;
+            document.getElementById('ptStatusTime').textContent = s.updated_clock ? ' · ' + s.updated_clock : '';
+        } catch (e) { /* 다음 확인 때 다시 시도한다 */ }
+    }
+    window.ptLoadStaffStatus = loadStaffStatus;   // 실시간 신호를 받으면 바로 다시 불러온다
+    setInterval(() => { if (!document.hidden) loadStaffStatus(); }, 60000);   // 연결이 끊겼을 때를 대비한 보조 확인
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) loadStaffStatus(); });
+
+    loadGuide();
+    try { if (localStorage.getItem('ptGuideOpen') === '1') setOpen(true); } catch (e) {}
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1158 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='school_billing/billing.css') }}?v=20260913-16">
+<style>
+    /* 인트라넷 다른 메뉴(스마트명세서 발송 등)처럼 본문 폭을 가득 쓴다 */
+    .blp-page{max-width:none;margin:0;padding:0 0 60px}
+    .blp-hero{display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+    .blp-hero-icon{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;flex:0 0 auto;color:#fff;
+        font-size:1.3rem;background:linear-gradient(135deg,#2563eb,#1f3a5f);box-shadow:0 10px 22px rgba(37,99,235,.28)}
+    .blp-hero h1{margin:0;font-size:1.5rem;font-weight:900;letter-spacing:-.03em;color:var(--text-dark,#0f172a)}
+    .blp-hero p{margin:5px 0 0;font-size:.86rem;color:var(--text-gray,#64748b)}
+    .blp-portal{margin-left:auto;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:12px;
+        background:rgba(255,255,255,.85);border:1px solid #e2e8f0;font-size:.76rem;color:#475569}
+    .blp-portal code{font-size:.74rem;color:#1d4ed8;word-break:break-all}
+    .blp-tabs{display:flex;gap:6px;margin:18px 0 12px;align-items:center;flex-wrap:wrap}
+    .blp-preview{width:auto;min-width:230px;margin-left:auto;padding:9px 14px;border-radius:999px;font-weight:700;cursor:pointer;background:#fff}
+    .blp-tab{border:1px solid #e2e8f0;background:#fff;border-radius:999px;padding:9px 18px;font:inherit;font-size:.84rem;
+        font-weight:800;color:#475569;cursor:pointer}
+    .blp-tab.active{background:#1f3a5f;border-color:#1f3a5f;color:#fff}
+    .blp-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-bottom:14px}
+    .blp-form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+    .blp-warn{margin-top:10px;padding:10px 12px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a;
+        font-size:.76rem;color:#92400e;line-height:1.6}
+    /* 새 요청 도착 알림 · 학교별 현황 */
+    .blp-arrival{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;border-radius:12px;
+        background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:.84rem;font-weight:800;animation:blpPulse 1.6s ease-in-out 3}
+    .blp-arrival[hidden]{display:none}
+    .blp-arrival span{flex:1}
+    @keyframes blpPulse{50%{box-shadow:0 0 0 6px rgba(239,68,68,.15)}}
+    .blp-schools{margin-bottom:12px;padding-bottom:12px;border-bottom:1px dashed #e2e8f0}
+    .blp-schools[hidden]{display:none}
+    .blp-schools-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px;font-size:.84rem;color:#1f3a5f}
+    .blp-schools-head small{font-size:.72rem;color:#94a3b8}
+    .blp-school-chips{display:flex;flex-wrap:wrap;gap:6px;max-height:116px;overflow:auto}
+    .blp-school-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;
+        padding:6px 12px;font:inherit;font-size:.76rem;color:#334155;cursor:pointer;transition:.15s}
+    .blp-school-chip:hover{border-color:var(--sc,#2563eb)}
+    .blp-school-chip i{width:9px;height:9px;border-radius:50%;background:var(--sc,#94a3b8)}
+    .blp-school-chip b{font-weight:800;color:var(--sc,#1f3a5f)}
+    .blp-school-chip small,.blp-school-chip span{color:#94a3b8;font-weight:700}
+    .blp-school-chip em{font-style:normal;padding:0 7px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff}
+    .blp-school-chip em.unread{background:#ef4444}
+    .blp-school-chip em.todo{background:#2563eb}
+    .blp-school-chip.active{border-color:var(--sc,#1f3a5f);box-shadow:inset 0 0 0 1px var(--sc,#1f3a5f);
+        background:color-mix(in srgb,var(--sc,#1f3a5f) 8%,#fff)}
+    .blp-updated{font-size:.72rem;color:#94a3b8;white-space:nowrap}
+    /* 업무 목록 검색 — 입력창 하나 + 걸려 있는 조건 태그 */
+    .blp-search{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin-bottom:12px}
+    .blp-search-box{position:relative;flex:1 1 360px;min-width:220px;max-width:640px}
+    .blp-search-box i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:.85rem;pointer-events:none}
+    .blp-search-box input{width:100%;box-sizing:border-box;padding:10px 14px 10px 38px;border:1px solid #cbd5e1;border-radius:999px;
+        background:#fff;color:#334155;font:inherit;font-size:.86rem;outline:none;transition:.15s}
+    .blp-search-box input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+    .blp-active-filters{display:flex;gap:6px;flex-wrap:wrap}
+    .blp-active-filters:empty{display:none}
+    .blp-filter-tag{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 11px;border-radius:999px;border:1px solid #bfdbfe;
+        background:#eff6ff;color:#1d4ed8;font:inherit;font-size:.76rem;font-weight:800;cursor:pointer}
+    .blp-filter-tag i{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;background:#dbeafe;font-size:.6rem}
+    .blp-filter-tag.clear-all{padding:5px 11px;border-color:#e2e8f0;background:#fff;color:#64748b}
+    .blp-search-tools{display:flex;align-items:center;gap:8px;margin-left:auto}
+    /* 학교관리 */
+    .blp-sstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+    .blp-sstat{border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;background:#fff}
+    .blp-sstat small{display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;color:#64748b}
+    .blp-sstat b{display:block;margin-top:4px;font-size:1.2rem;font-weight:900;color:#1f3a5f}
+    .blp-stable td{vertical-align:top}
+    .blp-stable tbody tr td:first-child{border-left:4px solid var(--sc,#cbd5e1)}
+    .blp-sname b{font-size:.9rem;font-weight:900;color:var(--sc,#1f3a5f);white-space:nowrap}
+    .blp-man{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:3px 0}
+    .blp-man small{color:#64748b}
+    .blp-man.muted b{color:#64748b}
+    .blp-invite{margin-top:4px;font-size:.72rem;color:#1d4ed8}
+    .blp-invite.expired{color:#94a3b8}
+    .blp-none{color:#b91c1c;font-weight:800;font-size:.78rem}
+    .blp-orphan{padding:1px 7px;border-radius:999px;background:#fee2e2;color:#b91c1c;font-size:.68rem;font-weight:800}
+    .blp-dim{color:#cbd5e1}
+    .blp-work{white-space:nowrap;line-height:1.8}
+    .blp-work b{color:#1f3a5f}
+    .blp-work b.todo{color:#2563eb}
+    .blp-actions{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+    /* 기본설정 — 문자 알림 받는 번호 */
+    .blp-notify-box{margin-top:16px;padding-top:14px;border-top:1px dashed #e2e8f0}
+    .blp-notify-row{display:grid;grid-template-columns:74px minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center;margin-bottom:8px}
+    .blp-notify-pick{display:flex;align-items:center;gap:5px;font-size:.78rem;font-weight:800;color:#475569;cursor:pointer}
+    .blp-notify-pick input{width:16px;height:16px;accent-color:#2563eb}
+    .blp-notify-now{padding:12px 14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;font-size:.9rem;color:#1f3a5f}
+    /* 오른쪽 위에 떠 있는 본사 담당자 상태 상자 — 깜빡 잊지 않게 늘 보인다 */
+    .blp-float{position:relative;z-index:1050;flex:0 0 auto;width:240px;border-radius:16px;background:#fff;
+        border:2px solid var(--stc);box-shadow:0 6px 16px rgba(15,23,42,.08)}
+    .blp-float-main{display:flex;align-items:center;gap:10px;width:100%;padding:10px 34px 10px 12px;border:0;border-radius:14px;
+        background:color-mix(in srgb,var(--stc) 8%,#fff);font:inherit;text-align:left;cursor:pointer}
+    .blp-float .emo{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;font-size:1.5rem;
+        background:#fff;box-shadow:0 3px 10px color-mix(in srgb,var(--stc) 30%,transparent)}
+    .blp-float .txt{min-width:0;flex:1}
+    .blp-float .txt small{display:block;font-size:.64rem;font-weight:800;color:#64748b}
+    .blp-float .txt b{display:block;font-size:.95rem;font-weight:900;color:var(--stc)}
+    .blp-float .txt em{display:block;font-style:normal;font-size:.66rem;line-height:1.4;color:#94a3b8}
+    .blp-float .caret{font-size:.7rem;color:#94a3b8}
+    .blp-float-fold{position:absolute;top:6px;right:6px;width:22px;height:22px;border:0;border-radius:50%;
+        background:rgba(15,23,42,.06);color:#64748b;font-size:.62rem;cursor:pointer}
+    .blp-float-fold:hover{background:rgba(15,23,42,.12)}
+    .blp-float.stale{animation:blpStale 1.4s ease-in-out infinite}
+    .blp-float.stale .txt em{color:#dc2626;font-weight:800}
+    @keyframes blpStale{50%{box-shadow:0 0 0 7px rgba(239,68,68,.25),0 14px 34px rgba(15,23,42,.18)}}
+    /* 목록은 상자 아래로 떠서 펼쳐진다(상단 줄 높이가 늘어나지 않게) */
+    .blp-float-menu{position:absolute;top:calc(100% + 6px);right:-2px;width:330px;display:grid;gap:3px;max-height:62vh;overflow:auto;
+        padding:8px;border:2px solid var(--stc);border-radius:14px;background:#fff;box-shadow:0 14px 34px rgba(15,23,42,.18)}
+    .blp-float-menu[hidden]{display:none}
+    .blp-float-menu-head{padding:2px 4px 6px;font-size:.74rem;font-weight:900;color:#1f3a5f}
+    .blp-float-menu-head small{display:block;font-weight:600;color:#94a3b8}
+    .blp-float-opt{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;border:1px solid transparent;border-radius:10px;
+        background:none;font:inherit;text-align:left;cursor:pointer}
+    .blp-float-opt > span{font-size:1.2rem;line-height:1.2}
+    .blp-float-opt b{display:block;font-size:.8rem;color:#334155}
+    .blp-float-opt small{display:block;margin-top:2px;font-size:.68rem;line-height:1.45;color:#64748b;word-break:keep-all}
+    .blp-float-opt:hover{background:color-mix(in srgb,var(--stc) 8%,#fff)}
+    .blp-float-opt.active{border-color:var(--stc);background:color-mix(in srgb,var(--stc) 10%,#fff)}
+    .blp-float-opt.active b{color:var(--stc)}
+    .blp-float-opt.active b::after{content:' · 지금 (누르면 오늘 확인)';font-size:.66rem;font-weight:700}
+    .blp-float.folded{width:auto}
+    .blp-float.folded .txt,.blp-float.folded .caret{display:none}
+    .blp-float.folded .blp-float-main{padding:6px 28px 6px 6px}
+    @media (prefers-reduced-motion:reduce){.blp-float.stale{animation:none}}
+    /* 장기 미접속 표시 · 처리 지연 기준 */
+    .blp-idle{display:inline-block;margin-top:2px;padding:1px 7px;border-radius:999px;background:#fffbeb;color:#b45309;
+        font-size:.68rem;font-weight:800;white-space:nowrap}
+    .blp-idle.warn{background:#fef2f2;color:#b91c1c}
+    .blp-inline-set{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.84rem;color:#334155}
+    @media (max-width:860px){.blp-sstats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:860px){.blp-grid,.blp-form-row{grid-template-columns:1fr}.blp-portal{margin-left:0}}
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="blp-page bl-scope" data-dormant-days="{{ dormant_days }}" data-idle-warn-days="{{ inactive_warn_days }}">
+    <div class="blp-hero">
+        <div class="blp-hero-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+        <div>
+            <h1>청구업무</h1>
+            <p>학교와 주고받는 강사료청구 · 교구재비청구 · 자료요청을 전화 대신 한 건씩 처리합니다.</p>
+        </div>
+        <div class="blp-portal">
+            <i class="fa-solid fa-school"></i>학교회원 로그인 주소
+            <code id="blpPortalUrl">{{ portal_login_url }}</code>
+            <button type="button" class="bl-btn sm" onclick="copyPortalUrl()"><i class="fa-regular fa-copy"></i>복사</button>
+        </div>
+        <!-- 학교에 보이는 본사 담당자 상태 — 로그인 주소 오른쪽에 두고, 목록은 아래로 펼쳐진다 -->
+        <div class="blp-float" id="blpFloat" data-key="{{ staff_status.key }}" data-updated="{{ staff_status.updated_at }}"
+             data-color="{{ staff_status.color }}" data-by="{{ staff_status.updated_by }}" style="--stc:{{ staff_status.color }}">
+            <button type="button" class="blp-float-main" id="blpFloatMain" aria-expanded="false" aria-controls="blpFloatMenu"
+                    title="학교회원 화면에 보이는 본사 담당자 상태 — 눌러서 바꾸기">
+                <span class="emo" id="blpFloatEmoji" aria-hidden="true">{{ staff_status.emoji }}</span>
+                <span class="txt"><small>학교에 보이는 본사 상태</small><b id="blpFloatLabel">{{ staff_status.label }}</b><em id="blpFloatAge"></em></span>
+                <i class="fa-solid fa-chevron-down caret"></i>
+            </button>
+            <button type="button" class="blp-float-fold" id="blpFloatFold" aria-label="상태 상자 접기 · 펴기"><i class="fa-solid fa-minus"></i></button>
+            <div class="blp-float-menu" id="blpFloatMenu" hidden>
+                <div class="blp-float-menu-head">상태 바꾸기<small>누르면 학교회원 전용페이지 [업무 시작하기] 오른쪽 끝에 아래 문구가 바로 보여요</small></div>
+                {% for s in staff_statuses %}
+                <button type="button" class="blp-float-opt" data-key="{{ s.key }}" style="--stc:{{ s.color }}">
+                    <span aria-hidden="true">{{ s.emoji }}</span><span><b>{{ s.label }}</b><small>{{ s.message }}</small></span></button>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="bl-card">
+        <h2 class="bl-card-title"><i class="fa-solid fa-chart-simple"></i>업무 현황 요약</h2>
+        <div id="blpSummary"></div>
+    </div>
+
+    <div class="blp-tabs">
+        <button type="button" class="blp-tab active" data-tab="tasks"><i class="fa-solid fa-list-check"></i> 업무 목록</button>
+        <button type="button" class="blp-tab" data-tab="members"><i class="fa-solid fa-users"></i> 학교회원 관리</button>
+        <button type="button" class="blp-tab" data-tab="schools"><i class="fa-solid fa-school"></i> 학교관리</button>
+        <button type="button" class="blp-tab" data-tab="guide"><i class="fa-solid fa-gear"></i> 기본설정</button>
+        <select class="bl-input blp-preview" id="blpPreview" title="선택한 학교담당자의 전용페이지를 새 창에서 읽기 전용으로 엽니다">
+            <option value="">🏫 학교담당자 페이지 열기</option>
+            {% for m in preview_members %}<option value="{{ m.id }}">{{ m.school_name }} · {{ m.name }}</option>{% endfor %}
+            {% if not preview_members %}<option value="" disabled>가입한 학교회원이 없습니다</option>{% endif %}
+        </select>
+    </div>
+
+    <div id="blpTabTasks" class="bl-card">
+        <div id="blpArrival" class="blp-arrival" hidden><i class="fa-solid fa-bell"></i><span></span>
+            <button type="button" class="bl-btn sm" onclick="showArrivals()">새 소식만 보기</button>
+            <button type="button" class="bl-btn sm" aria-label="알림 닫기"
+                    onclick="document.getElementById('blpArrival').hidden = true"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="blpSchools" class="blp-schools" hidden></div>
+        <div class="blp-search">
+            <div class="blp-search-box" id="blpSearchBox" data-types='{{ task_types|tojson }}'>
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="search" id="blpSearch" placeholder="학교명 · 담당자 · 업무 제목 · 업무 종류(강사료 등)로 검색" aria-label="업무 검색">
+            </div>
+            <div class="blp-active-filters" id="blpActiveFilters"></div>
+            <div class="blp-search-tools">
+                <label class="bl-check" title="30초마다 학교에서 온 새 요청을 확인합니다"><input type="checkbox" id="blpAuto" checked>자동 새로고침</label>
+                <span class="blp-updated" id="blpUpdated"></span>
+                <button type="button" class="bl-btn sm" onclick="Billing.refresh()" title="새로고침" aria-label="새로고침"><i class="fa-solid fa-rotate"></i></button>
+            </div>
+            <!-- 단계 · 학교 · 담당 · 업무종류 조건은 위 요약 칸과 학교별 현황 칩을 누르면 걸리고, 태그의 ×로 뺀다 -->
+            <input type="hidden" id="blpStage"><input type="hidden" id="blpMember">
+            <input type="hidden" id="blpAssignee"><input type="hidden" id="blpType">
+        </div>
+        <div id="blpList"></div>
+    </div>
+
+    <div id="blpTabMembers" hidden>
+        <div class="blp-grid">
+            <div class="bl-card">
+                <h2 class="bl-card-title"><i class="fa-solid fa-envelope"></i>학교회원 가입 초대</h2>
+                <div class="blp-form-row">
+                    <div><label class="bl-label">담당자 이메일<em>*</em></label>
+                        <input class="bl-input" id="blpInviteEmail" type="email" placeholder="teacher@school.go.kr"></div>
+                    <div><label class="bl-label">학교명<em>*</em></label>
+                        <input class="bl-input" id="blpInviteSchool" list="blpSchoolList" placeholder="학교명">
+                        <datalist id="blpSchoolList">{% for s in schools %}<option value="{{ s }}">{% endfor %}</datalist></div>
+                </div>
+                <label class="bl-label">보내는 메일 계정<em>*</em></label>
+                <select class="bl-input blp-sender" id="blpSender"><option value="">불러오는 중…</option></select>
+                <div class="bl-help">스마트 명세서 발송의 <a href="/payroll?tab=senders" target="_blank">발송계정 관리</a>에 등록한 내 계정으로 보냅니다.
+                    초대 링크는 7일간 유효하고, 가입할 때 휴대폰 문자 인증을 거칩니다.</div>
+                <div style="margin-top:12px;text-align:right">
+                    <button type="button" class="bl-btn primary" id="blpInviteBtn" onclick="sendInvite()">
+                        <i class="fa-solid fa-paper-plane"></i>초대 메일 보내기</button>
+                </div>
+            </div>
+            <div class="bl-card">
+                <h2 class="bl-card-title"><i class="fa-solid fa-bell"></i>본사 알림 문자 받는 사람</h2>
+                {% set pick = notify_contacts[notify_selected] if notify_selected >= 0 else none %}
+                <div class="blp-notify-now" id="blpNotifyNow">{% if pick %}<i class="fa-solid fa-mobile-screen"></i>
+                    <b>{{ pick.label or ((notify_selected + 1) ~ '번 연락처') }}</b> {{ pick.phone_display }}{% else %}<span style="color:#b91c1c">문자 받을 번호가 없습니다</span>{% endif %}</div>
+                <div class="bl-help">학교가 업무를 시작하거나 [확인 완료] · 취소요청을 누르면 이 번호로 문자가 갑니다.
+                    연락처 등록(최대 3개)과 받는 사람 변경은 [기본설정]에서 합니다.</div>
+                {% if not sms_ready %}
+                <div class="blp-warn"><i class="fa-solid fa-triangle-exclamation"></i>
+                    솔라피 문자 설정이 완료되지 않았습니다. 가입 인증번호와 알림 문자가 발송되지 않으니
+                    통합관리 &gt; 솔라피설정을 먼저 확인해 주세요.</div>
+                {% endif %}
+                <div style="margin-top:12px;text-align:right">
+                    <button type="button" class="bl-btn" onclick="openSettingsTab()"><i class="fa-solid fa-gear"></i>기본설정에서 변경</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bl-card" style="margin-bottom:14px">
+            <h2 class="bl-card-title"><i class="fa-solid fa-user-check"></i>가입한 학교회원</h2>
+            <div class="bl-table-wrap"><table class="bl-table">
+                <thead><tr><th>학교명</th><th>성명</th><th>아이디</th><th>휴대폰</th><th>전화</th><th>이메일</th>
+                    <th>업무</th><th>최근 접속</th><th>상태</th><th></th></tr></thead>
+                <tbody id="blpMembers"><tr><td colspan="10" class="bl-empty">불러오는 중…</td></tr></tbody>
+            </table></div>
+        </div>
+
+        <div class="bl-card">
+            <h2 class="bl-card-title"><i class="fa-solid fa-paper-plane"></i>보낸 초대</h2>
+            <div class="bl-table-wrap"><table class="bl-table">
+                <thead><tr><th>이메일</th><th>학교명</th><th>보낸 사람</th><th>보낸 일시</th><th>만료</th><th>상태</th><th></th></tr></thead>
+                <tbody id="blpInvites"><tr><td colspan="7" class="bl-empty">불러오는 중…</td></tr></tbody>
+            </table></div>
+        </div>
+    </div>
+    <div id="blpTabSchools" hidden>
+        <div class="bl-card">
+            <h2 class="bl-card-title"><i class="fa-solid fa-school"></i>학교관리 · 담당자 지정 현황</h2>
+            <div class="blp-sstats" id="blpSchoolStats"></div>
+            <div class="bl-filters">
+                <input class="bl-input grow" id="blpSchoolSearch" placeholder="학교명 · 담당자 이름 검색">
+                <button type="button" class="bl-btn" onclick="loadSchools()"><i class="fa-solid fa-rotate"></i>새로고침</button>
+            </div>
+            <div class="bl-help" style="margin:-4px 0 10px">[담당자 교체]를 누르면 전 담당자 계정은 즉시 정지되고 새 담당자에게 가입 초대 메일이 갑니다.
+                개인정보 보호를 위해 전 담당자의 지난 기록과 진행 중 업무는 새 담당자에게 보이지 않으며, 완료하지 못한 업무는 본사에서 취소할 수 있습니다.</div>
+            <div class="bl-table-wrap"><table class="bl-table blp-stable">
+                <thead><tr><th>학교</th><th>현재 학교 담당자</th><th>이전 담당자</th><th>업무 처리 현황</th><th>본사 담당(진행중)</th><th></th></tr></thead>
+                <tbody id="blpSchoolRows"><tr><td colspan="6" class="bl-empty">불러오는 중…</td></tr></tbody>
+            </table></div>
+        </div>
+
+        <div class="bl-card" style="margin-top:14px">
+            <h2 class="bl-card-title"><i class="fa-solid fa-clock-rotate-left"></i>처리 · 삭제 기록</h2>
+            <div class="bl-help" style="margin:-6px 0 10px">업무 삭제 · 취소, 가입 승인 · 거절, 정지 · 접속 허용, 장기 미접속 잠금, 담당자 교체, 계약 종료를
+                누가 언제 했는지 남깁니다. 지운 업무의 제목 · 금액 · 첨부 목록도 함께 남으며, 이 기록은 화면에서 지울 수 없습니다.</div>
+            <div class="bl-filters">
+                <select class="bl-input" id="blpAuditKind">
+                    <option value="">전체 기록</option>
+                    <option value="task">업무 삭제 · 취소</option>
+                    <option value="member">계정 처리</option>
+                </select>
+                <input class="bl-input grow" id="blpAuditSearch" placeholder="학교명 · 담당자 · 업무 제목 · 처리자 검색">
+            </div>
+            <div class="bl-table-wrap"><table class="bl-table">
+                <thead><tr><th>일시</th><th>처리</th><th>학교 · 담당자</th><th>업무 (종류 · 금액 · 단계)</th><th>내용</th><th>처리자</th></tr></thead>
+                <tbody id="blpAudit"><tr><td colspan="6" class="bl-empty">불러오는 중…</td></tr></tbody>
+            </table></div>
+        </div>
+    </div>
+
+    <div id="blpReplaceModal" class="bl-modal bl-scope bl-dialog">
+        <div class="bl-dialog-box">
+            <h3><i class="fa-solid fa-right-left"></i> 학교 담당자 교체</h3>
+            <p class="bl-help" id="blpReplaceInfo"></p>
+            <div class="blp-warn" style="margin:8px 0 12px">
+                · 전 담당자 계정은 <b>즉시 정지</b>되어 로그인할 수 없습니다.<br>
+                · 전 담당자의 지난 기록 · 진행 중 업무 · 대화 내용은 <b>새 담당자에게 보이지 않습니다.</b><br>
+                · 완료하지 못한 업무는 [학교관리]나 업무 상세 화면에서 본사가 취소할 수 있습니다.</div>
+            <label class="bl-label">새 담당자 이메일<em>*</em></label>
+            <input class="bl-input" id="blpReplaceEmail" type="email" placeholder="teacher@school.go.kr">
+            <label class="bl-label" style="margin-top:10px">보내는 메일 계정<em>*</em></label>
+            <select class="bl-input blp-sender" id="blpReplaceSender"><option value="">불러오는 중…</option></select>
+            <div class="bl-dialog-actions">
+                <button type="button" class="bl-btn" onclick="closeReplace()">취소</button>
+                <button type="button" class="bl-btn primary" id="blpReplaceBtn" onclick="submitReplace()">
+                    <i class="fa-solid fa-paper-plane"></i><span id="blpReplaceBtnText">정지하고 초대 보내기</span></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="blpTabGuide" hidden>
+        <div class="blp-grid">
+            <div class="bl-card">
+                <h2 class="bl-card-title"><i class="fa-solid fa-bullhorn"></i><span id="blpNoticeFormTitle">새담 공지사항 쓰기</span></h2>
+                <input type="hidden" id="blpNoticeId">
+                <label class="bl-label">제목<em>*</em></label>
+                <input class="bl-input" id="blpNoticeTitle" maxlength="80" placeholder="예: 9월 강사료 청구 마감 안내">
+                <label class="bl-label" style="margin-top:10px">내용</label>
+                <textarea class="bl-input" id="blpNoticeBody" rows="5" maxlength="2000"
+                          placeholder="학교회원 전용페이지 오른쪽 [이용안내] 탭에 줄바꿈 그대로 보입니다."></textarea>
+                <label class="bl-check" style="margin-top:10px"><input type="checkbox" id="blpNoticePinned">맨 위에 고정</label>
+                <div class="bl-help">새 공지를 등록하면 <b>최근 3개(새 공지 + 이전 공지 2개)</b>만 남고, 그보다 오래된 공지는 자동으로 삭제됩니다.
+                    고정한 공지도 개수에 포함됩니다. 기존 공지를 수정할 때는 삭제되지 않습니다.</div>
+                <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+                    <button type="button" class="bl-btn" onclick="resetNotice()">새로 쓰기</button>
+                    <button type="button" class="bl-btn primary" id="blpNoticeSave" onclick="saveNotice()">
+                        <i class="fa-solid fa-floppy-disk"></i>등록</button>
+                </div>
+            </div>
+            <div class="bl-card">
+                <h2 class="bl-card-title"><i class="fa-solid fa-phone"></i>본사 연락처 · 담당자</h2>
+                <div class="blp-form-row">
+                    <div><label class="bl-label">대표전화<em>*</em></label>
+                        <input class="bl-input" id="blpContactPhone" value="{{ contact.phone }}"></div>
+                    <div><label class="bl-label">팩스번호</label>
+                        <input class="bl-input" id="blpContactFax" value="{{ contact.fax }}" placeholder="031-000-0000"></div>
+                </div>
+                <div class="blp-form-row">
+                    <div><label class="bl-label">담당자</label>
+                        <input class="bl-input" id="blpContactManager" value="{{ contact.manager }}"></div>
+                    <div><label class="bl-label">이메일</label>
+                        <input class="bl-input" id="blpContactEmail" value="{{ contact.email }}"></div>
+                </div>
+                <div class="bl-help">학교회원 [이용안내] 탭에 보이는 연락처입니다.</div>
+                <div style="margin-top:12px;text-align:right">
+                    <button type="button" class="bl-btn" onclick="saveContact()"><i class="fa-solid fa-floppy-disk"></i>연락처 저장</button>
+                </div>
+
+                <div class="blp-notify-box">
+                    <label class="bl-label"><i class="fa-solid fa-bell"></i> 문자 알림 받는 번호 · 최대 3개 (받는 사람 1명 선택)</label>
+                    {% for i in range(3) %}
+                    <div class="blp-notify-row">
+                        <label class="blp-notify-pick"><input type="radio" name="blpNotifyPick" value="{{ i }}"{% if notify_selected == i %} checked{% endif %}>받음</label>
+                        <input class="bl-input" id="blpNotifyLabel{{ i }}" maxlength="20" placeholder="이름 (예: 봉성옥 팀장)" value="{{ notify_contacts[i].label }}">
+                        <input class="bl-input" id="blpNotifyPhone{{ i }}" placeholder="010-0000-0000" value="{{ notify_contacts[i].phone_display }}">
+                    </div>
+                    {% endfor %}
+                    <div class="bl-help">선택한 1명에게 업무 시작 · [확인 완료] · 취소요청 문자가 갑니다.
+                        오후 출근이나 휴가일 때는 [받음]만 바꿔 누르면 바로 적용됩니다. 번호를 새로 적거나 고친 뒤에는 [번호 저장]을 눌러 주세요.</div>
+                    {% if not sms_ready %}
+                    <div class="blp-warn"><i class="fa-solid fa-triangle-exclamation"></i>
+                        솔라피 문자 설정이 완료되지 않아 문자가 발송되지 않습니다. 통합관리 &gt; 솔라피설정을 확인해 주세요.</div>
+                    {% endif %}
+                    <div style="margin-top:10px;text-align:right">
+                        <button type="button" class="bl-btn" onclick="saveNotifyContacts()"><i class="fa-solid fa-floppy-disk"></i>번호 저장</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bl-card" style="margin-bottom:14px">
+            <h2 class="bl-card-title"><i class="fa-solid fa-hourglass-half"></i>처리 지연 알림 기준</h2>
+            <div class="blp-inline-set">
+                <span>업무를 시작한 지</span>
+                <input class="bl-input" id="blpOverdueDays" type="number" min="1" max="60" value="{{ overdue_days }}" style="width:80px">
+                <span>일이 지나도 완료되지 않으면 [처리 지연]으로 표시합니다.</span>
+                <button type="button" class="bl-btn" onclick="saveOverdueDays()"><i class="fa-solid fa-floppy-disk"></i>저장</button>
+            </div>
+            <div class="bl-help">학교가 [금일 이내] · [긴급]으로 요청한 업무는 그날 안에 완료되지 않으면 다음 날부터 지연으로 표시하고,
+                [순차적] 업무는 위 기준 일수를 따릅니다. 긴급 업무는 목록 맨 위에 오고 학교가 문자 알림을 끄더라도 본사에 문자가 갑니다.
+                본사 요약의 [처리 지연] 칸을 누르면 지연 업무만 모아 볼 수 있습니다.</div>
+        </div>
+
+        <div class="bl-card" style="margin-bottom:14px">
+            <h2 class="bl-card-title"><i class="fa-solid fa-list"></i>등록한 공지사항</h2>
+            <div class="bl-table-wrap"><table class="bl-table">
+                <thead><tr><th>제목</th><th>고정</th><th>작성자</th><th>수정일</th><th></th></tr></thead>
+                <tbody id="blpNotices"><tr><td colspan="5" class="bl-empty">불러오는 중…</td></tr></tbody>
+            </table></div>
+        </div>
+
+        <div class="bl-card">
+            <h2 class="bl-card-title"><i class="fa-solid fa-bell" style="color:#dc2626"></i>긴급연락요청 기록</h2>
+            <div id="blpNotifyWarn" class="blp-warn" hidden><i class="fa-solid fa-triangle-exclamation"></i>
+                문자 알림 받는 번호가 선택되지 않아 긴급연락 문자가 발송되지 않습니다. 위 [문자 알림 받는 번호]에서 먼저 등록해 주세요.</div>
+            <div class="bl-table-wrap"><table class="bl-table">
+                <thead><tr><th>요청 일시</th><th>학교</th><th>담당자</th><th>연락처</th><th>문자</th></tr></thead>
+                <tbody id="blpEmergencies"><tr><td colspan="5" class="bl-empty">불러오는 중…</td></tr></tbody>
+            </table></div>
+        </div>
+    </div>
+</section>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='school_billing/billing.js') }}?v=20260913-16"></script>
+<script>
+(function () {
+    const INVITE_LABELS = { sent: '대기', used: '가입완료', failed: '발송실패', revoked: '취소됨', expired: '만료' };
+    const MEMBER_LABELS = { active: '이용중', pending: '승인 대기', dormant: '장기 미접속 잠김', suspended: '정지', replaced: '교체됨' };
+    const pageEl = document.querySelector('.blp-page');
+    const DORMANT_DAYS = Number(pageEl.dataset.dormantDays) || 30;       // 서버 DORMANT_DAYS
+    const IDLE_WARN_DAYS = Number(pageEl.dataset.idleWarnDays) || 14;    // 서버 INACTIVE_WARN_DAYS
+    let memberRows = [];
+
+    // 오래 접속하지 않은 이용중 계정은 '며칠째 미접속 · 며칠 뒤 잠김'으로 알린다.
+    function idleBadge(m) {
+        if (m.status !== 'active' || m.inactive_days == null || m.inactive_days < IDLE_WARN_DAYS) return '';
+        const left = Math.max(0, DORMANT_DAYS - m.inactive_days);
+        return '<span class="blp-idle' + (left <= 5 ? ' warn' : '') + '">' + m.inactive_days + '일째 미접속 · ' +
+            (left ? left + '일 뒤 잠김' : '곧 잠김') + '</span>';
+    }
+
+    function lastSeenHtml(m) {
+        const login = m.last_login_at ? Billing.esc(Billing.shortTime(m.last_login_at)) : '<span style="color:#94a3b8">로그인 기록 없음</span>';
+        const badge = idleBadge(m);
+        return login + (badge ? '<br>' + badge : '');
+    }
+
+    function memberActions(m) {
+        if (m.status === 'replaced') return '<small style="color:#94a3b8">담당자 교체로 종료</small>';
+        if (m.status === 'pending') {
+            return '<button class="bl-btn sm primary" onclick="approveMember(' + m.id + ')">승인</button> ' +
+                '<button class="bl-btn sm danger" onclick="rejectMember(' + m.id + ')">거절</button>';
+        }
+        if (m.status === 'dormant') {
+            return (m.unlock_requested_at ? '<span class="blp-idle warn">허용 요청 ' + Billing.esc(Billing.shortTime(m.unlock_requested_at).slice(5)) + '</span> ' : '') +
+                '<button class="bl-btn sm primary" onclick="approveMember(' + m.id + ')">접속 허용</button>';
+        }
+        if (m.status === 'active') return '<button class="bl-btn sm" onclick="setMemberStatus(' + m.id + ',\'suspended\')">정지</button>';
+        return '<button class="bl-btn sm" onclick="setMemberStatus(' + m.id + ',\'active\')">허용</button>';
+    }
+    const esc = Billing.esc;
+
+    // 선택한 학교담당자의 전용페이지를 새 창으로 연다(본사 미리보기 · 읽기 전용).
+    document.getElementById('blpPreview').onchange = function () {
+        if (!this.value) return;
+        window.open('/billing/preview/' + encodeURIComponent(this.value), '_blank');
+        this.value = '';
+    };
+
+    let searchTimer = null;
+    const baseTitle = document.title;
+    let lastMemberAt = null;   // 학교 쪽 마지막 활동 시각 — 늘어나면 새 요청 도착 알림을 띄운다
+    const byId = id => document.getElementById(id);
+
+    function setMember(memberId, label) {
+        const input = byId('blpMember');
+        input.value = memberId ? String(memberId) : '';
+        input.dataset.label = memberId ? (label || '') : '';
+    }
+
+    // 검색은 입력창 하나로 하고, 요약 칸 · 학교 칩으로 걸린 조건은 태그로 보여 주며 ×로 뺀다.
+    const STAGE_FILTER_LABELS = { todo: '본사 처리 차례', unread: '새 소식', overdue: '처리 지연', open: '진행중 전체',
+        cancel: '취소요청', start: '시작 단계', progress: '진행 단계', review: '확인 단계', done: '완료' };
+    const ASSIGNEE_FILTER_LABELS = { me: '내 담당', none: '담당자 미지정' };
+    const TYPE_FILTER_LABELS = JSON.parse(byId('blpSearchBox').dataset.types || '{}');
+    const FILTER_INPUTS = ['blpStage', 'blpMember', 'blpAssignee', 'blpType'];
+
+    function renderActiveFilters() {
+        const tags = [];
+        const stage = byId('blpStage').value;
+        const member = byId('blpMember').value;
+        const assignee = byId('blpAssignee').value;
+        const type = byId('blpType').value;
+        if (stage) tags.push(['blpStage', STAGE_FILTER_LABELS[stage] || stage]);
+        if (member) tags.push(['blpMember', byId('blpMember').dataset.label || '선택한 학교']);
+        if (assignee) tags.push(['blpAssignee', ASSIGNEE_FILTER_LABELS[assignee] || assignee]);
+        if (type) tags.push(['blpType', TYPE_FILTER_LABELS[type] || type]);
+        const box = byId('blpActiveFilters');
+        box.innerHTML = tags.map(t => '<button type="button" class="blp-filter-tag" data-clear="' + t[0] + '" title="이 조건 빼기">' +
+            esc(t[1]) + '<i class="fa-solid fa-xmark"></i></button>').join('') +
+            (tags.length > 1 ? '<button type="button" class="blp-filter-tag clear-all" data-clear="all">모두 해제</button>' : '');
+        box.querySelectorAll('[data-clear]').forEach(b => b.onclick = () => {
+            (b.dataset.clear === 'all' ? FILTER_INPUTS : [b.dataset.clear]).forEach(id => { byId(id).value = ''; });
+            Billing.refresh();
+        });
+    }
+
+    function renderSchools(schools) {
+        const box = byId('blpSchools');
+        const current = byId('blpMember').value;
+        if (!schools.length) { box.hidden = true; return; }
+        const nameCount = {};
+        schools.forEach(s => { nameCount[s.school_name] = (nameCount[s.school_name] || 0) + 1; });
+        box.hidden = false;
+        box.innerHTML =
+            '<div class="blp-schools-head"><b><i class="fa-solid fa-school"></i> 학교별 현황</b>' +
+            '<small>학교를 누르면 그 학교 업무만 봅니다. 처리할 업무·새 소식이 있는 학교가 앞에 옵니다.</small></div>' +
+            '<div class="blp-school-chips">' +
+            '<button type="button" class="blp-school-chip' + (current ? '' : ' active') + '" data-member="">' +
+                '<b>전체 학교</b><span>' + schools.length + '곳</span></button>' +
+            schools.map(s =>
+                '<button type="button" class="blp-school-chip' + (String(s.member_id) === current ? ' active' : '') +
+                '" data-member="' + s.member_id + '" data-label="' + esc(s.school_name + ' · ' + s.member_name) +
+                '" style="--sc:' + Billing.schoolColor(s.member_id) + '" title="' + esc(s.school_name + ' · ' + s.member_name) + '">' +
+                '<i></i><b>' + esc(s.school_name) + '</b>' +
+                (nameCount[s.school_name] > 1 ? '<small>' + esc(s.member_name) + '</small>' : '') +
+                (s.member_status === 'replaced' ? '<small>전 담당자</small>' : '') +
+                (s.unread ? '<em class="unread">새 ' + s.unread + '</em>' : '') +
+                (s.todo ? '<em class="todo">처리 ' + s.todo + '</em>' : '') +
+                '<span>진행 ' + (s.open_count || 0) + '</span></button>'
+            ).join('') + '</div>';
+        box.querySelectorAll('.blp-school-chip').forEach(chip => chip.onclick = () => {
+            setMember(chip.dataset.member === current ? '' : chip.dataset.member, chip.dataset.label);
+            Billing.refresh();
+        });
+    }
+
+    function onQueue(q) {
+        if (!q) return;
+        document.title = (q.unread ? '(' + q.unread + ') ' : '') + baseTitle;
+        const latest = q.last_member_at || '';
+        if (lastMemberAt !== null && latest > lastMemberAt) {
+            const box = byId('blpArrival');
+            box.querySelector('span').textContent =
+                '학교에서 새 업무요청이나 글이 도착했습니다. (확인하지 않은 새 소식 ' + q.unread + '건)';
+            box.hidden = false;
+            Billing.toast('학교에서 새 업무요청 · 글이 도착했습니다.');
+        }
+        lastMemberAt = latest;
+        byId('blpUpdated').textContent = '최근 확인 ' + Billing.clock12(new Date().toTimeString().slice(0, 5));
+    }
+
+    window.showArrivals = function () {
+        byId('blpArrival').hidden = true;
+        byId('blpStage').value = 'unread';
+        byId('blpAssignee').value = '';
+        setMember('');
+        showTab('tasks');
+        Billing.refresh();
+    };
+
+    Billing.init({
+        viewer: 'staff',
+        csrf: null,
+        urls: {
+            summary: '/billing/api/summary',
+            tasks: '/billing/api/tasks',
+            task: id => '/billing/api/tasks/' + id,
+            messages: id => '/billing/api/tasks/' + id + '/messages',
+            advance: id => '/billing/api/tasks/' + id + '/advance',
+            remove: id => '/billing/api/tasks/' + id + '/delete',
+            cancelRequest: id => '/billing/api/tasks/' + id + '/cancel',
+            cancelWithdraw: id => '/billing/api/tasks/' + id + '/cancel/withdraw',
+            cancelApprove: id => '/billing/api/tasks/' + id + '/cancel/approve',
+            cancelReject: id => '/billing/api/tasks/' + id + '/cancel/reject',
+            uploads: '/billing/api/uploads',
+            bulk: '/billing/api/tasks/bulk',
+            replacedCancel: id => '/billing/api/tasks/' + id + '/replaced-cancel'
+        },
+        // 실시간 신호 — 본사 전용 통로(청구업무 메뉴 권한이 있어야 연결된다)
+        socketNamespace: '/billing-staff',
+        onRealtime: socket => {
+            socket.on('billing_status', () => Billing.refresh({ quiet: true }));
+            socket.on('billing_members', () => {
+                Billing.refresh({ quiet: true });
+                if (!byId('blpTabMembers').hidden) loadMembers();
+                if (!byId('blpTabSchools').hidden) loadSchools();
+            });
+        },
+        summaryEl: document.getElementById('blpSummary'),
+        listEl: document.getElementById('blpList'),
+        getFilters: () => {
+            renderActiveFilters();
+            const f = {};
+            const stage = byId('blpStage').value;
+            const type = byId('blpType').value;
+            const member = byId('blpMember').value;
+            const assignee = byId('blpAssignee').value;
+            const q = byId('blpSearch').value.trim();
+            if (stage) f.stage = stage;
+            if (type) f.type = type;
+            if (member) f.member = member;
+            if (assignee) f.assignee = assignee;
+            if (q) f.q = q;
+            return f;
+        },
+        onStatClick: stage => {
+            if (stage === 'pending' || stage === 'unlock') { showTab('members'); return; }
+            if (stage === 'unassigned') {
+                byId('blpStage').value = 'open';
+                byId('blpAssignee').value = 'none';
+            } else if (stage === 'mine') {
+                byId('blpStage').value = 'open';
+                byId('blpAssignee').value = 'me';
+            } else {
+                byId('blpStage').value = stage;
+                if (stage === 'todo' || stage === 'unread' || stage === 'overdue') byId('blpAssignee').value = '';
+            }
+            showTab('tasks');
+            Billing.refresh();
+        },
+        onSummary: data => { renderSchools(data.schools || []); onQueue(data.queue); applyStatus(data.staff_status); },
+        onSchoolFilter: (memberId, label) => { setMember(memberId, label); showTab('tasks'); Billing.refresh(); }
+    });
+
+    // 여러 학교 요청이 동시에 와도 놓치지 않게 30초마다 확인한다(창을 보고 있지 않을 때는 쉬었다가 돌아오면 바로 확인).
+    setInterval(() => {
+        if (document.hidden || !byId('blpAuto').checked) return;
+        Billing.refresh({ quiet: true });
+    }, 30000);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && byId('blpAuto').checked) Billing.refresh({ quiet: true });
+    });
+
+    document.getElementById('blpSearch').oninput = () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => Billing.refresh(), 300);
+    };
+
+    function showTab(name) {
+        document.querySelectorAll('.blp-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+        document.getElementById('blpTabTasks').hidden = name !== 'tasks';
+        document.getElementById('blpTabMembers').hidden = name !== 'members';
+        document.getElementById('blpTabGuide').hidden = name !== 'guide';
+        document.getElementById('blpTabSchools').hidden = name !== 'schools';
+        if (name === 'members') { loadMembers(); loadSenders(); }
+        if (name === 'schools') { loadSchools(); loadAudit(); }
+        if (name === 'guide') { loadGuide(); }
+    }
+    document.querySelectorAll('.blp-tab').forEach(t => t.onclick = () => showTab(t.dataset.tab));
+
+    window.copyPortalUrl = async function () {
+        const text = document.getElementById('blpPortalUrl').textContent.trim();
+        try { await navigator.clipboard.writeText(text); Billing.toast('학교회원 로그인 주소를 복사했습니다.'); }
+        catch (e) { prompt('아래 주소를 복사해 주세요.', text); }
+    };
+
+    async function loadSenders() {
+        let html;
+        try {
+            const data = await Billing.request('/billing/api/senders');
+            const senders = data.senders || [];
+            html = senders.length
+                ? senders.map(s => '<option value="' + s.id + '">' + esc(s.label || s.email) + ' &lt;' + esc(s.email) + '&gt;</option>').join('')
+                : '<option value="">등록된 발송계정이 없습니다</option>';
+        } catch (e) {
+            html = '<option value="">' + esc(e.message) + '</option>';
+        }
+        // 초대 카드와 담당자 교체 창의 발송계정 선택칸을 함께 채운다.
+        document.querySelectorAll('.blp-sender').forEach(select => {
+            const keep = select.value;
+            select.innerHTML = html;
+            if (keep && select.querySelector('option[value="' + keep + '"]')) select.value = keep;
+        });
+    }
+
+    async function loadMembers() {
+        try {
+            const data = await Billing.request('/billing/api/members');
+            const members = data.members || [];
+            memberRows = members;
+            document.getElementById('blpMembers').innerHTML = members.length ? members.map(m =>
+                '<tr><td><b>' + esc(m.school_name) + '</b></td><td>' + esc(m.name) + '</td><td>' + esc(m.login_id) + '</td>' +
+                '<td>' + esc(m.phone_display) + '</td><td>' + esc(m.tel || '-') + '</td><td>' + esc(m.email) + '</td>' +
+                '<td>' + m.task_count + '건' + (m.open_count ? ' <small style="color:#2563eb">(진행 ' + m.open_count + ')</small>' : '') + '</td>' +
+                '<td>' + lastSeenHtml(m) + '</td>' +
+                '<td><span class="bl-pill ' + esc(m.status) + '">' + (MEMBER_LABELS[m.status] || esc(m.status)) + '</span></td>' +
+                '<td style="white-space:nowrap">' + memberActions(m) +
+                ' <button class="bl-btn sm danger" onclick="deleteMember(' + m.id + ')">삭제</button></td></tr>'
+            ).join('') : '<tr><td colspan="10" class="bl-empty">아직 가입한 학교회원이 없습니다.</td></tr>';
+
+            const invites = data.invites || [];
+            document.getElementById('blpInvites').innerHTML = invites.length ? invites.map(i =>
+                '<tr><td>' + esc(i.email) + '</td><td>' + esc(i.school_name || '-') + '</td><td>' + esc(i.sent_by || '-') + '</td>' +
+                '<td>' + esc(Billing.shortTime(i.created_at)) + '</td><td>' + esc((i.expires_at || '').slice(0, 10)) + '</td>' +
+                '<td><span class="bl-pill ' + esc(i.status) + '">' + (INVITE_LABELS[i.status] || esc(i.status)) + '</span></td>' +
+                '<td>' + (i.status === 'sent' ? '<button class="bl-btn sm" onclick="revokeInvite(' + i.id + ')">초대 취소</button>' : '') + '</td></tr>'
+            ).join('') : '<tr><td colspan="7" class="bl-empty">보낸 초대가 없습니다.</td></tr>';
+        } catch (e) {
+            Billing.toast(e.message);
+        }
+    }
+
+    window.sendInvite = async function () {
+        const btn = document.getElementById('blpInviteBtn');
+        const payload = {
+            email: document.getElementById('blpInviteEmail').value.trim(),
+            school_name: document.getElementById('blpInviteSchool').value.trim(),
+            sender_id: document.getElementById('blpSender').value
+        };
+        btn.disabled = true;
+        try {
+            const data = await Billing.postJSON('/billing/api/invites', payload);
+            Billing.toast(data.message);
+            document.getElementById('blpInviteEmail').value = '';
+            loadMembers();
+        } catch (e) {
+            Billing.toast(e.message);
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    window.revokeInvite = async function (id) {
+        if (!confirm('이 초대를 취소할까요? 보낸 링크가 더 이상 열리지 않습니다.')) return;
+        try { Billing.toast((await Billing.postJSON('/billing/api/invites/' + id + '/revoke')).message); loadMembers(); }
+        catch (e) { Billing.toast(e.message); }
+    };
+
+    window.setMemberStatus = async function (id, status) {
+        if (status === 'suspended' && !confirm('이 학교회원의 이용을 정지할까요? 정지하면 로그인할 수 없습니다.')) return;
+        try { Billing.toast((await Billing.postJSON('/billing/api/members/' + id + '/status', { status })).message); loadMembers(); }
+        catch (e) { Billing.toast(e.message); }
+    };
+
+    window.deleteMember = async function (id) {
+        if (!confirm('이 학교회원 계정을 삭제할까요?')) return;
+        try { Billing.toast((await Billing.postJSON('/billing/api/members/' + id + '/delete')).message); loadMembers(); }
+        catch (e) { Billing.toast(e.message); }
+    };
+
+    window.openSettingsTab = () => showTab('guide');
+
+    /* ------------------------------------------------ 기본설정 — 문자 알림 받는 번호(최대 3개) */
+    function fillNotify(contacts, selected) {
+        contacts.forEach((c, i) => {
+            if (i > 2) return;
+            byId('blpNotifyLabel' + i).value = c.label || '';
+            byId('blpNotifyPhone' + i).value = c.phone_display || c.phone || '';
+        });
+        document.querySelectorAll('input[name=blpNotifyPick]').forEach(r => { r.checked = Number(r.value) === selected; });
+        const now = selected >= 0 ? contacts[selected] : null;
+        byId('blpNotifyNow').innerHTML = now
+            ? '<i class="fa-solid fa-mobile-screen"></i> <b>' + esc(now.label || (selected + 1) + '번 연락처') + '</b> ' + esc(now.phone_display || now.phone)
+            : '<span style="color:#b91c1c">문자 받을 번호가 없습니다</span>';
+        byId('blpNotifyWarn').hidden = selected >= 0;
+    }
+
+    window.saveNotifyContacts = async function () {
+        const picked = document.querySelector('input[name=blpNotifyPick]:checked');
+        const contacts = [0, 1, 2].map(i => ({
+            label: byId('blpNotifyLabel' + i).value.trim(),
+            phone: byId('blpNotifyPhone' + i).value.trim()
+        }));
+        try {
+            const data = await Billing.postJSON('/billing/api/notify-contacts',
+                { contacts, selected: picked ? Number(picked.value) : -1 });
+            fillNotify(data.contacts, data.selected);
+            Billing.toast(data.message);
+        } catch (e) { Billing.toast(e.message); }
+    };
+
+    document.querySelectorAll('input[name=blpNotifyPick]').forEach(radio => radio.onchange = async () => {
+        try {
+            const data = await Billing.postJSON('/billing/api/notify-contacts/select', { index: Number(radio.value) });
+            fillNotify(data.contacts, data.selected);
+            Billing.toast(data.message);
+        } catch (e) {
+            Billing.toast(e.message);
+            loadGuide();   // 선택을 서버에 저장된 상태로 되돌린다
+        }
+    });
+
+    /* ------------------------------------------------ 본사 담당자 상태 — 오른쪽 위 상자 */
+    const floatBox = byId('blpFloat');
+    const floatMenu = byId('blpFloatMenu');
+    let staffStatus = { key: floatBox.dataset.key, updated_at: floatBox.dataset.updated };
+
+    // 오늘 바꾼 상태가 아니면 '오늘 상태를 확인해 주세요'로 깜빡여 알린다.
+    function statusAge(updatedAt, updatedBy) {
+        if (!updatedAt) return { text: '아직 설정하지 않았어요 · 눌러서 골라 주세요', stale: true };
+        const d = new Date();
+        const today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        if (updatedAt.slice(0, 10) === today) return { text: '오늘 ' + Billing.clock12(updatedAt.slice(11, 16)) + ' 변경' + (updatedBy ? ' · ' + updatedBy : ''), stale: false };
+        return { text: Number(updatedAt.slice(5, 7)) + '월 ' + Number(updatedAt.slice(8, 10)) + '일 상태예요 · 오늘 상태를 확인해 주세요', stale: true };
+    }
+
+    function applyStatus(s) {
+        if (!s) return;
+        staffStatus = s;
+        document.querySelectorAll('.blp-float-opt').forEach(b => b.classList.toggle('active', b.dataset.key === s.key));
+        floatBox.style.setProperty('--stc', s.color);
+        byId('blpFloatEmoji').textContent = s.emoji;
+        byId('blpFloatLabel').textContent = s.label;
+        const age = statusAge(s.updated_at, s.updated_by);
+        byId('blpFloatAge').textContent = age.text;
+        byId('blpFloatMain').title = '학교회원 화면에 보이는 문구: ' + (s.message || '') + ' — 눌러서 바꾸기';
+        floatBox.classList.toggle('stale', age.stale);
+    }
+
+    function toggleFloatMenu(on) {
+        floatMenu.hidden = !on;
+        floatBox.classList.toggle('menu-open', on);
+        byId('blpFloatMain').setAttribute('aria-expanded', on ? 'true' : 'false');
+    }
+
+    async function setStaffStatus(key) {
+        // 같은 상태라도 오늘 아직 확인하지 않았다면 다시 저장해 '오늘 확인'으로 남긴다.
+        if (key === staffStatus.key && !statusAge(staffStatus.updated_at).stale) { toggleFloatMenu(false); return; }
+        try {
+            const data = await Billing.postJSON('/billing/api/staff-status', { key });
+            applyStatus(data.staff_status);
+            toggleFloatMenu(false);
+            Billing.toast(data.message);
+        } catch (e) { Billing.toast(e.message); }
+    }
+
+    document.querySelectorAll('.blp-float-opt').forEach(btn => btn.onclick = () => setStaffStatus(btn.dataset.key));
+    byId('blpFloatMain').onclick = () => toggleFloatMenu(floatMenu.hidden);
+    byId('blpFloatFold').onclick = () => {
+        const folded = floatBox.classList.toggle('folded');
+        toggleFloatMenu(false);
+        try { localStorage.setItem('blpFloatFolded', folded ? '1' : '0'); } catch (e) {}
+    };
+    document.addEventListener('click', e => { if (!floatBox.contains(e.target)) toggleFloatMenu(false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') toggleFloatMenu(false); });
+    try { if (localStorage.getItem('blpFloatFolded') === '1') floatBox.classList.add('folded'); } catch (e) {}
+    applyStatus({
+        key: floatBox.dataset.key, color: floatBox.dataset.color, updated_at: floatBox.dataset.updated,
+        updated_by: floatBox.dataset.by, emoji: byId('blpFloatEmoji').textContent, label: byId('blpFloatLabel').textContent
+    });
+
+    /* ------------------------------------------------ 학교관리 · 담당자 교체 */
+    let schoolRows = [];
+    let replaceTarget = null;
+    const replaceModal = byId('blpReplaceModal');
+    document.body.appendChild(replaceModal);
+
+    async function loadSchools() {
+        try {
+            const data = await Billing.request('/billing/api/schools');
+            schoolRows = data.schools || [];
+            renderSchoolTable();
+        } catch (e) { Billing.toast(e.message); }
+    }
+    window.loadSchools = loadSchools;
+
+    function allMembers(s) { return s.active.concat(s.suspended, s.replaced); }
+
+    function renderSchoolTable() {
+        const q = byId('blpSchoolSearch').value.trim();
+        const rows = schoolRows.filter(s => !q || s.school_name.includes(q) || allMembers(s).some(m => (m.name || '').includes(q)));
+        const sum = key => schoolRows.reduce((n, s) => n + (s[key] || 0), 0);
+        byId('blpSchoolStats').innerHTML = [
+            ['fa-school', '학교', schoolRows.length + '곳'],
+            ['fa-user-slash', '현재 담당자 없음', schoolRows.filter(s => !s.active.length).length + '곳'],
+            ['fa-hand-point-right', '본사 처리 차례', sum('todo') + '건'],
+            ['fa-triangle-exclamation', '전 담당자 미완료 업무', sum('orphan_open') + '건']
+        ].map(x => '<div class="blp-sstat"><small><i class="fa-solid ' + x[0] + '"></i>' + x[1] + '</small><b>' + x[2] + '</b></div>').join('');
+        byId('blpSchoolRows').innerHTML = rows.length ? rows.map(schoolRowHtml).join('')
+            : '<tr><td colspan="6" class="bl-empty">' + (schoolRows.length ? '검색 결과가 없습니다.' : '가입한 학교회원이 없습니다.') + '</td></tr>';
+    }
+    byId('blpSchoolSearch').oninput = renderSchoolTable;
+
+    function schoolRowHtml(s) {
+        const tint = s.active.length ? Billing.schoolColor(s.active[0].id) : '#94a3b8';
+        const replaceBtn = (m, label) => '<button type="button" class="bl-btn sm" onclick="openReplace(' + m.id + ')">' +
+            '<i class="fa-solid fa-right-left"></i>' + label + '</button>';
+        const current = s.active.map(m =>
+            '<div class="blp-man"><b>' + esc(m.name) + '</b><small>' + esc(m.phone_display || '') + '</small>' +
+            '<small>가입 ' + esc((m.created_at || '').slice(0, 10)) + '</small>' + idleBadge(m) + replaceBtn(m, '담당자 교체') + '</div>'
+        ).concat(s.suspended.map(m =>
+            '<div class="blp-man muted"><b>' + esc(m.name) + '</b><span class="bl-pill ' + esc(m.status) + '">' +
+            (MEMBER_LABELS[m.status] || '정지') + '</span>' +
+            (m.status === 'pending' || m.status === 'dormant'
+                ? '<button type="button" class="bl-btn sm primary" onclick="approveMember(' + m.id + ')">' +
+                  (m.status === 'pending' ? '가입 승인' : '접속 허용') + '</button>'
+                : '') +
+            replaceBtn(m, '담당자 교체') + '</div>'
+        ));
+        if (!current.length) current.push('<div class="blp-none"><i class="fa-solid fa-user-slash"></i> 현재 담당자 없음</div>');
+        const invites = s.invites.map(i => '<div class="blp-invite' + (i.expired ? ' expired' : '') + '"><i class="fa-regular fa-envelope"></i> ' +
+            (i.replaces_member_id ? '새 담당자 ' : '') + '가입 초대 ' + (i.expired ? '만료' : '대기') + ' · ' + esc(i.email) +
+            ' · ' + esc((i.expires_at || '').slice(0, 10)) + (i.expired ? '' : '까지') + '</div>').join('');
+        const previous = s.replaced.map(m =>
+            '<div class="blp-man muted"><b>' + esc(m.name) + '</b><small>교체 ' + esc((m.replaced_at || '').slice(0, 10)) + '</small>' +
+            (m.open_count ? '<span class="blp-orphan">미완료 ' + m.open_count + '건</span>' : '') +
+            (m.has_successor ? '' : replaceBtn(m, '새 담당자 다시 초대')) + '</div>'
+        ).join('') || '<span class="blp-dim">-</span>';
+        const assignees = s.assignees.length ? s.assignees.map(a => a.name
+            ? esc(a.name) + ' ' + a.count + '건'
+            : '<span class="bl-unassigned">미지정 ' + a.count + '건</span>').join('<br>') : '<span class="blp-dim">-</span>';
+        const orphanBtns = s.replaced.filter(m => m.open_count).map(m =>
+            '<button type="button" class="bl-btn sm danger" onclick="cancelOrphans(' + m.id + ')"><i class="fa-solid fa-ban"></i>' +
+            esc(m.name) + ' 미완료 ' + m.open_count + '건 취소</button>').join('');
+        return '<tr style="--sc:' + tint + '">' +
+            '<td class="blp-sname"><b>' + esc(s.school_name) + '</b></td>' +
+            '<td>' + current.join('') + invites + '</td>' +
+            '<td>' + previous + '</td>' +
+            '<td class="blp-work">전체 <b>' + s.total + '</b> · 진행 <b>' + s.open_count + '</b><br>' +
+                '본사 차례 <b class="todo">' + s.todo + '</b> · 완료 <b>' + s.done_count + '</b></td>' +
+            '<td>' + assignees + '</td>' +
+            '<td><div class="blp-actions"><button type="button" class="bl-btn sm" data-school="' + esc(s.school_name) +
+                '" onclick="viewSchoolTasks(this.dataset.school)"><i class="fa-solid fa-list-check"></i>업무 보기</button>' +
+                orphanBtns +
+                '<button type="button" class="bl-btn sm danger" data-school="' + esc(s.school_name) +
+                '" onclick="endContract(this.dataset.school)"><i class="fa-solid fa-file-circle-xmark"></i>계약 종료 · 정보 삭제</button>' +
+                '</div></td></tr>';
+    }
+
+    function findMember(memberId) {
+        for (const s of schoolRows) {
+            const m = allMembers(s).find(x => x.id === memberId);
+            if (m) return { school: s, member: m };
+        }
+        return null;
+    }
+
+    window.openReplace = function (memberId) {
+        const found = findMember(memberId);
+        if (!found) return;
+        replaceTarget = found;
+        const again = found.member.status === 'replaced';
+        byId('blpReplaceInfo').innerHTML = '<b>' + esc(found.school.school_name) + '</b> · ' + (again ? '전' : '현재') + ' 담당자 ' +
+            esc(found.member.name) + ' 선생님' + (found.member.open_count ? ' · 미완료 업무 ' + found.member.open_count + '건' : '');
+        byId('blpReplaceBtnText').textContent = again ? '새 담당자 초대 다시 보내기' : '정지하고 초대 보내기';
+        byId('blpReplaceEmail').value = '';
+        replaceModal.classList.add('open');
+        loadSenders();
+        setTimeout(() => byId('blpReplaceEmail').focus(), 50);
+    };
+    window.closeReplace = () => replaceModal.classList.remove('open');
+
+    window.submitReplace = async function () {
+        if (!replaceTarget) return;
+        const { school, member } = replaceTarget;
+        const email = byId('blpReplaceEmail').value.trim();
+        if (!email) { Billing.toast('새 담당자 이메일을 입력해 주세요.'); return; }
+        const head = '[' + school.school_name + ']\n';
+        const question = member.status === 'replaced'
+            ? head + email + ' 로 새 담당자 가입 초대를 다시 보냅니다. 이전에 보낸 초대 링크는 사용할 수 없게 됩니다.\n계속할까요?'
+            : head + member.name + ' 선생님 계정을 즉시 정지하고 ' + email + ' 로 새 담당자 가입 초대를 보냅니다.\n\n' +
+              '전 담당자의 지난 기록과 진행 중 업무는 새 담당자에게 보이지 않습니다.\n계속할까요?';
+        if (!confirm(question)) return;
+        const btn = byId('blpReplaceBtn');
+        btn.disabled = true;
+        try {
+            const data = await Billing.postJSON('/billing/api/members/' + member.id + '/replace',
+                { email, sender_id: byId('blpReplaceSender').value });
+            alert(data.message);
+            closeReplace();
+            loadSchools();
+            Billing.refresh();
+        } catch (e) {
+            Billing.toast(e.message);
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    window.cancelOrphans = async function (memberId) {
+        const found = findMember(memberId);
+        if (!found) return;
+        const { school, member } = found;
+        if (!confirm('[' + school.school_name + ']\n전 담당자 ' + member.name + ' 선생님이 완료하지 못한 업무 ' + member.open_count +
+                '건을 취소합니다.\n업무와 주고받은 글 · 첨부파일이 모두 삭제되며 되돌릴 수 없습니다. 계속할까요?')) return;
+        try {
+            const data = await Billing.postJSON('/billing/api/members/' + memberId + '/cancel-open');
+            Billing.toast(data.message);
+            loadSchools();
+            Billing.refresh();
+        } catch (e) { Billing.toast(e.message); }
+    };
+
+    /* ------------------------------------------------ 가입 승인 · 접속 허용 · 계약 종료 · 처리 기록 */
+    function memberById(id) {
+        const m = memberRows.find(x => x.id === id);
+        if (m) return m;
+        const found = findMember(id);
+        return found ? found.member : null;
+    }
+
+    function reloadMemberViews() {
+        if (!byId('blpTabMembers').hidden) loadMembers();
+        if (!byId('blpTabSchools').hidden) { loadSchools(); loadAudit(); }
+        Billing.refresh();
+    }
+
+    window.approveMember = async function (id) {
+        const m = memberById(id);
+        if (!m) return;
+        const unlock = m.status === 'dormant';
+        if (!confirm('[' + m.school_name + '] ' + m.name + ' 선생님\n\n' + (unlock
+                ? DORMANT_DAYS + '일 이상 접속하지 않아 잠긴 계정의 접속을 허용할까요?'
+                : '가입을 승인할까요? 승인하면 바로 로그인할 수 있고, 선생님께 문자로 알려 드립니다.'))) return;
+        try {
+            Billing.toast((await Billing.postJSON('/billing/api/members/' + id + '/approve')).message);
+            reloadMemberViews();
+        } catch (e) { Billing.toast(e.message); }
+    };
+
+    window.rejectMember = async function (id) {
+        const m = memberById(id);
+        if (!m) return;
+        const reason = prompt('[' + m.school_name + '] ' + m.name + ' 선생님의 가입을 거절합니다.\n' +
+            '가입 정보는 삭제되고 거절 기록만 남습니다.\n\n거절 사유를 적어 주세요. (선택)', '');
+        if (reason === null) return;
+        try {
+            Billing.toast((await Billing.postJSON('/billing/api/members/' + id + '/reject', { reason })).message);
+            reloadMemberViews();
+        } catch (e) { Billing.toast(e.message); }
+    };
+
+    window.endContract = async function (school) {
+        const typed = prompt('[' + school + '] 학교와의 계약 종료 처리\n\n' +
+            '이 학교의 학교회원 계정 · 업무 · 대화 · 첨부파일 · 초대 기록이 모두 삭제되며 되돌릴 수 없습니다.\n' +
+            '누가 언제 무엇을 지웠는지는 [처리 · 삭제 기록]에 남습니다.\n\n계속하려면 학교명을 똑같이 입력해 주세요.', '');
+        if (typed === null) return;
+        if (typed.trim() !== school) { Billing.toast('학교명이 일치하지 않아 취소했습니다.'); return; }
+        try {
+            const data = await Billing.postJSON('/billing/api/schools/contract-end', { school_name: school, confirm: typed.trim() });
+            alert(data.message);
+            loadSchools();
+            loadAudit();
+            Billing.refresh();
+        } catch (e) { Billing.toast(e.message); }
+    };
+
+    window.saveOverdueDays = async function () {
+        try {
+            const data = await Billing.postJSON('/billing/api/overdue-days', { days: Number(byId('blpOverdueDays').value) });
+            byId('blpOverdueDays').value = data.days;
+            Billing.toast(data.message);
+            Billing.refresh();
+        } catch (e) { Billing.toast(e.message); }
+    };
+
+    let auditTimer = null;
+    async function loadAudit() {
+        const params = new URLSearchParams();
+        if (byId('blpAuditKind').value) params.set('kind', byId('blpAuditKind').value);
+        const q = byId('blpAuditSearch').value.trim();
+        if (q) params.set('q', q);
+        try {
+            const logs = (await Billing.request('/billing/api/audit-logs?' + params.toString())).logs || [];
+            byId('blpAudit').innerHTML = logs.length ? logs.map(r =>
+                '<tr><td style="white-space:nowrap">' + esc(Billing.shortTime(r.created_at)) + '</td>' +
+                '<td><span class="bl-pill ' + (r.target_type === 'task' ? 'failed' : 'sent') + '">' + esc(r.action_label) + '</span></td>' +
+                '<td><b>' + esc(r.school_name || '-') + '</b><br><small>' + esc(r.member_name || '') + '</small></td>' +
+                '<td>' + (r.title
+                    ? esc(r.title) + '<br><small>' + esc([r.task_type, r.amount, r.stage].filter(Boolean).join(' · ')) + '</small>'
+                    : '<span style="color:#cbd5e1">-</span>') + '</td>' +
+                '<td style="min-width:220px;white-space:normal"><small>' + esc(r.detail || '') + '</small></td>' +
+                '<td style="white-space:nowrap">' + esc(r.actor_name || '-') +
+                    (r.actor_type === 'member' ? ' <small>(학교)</small>' : '') + '</td></tr>'
+            ).join('') : '<tr><td colspan="6" class="bl-empty">기록이 없습니다.</td></tr>';
+        } catch (e) { Billing.toast(e.message); }
+    }
+    window.loadAudit = loadAudit;
+    byId('blpAuditKind').onchange = loadAudit;
+    byId('blpAuditSearch').oninput = () => { clearTimeout(auditTimer); auditTimer = setTimeout(loadAudit, 300); };
+
+    window.viewSchoolTasks = function (name) {
+        byId('blpStage').value = '';
+        byId('blpAssignee').value = '';
+        byId('blpType').value = '';
+        setMember('');
+        byId('blpSearch').value = name;
+        showTab('tasks');
+        Billing.refresh();
+    };
+    /* ------------------------------------------------ 포털 이용안내 */
+    let guideNotices = [];
+
+    async function loadGuide() {
+        try {
+            const data = await Billing.request('/billing/api/guide');
+            guideNotices = data.notices || [];
+            document.getElementById('blpNotices').innerHTML = guideNotices.length ? guideNotices.map(n =>
+                '<tr><td><b>' + esc(n.title) + '</b></td>' +
+                '<td>' + (n.is_pinned ? '<span class="bl-pill failed">고정</span>' : '-') + '</td>' +
+                '<td>' + esc(n.created_by || '-') + '</td>' +
+                '<td>' + esc(Billing.shortTime(n.updated_at || n.created_at)) + '</td>' +
+                '<td style="white-space:nowrap"><button class="bl-btn sm" onclick="editNotice(' + n.id + ')">수정</button> ' +
+                '<button class="bl-btn sm danger" onclick="deleteNotice(' + n.id + ')">삭제</button></td></tr>'
+            ).join('') : '<tr><td colspan="5" class="bl-empty">등록한 공지사항이 없습니다.</td></tr>';
+
+            const logs = data.emergencies || [];
+            fillNotify(data.notify_contacts || [], data.notify_selected);
+            document.getElementById('blpEmergencies').innerHTML = logs.length ? logs.map(l =>
+                '<tr><td>' + esc(Billing.shortTime(l.created_at)) + '</td>' +
+                '<td><b>' + esc(l.school_name) + '</b></td><td>' + esc(l.member_name) + '</td>' +
+                '<td>' + esc(l.phone_display || l.phone || '-') + '</td>' +
+                '<td>' + (l.ok ? '<span class="bl-pill used">전송</span>'
+                              : '<span class="bl-pill failed" title="' + esc(l.result || '') + '">실패</span>') + '</td></tr>'
+            ).join('') : '<tr><td colspan="5" class="bl-empty">긴급연락요청 기록이 없습니다.</td></tr>';
+        } catch (e) {
+            Billing.toast(e.message);
+        }
+    }
+
+    window.resetNotice = function () {
+        document.getElementById('blpNoticeId').value = '';
+        document.getElementById('blpNoticeTitle').value = '';
+        document.getElementById('blpNoticeBody').value = '';
+        document.getElementById('blpNoticePinned').checked = false;
+        document.getElementById('blpNoticeFormTitle').textContent = '새담 공지사항 쓰기';
+        document.getElementById('blpNoticeSave').innerHTML = '<i class="fa-solid fa-floppy-disk"></i>등록';
+    };
+
+    window.editNotice = function (id) {
+        const n = guideNotices.find(x => x.id === id);
+        if (!n) return;
+        document.getElementById('blpNoticeId').value = n.id;
+        document.getElementById('blpNoticeTitle').value = n.title || '';
+        document.getElementById('blpNoticeBody').value = n.body || '';
+        document.getElementById('blpNoticePinned').checked = !!n.is_pinned;
+        document.getElementById('blpNoticeFormTitle').textContent = '공지사항 수정';
+        document.getElementById('blpNoticeSave').innerHTML = '<i class="fa-solid fa-floppy-disk"></i>수정 저장';
+        document.getElementById('blpNoticeTitle').focus();
+    };
+
+    window.saveNotice = async function () {
+        try {
+            const data = await Billing.postJSON('/billing/api/notices', {
+                id: document.getElementById('blpNoticeId').value || null,
+                title: document.getElementById('blpNoticeTitle').value,
+                body: document.getElementById('blpNoticeBody').value,
+                is_pinned: document.getElementById('blpNoticePinned').checked
+            });
+            Billing.toast(data.message);
+            resetNotice();
+            loadGuide();
+        } catch (e) { Billing.toast(e.message); }
+    };
+
+    window.deleteNotice = async function (id) {
+        if (!confirm('이 공지사항을 삭제할까요? 학교회원 화면에서도 사라집니다.')) return;
+        try {
+            Billing.toast((await Billing.postJSON('/billing/api/notices/' + id + '/delete')).message);
+            loadGuide();
+        } catch (e) { Billing.toast(e.message); }
+    };
+
+    window.saveContact = async function () {
+        try {
+            const data = await Billing.postJSON('/billing/api/contact', {
+                phone: document.getElementById('blpContactPhone').value,
+                fax: document.getElementById('blpContactFax').value,
+                manager: document.getElementById('blpContactManager').value,
+                email: document.getElementById('blpContactEmail').value
+            });
+            Billing.toast(data.message);
+        } catch (e) { Billing.toast(e.message); }
+    };
+})();
+</script>
+{% endblock %}
