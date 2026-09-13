@@ -484,6 +484,10 @@
   object-fit:cover;
 }
 
+/* 썸네일 미등록 상태에서 빈 img가 깨진 이미지로 보이지 않게 합니다. */
+.manual-thumbnail-preview img[hidden],
+.manual-thumbnail-empty[hidden]{display:none;}
+
 .manual-thumbnail-empty{
   width:100%;
   height:100%;
@@ -615,3 +619,61 @@
     width:75%;
   }
 }
+
+/* v6: 상단 정보 카드(제목 / 설명 / 썸네일) 겹침 정리 --------------------- */
+.manual-meta-card{
+  grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,272px);
+  align-items:start;
+  gap:16px;
+}
+
+/* 그리드 칸이 좁아져도 입력창이 옆 칸을 덮지 않도록 합니다. */
+.manual-meta-card > *{min-width:0;}
+.manual-field input{max-width:100%;}
+
+.manual-thumbnail-row{
+  min-height:0;
+  align-items:flex-start;
+  flex-wrap:wrap;
+  gap:10px;
+}
+
+.manual-thumbnail-preview{width:96px;}
+
+.manual-thumbnail-actions{
+  flex:1 1 130px;
+  min-width:0;
+  gap:5px;
+}
+
+.manual-thumbnail-actions .manual-btn{width:100%;justify-content:center;}
+
+.manual-thumbnail-actions small{
+  display:block;
+  width:100%;
+  word-break:keep-all;
+}
+
+/* 상단 버튼 줄이 좁은 화면에서 겹치지 않게 접히도록 합니다. */
+.manual-editor-actions{flex-wrap:wrap;justify-content:flex-end;}
+
+@media(max-width:1180px){
+  .manual-meta-card{grid-template-columns:minmax(0,1fr) minmax(0,240px);}
+  .manual-thumbnail-field{grid-column:2;grid-row:1 / span 2;}
+}
+
+@media(max-width:760px){
+  .manual-meta-card{grid-template-columns:minmax(0,1fr);}
+  .manual-thumbnail-field{grid-column:auto;grid-row:auto;}
+  .manual-thumbnail-actions{flex:1 1 100%;}
+}
+
+/* 입력요소가 padding 때문에 칸 밖으로 밀려 옆 항목과 겹치던 문제를 막습니다. */
+.manual-editor-page input,
+.manual-editor-page select,
+.manual-editor-page textarea,
+.manual-editor-page button,
+.manual-editor-page .manual-btn{box-sizing:border-box;}
+
+/* 이미지가 아직 로드되지 않았을 때 도구 막대가 설명글을 덮지 않도록 합니다. */
+.saedam-rich-editor figure.manual-image{min-height:72px;}
