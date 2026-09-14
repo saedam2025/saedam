@@ -440,7 +440,7 @@
                     <div class="menu-permission-row child">
                         <div class="menu-permission-label">
                             <i class="fa-solid {{ child[2] }}"></i>
-                            <div><strong>{{ child[1] }}</strong><small>{% if child[0].startswith('school_center_shared') %}센터 공용게시판 독립 권한 · 센터장 전용모드보다 우선{% elif child[0] == 'school_center_boards' %}센터장 9개 게시판 일괄 권한 · 학교관리 주메뉴보다 우선{% else %}서브메뉴 권한 · 주메뉴 권한과 함께 적용{% endif %}</small></div>
+                            <div><strong>{{ child[1] }}</strong><small>{% if child[0].startswith('school_center_shared') %}센터 공용게시판 독립 권한 · 센터장 전용모드보다 우선{% elif child[0] == 'school_center_boards' %}센터장 9개 게시판 일괄 권한 · 학교관리 주메뉴보다 우선{% elif child[0] == 'school_center_event' %}센터장 업무공간 오른쪽 이벤트 탭 · 본부전용 체크 시 북부지점에서 숨김{% else %}서브메뉴 권한 · 주메뉴 권한과 함께 적용{% endif %}</small></div>
                         </div>
                         <select name="{{ child[0] }}" data-permission-select required aria-label="{{ child[1] }} 서브메뉴 권한">
                             <option value="-1" {% if menu_max_levels[child[0]] == -1 %}selected{% endif %}>차단 (최고관리자 제외)</option>
