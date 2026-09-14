@@ -17,6 +17,8 @@ INSTRUCTOR_EXPENSE_ACCESS_SESSION = 'expense_instructor_access_granted'
 UNIFIED_SEARCH_MENU = 'unified_search'
 SCHOOL_CENTER_BOARD_MENU = 'school_center_boards'
 SCHOOL_CENTER_SHARED_MENU = 'school_center_shared'
+# 센터장 전용 업무공간 오른쪽 이벤트 탭(이벤트관리에서 개설한 이벤트의 응모 입구)
+SCHOOL_CENTER_EVENT_MENU = 'school_center_event'
 SCHOOL_CENTER_SHARED_ACTION_MENUS = {
     'access': SCHOOL_CENTER_SHARED_MENU,
     'read': 'school_center_shared_read',
@@ -90,6 +92,7 @@ MENU_GROUPS = (
             ('school_center_shared_write', '[센터장] 본부공지사항·자료실 - 쓰기', 'fa-pen', 5),
             ('school_center_shared_delete', '[센터장] 본부공지사항·자료실 - 삭제', 'fa-trash', 5),
             ('school_center_shared_comment', '[센터장] 본부공지사항·자료실 - 댓글', 'fa-comments', 8),
+            ('school_center_event', '[센터장] 이벤트 탭', 'fa-gift', 14),
         ),
     },
     {
@@ -355,7 +358,8 @@ def menu_is_allowed(menu_key, user_level=None, max_levels=None, department_block
     # 담당 센터장은 학교관리 주메뉴의 본사 레벨 제한과 관계없이 센터장용
     # 메뉴 자체의 권한값을 우선 적용한다. 각 센터장 메뉴가 차단되면 위에서
     # 이미 False가 되므로 전용 권한 설정은 그대로 유지된다.
-    if menu_key in SCHOOL_WORKSPACE_CATEGORY_MENUS \
+    if (menu_key in SCHOOL_WORKSPACE_CATEGORY_MENUS
+            or menu_key == SCHOOL_CENTER_EVENT_MENU) \
             and has_active_school_assignment(level):
         return True
     parent_key = item['parent_key']

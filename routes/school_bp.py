@@ -3,6 +3,7 @@ from routes.database import get_db
 from routes.points import deduct_deleted_post_points
 from routes.organization import classify_organization_group
 from routes.menu_access import (
+    SCHOOL_CENTER_EVENT_MENU,
     SCHOOL_WORKSPACE_CATEGORY_MENU_KEYS,
     center_director_mode_active,
     is_department_blocked_member,
@@ -1134,10 +1135,13 @@ def school_detail(school_key):
 
     # 센터장 전용 업무공간 오른쪽 이벤트 탭 정보
     # (진행 기간이 아니면 None이 되어 탭 자체가 나타나지 않는다)
+    # 메뉴 권한관리에서 '[센터장] 이벤트 탭'이 본부전용(북부지점 숨김)이거나
+    # 레벨 제한에 걸리면 탭을 표시하지 않는다.
     center_event = None
     try:
         from routes.event_admin import build_center_event_context
-        center_event = build_center_event_context(conn, school_id)
+        if menu_is_allowed(SCHOOL_CENTER_EVENT_MENU):
+            center_event = build_center_event_context(conn, school_id)
     except Exception as e:
         print(f"센터장 이벤트 정보 로드 에러: {e}")
 
@@ -2233,6 +2237,8 @@ def enter_center_event():
 
     if not session.get('user_name'):
         return jsonify({'status': 'error', 'message': '로그인이 필요합니다.'}), 403
+    if not menu_is_allowed(SCHOOL_CENTER_EVENT_MENU):
+        return jsonify({'status': 'error', 'message': '이벤트에 응모할 권한이 없습니다.'}), 403
 
     conn = get_db()
     try:
