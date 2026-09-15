@@ -58,8 +58,27 @@
     .guide-card li{margin-bottom:4px}
     .guide-card .callout{background:#fff7df;border:1px solid #ecd48c;border-radius:8px;padding:12px;margin-top:16px;font-size:.8rem;color:#6e5310}
     .guide-card .flow{margin:8px 0;font-weight:bold;word-break:keep-all}
-    @media(max-width:900px){.sign-layout{grid-template-columns:1fr}.side-col{position:static}}
-    @media(max-width:640px){.contract-meta,.form-grid{grid-template-columns:1fr}.field.full{grid-column:span 1}.card{padding:17px}.main-col .card{padding:14px 22px}}
+    /* 긴 은행 이름·안내문구 때문에 칸이 화면 밖으로 밀려나지 않도록 최소 너비를 풀어 둔다. */
+    .main-col,.side-col,.field,.meta{min-width:0}
+    input,select{max-width:100%;min-width:0}
+    select{text-overflow:ellipsis}
+    .terms{overflow-x:auto;overflow-wrap:anywhere}.terms img{max-width:100%;height:auto}
+    .name-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+    #confirmedName{width:260px;max-width:100%}
+    @media(max-width:900px){.sign-layout{grid-template-columns:minmax(0,1fr)}.side-col{position:static}}
+    @media(max-width:640px){
+      .contract-meta,.form-grid,.form-grid-3{grid-template-columns:minmax(0,1fr)}.field.full{grid-column:span 1}
+      .top{padding:16px}.top h1{font-size:1.15rem}
+      .wrap{margin:12px auto;padding:0 8px}
+      .card,.main-col .card{padding:16px 14px}
+      .main-col h2{font-size:1.1rem;word-break:keep-all}
+      .meta .meta-value,.main-col .meta .meta-value{font-size:.95rem;word-break:keep-all}
+      /* 휴대폰에서 16px 미만 입력칸을 누르면 화면이 확대되어 잘려 보인다. */
+      input,select,.main-col input,.main-col select{font-size:16px;padding:11px}
+      #confirmedName{width:100%}
+      .main-col .btn-lg{width:100%;font-size:1.05rem;padding:14px 12px}
+      .code-row .btn,.send-row .btn{white-space:nowrap}
+    }
   </style>
 </head>
 <body>
@@ -138,9 +157,9 @@
     <label class="agreement"><input type="checkbox" class="agreement-check" data-key="{{ item.key }}"><b>{{ item.title }}</b><span>{{ item.text }}</span></label>
     {% endfor %}
     <h3 style="margin-top:22px">계약자 성명입력 및 서명란</h3>
-    <div style="margin-bottom:14px">
-      <input id="confirmedName" autocomplete="off" placeholder="계약자 성명 입력" style="width:260px;border:2px solid var(--navy);text-align:center;font-weight:bold">
-      <span style="font-size:.85em;color:#666;margin-left:8px">* 성명 입력 후 아래 서명란에 서명해 주세요.</span>
+    <div class="name-row" style="margin-bottom:14px">
+      <input id="confirmedName" autocomplete="off" placeholder="계약자 성명 입력" style="border:2px solid var(--navy);text-align:center;font-weight:bold">
+      <span style="font-size:.85em;color:#666">* 성명 입력 후 아래 서명란에 서명해 주세요.</span>
     </div>
     <div class="field full"><canvas id="signature"></canvas><div class="sign-actions"><button class="btn light" onclick="clearSignature()">다시 서명</button></div></div>
     <div class="notice" style="margin-top:15px">주민번호와 계좌정보등은 계약 및 대금 지급을 위해 암호화하여 보관합니다. 계약완료를 누르면 현재 계약내용, 본인 인증시각, 서명시각, 접속기록 및 계약서 위변조 확인용 고유번호가 함께 저장됩니다.</div>
