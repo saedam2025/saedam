@@ -2716,7 +2716,7 @@ def admin_preview(contract_id: int):
     contract_data = json.loads(row["contract_data_json"] or "{}")
     company = json.loads(row["company_snapshot_json"] or "{}")
     values = _public_values(row, contract_data, company)
-    values["연락처"] = escape(str(contract_data.get("연락처") or row["signer_phone"] or ""))
+    values["연락처"] = escape(_display_phone(contract_data.get("연락처") or row["signer_phone"] or ""))
     values["거주지"] = escape(str(contract_data.get("거주지") or row["signer_address"] or ""))
     content1 = _render_terms(row["terms1_snapshot"], values)
     content2 = _render_terms(row["terms2_snapshot"], values)
@@ -2769,8 +2769,9 @@ def admin_preview(contract_id: int):
     .terms table{{width:100%;border-collapse:collapse;margin:12px 0}}
     .terms th,.terms td{{border:1px solid #333;padding:7px}}
     .terms p{{margin:0 0 8px}}
-    .terms h1,.terms h2,.terms h3,.terms h4,.terms h5,.terms h6{{font-size:17px;font-weight:700;margin:16px 0 8px}}
-    .terms{{margin-bottom:48px}}
+    .terms{{font-size:15px;margin-bottom:48px}}
+    .terms *{{font-size:inherit!important}}
+    .terms h1,.terms h2,.terms h3,.terms h4,.terms h5,.terms h6{{font-size:17px!important;font-weight:700;margin:16px 0 8px}}
     .sign{{margin-top:48px;min-height:250px}}
     .sign-date{{text-align:center;margin:40px 0 124px}}
     .party{{width:44%;display:inline-block;vertical-align:top}}
@@ -3398,6 +3399,14 @@ def _logo_data_uri() -> str:
     return _LOGO_DATA_URI
 
 
+def _display_phone(value: object) -> str:
+    """계약서에 표시할 휴대폰번호를 010-1234-5678 형식으로 바꾼다."""
+    try:
+        return format_phone(value) or str(value or "")
+    except ValueError:
+        return str(value or "")
+
+
 def _stamp_data_uri(company: dict) -> str:
     filename = os.path.basename(str(company.get("stamp_filename", "")))
     path = VERIFIED_STAMP_ROOT / filename if filename else VERIFIED_STAMP_ROOT / "verified_default_stamp.png"
@@ -3409,7 +3418,7 @@ def _stamp_data_uri(company: dict) -> str:
 
 def _build_pdf(row, contract_data: dict, company: dict, signature_uri: str, signed_at: datetime):
     values = _public_values(row, contract_data, company)
-    values["연락처"] = escape(str(contract_data.get("연락처", "")))
+    values["연락처"] = escape(_display_phone(contract_data.get("연락처", "")))
     values["거주지"] = escape(str(contract_data.get("거주지", "")))
     content1 = _render_terms(row["terms1_snapshot"], values)
     content2 = _render_terms(row["terms2_snapshot"], values)
@@ -3460,8 +3469,9 @@ def _build_pdf(row, contract_data: dict, company: dict, signature_uri: str, sign
     .terms table{{width:100%;border-collapse:collapse;margin:12px 0}}
     .terms th,.terms td{{border:1px solid #333;padding:7px}}
     .terms p{{margin:0 0 8px}}
-    .terms h1,.terms h2,.terms h3,.terms h4,.terms h5,.terms h6{{font-size:17px;font-weight:700;margin:16px 0 8px}}
-    .terms{{margin-bottom:48px}}
+    .terms{{font-size:16px;margin-bottom:48px}}
+    .terms *{{font-size:inherit!important}}
+    .terms h1,.terms h2,.terms h3,.terms h4,.terms h5,.terms h6{{font-size:17px!important;font-weight:700;margin:16px 0 8px}}
     .sign{{margin-top:48px;min-height:250px;page-break-inside:avoid}}
     .sign-date{{text-align:center;margin:40px 0 124px}}
     .party{{width:44%;display:inline-block;vertical-align:top}}
