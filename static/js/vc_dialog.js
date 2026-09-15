@@ -202,7 +202,8 @@
     }
     document.addEventListener('keydown', onKey, true);
     backdrop.addEventListener('mousedown', function (event) {
-      if (event.target !== backdrop) return;
+      // 알림창은 바깥을 잘못 눌러 닫히지 않도록 확인 버튼으로만 닫는다.
+      if (event.target !== backdrop || options.type === 'alert') return;
       close(options.type === 'alert' ? true : options.type === 'confirm' ? false : null);
     });
 
