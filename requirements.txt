@@ -20,6 +20,8 @@ PyPDF2>=3.0,<4
 # 웹전자책 PDF 업로드 : PDF 각 쪽을 이미지로 변환한다.
 pypdfium2>=4,<6
 olefile
+# 강사출결시스템: 학교별 오늘의 출석 QR(SVG) 생성. 순수 파이썬이라 추가 시스템 패키지가 필요 없다.
+segno>=1.6,<2
 xlsxwriter
 pywebpush>=2.0.0
 openai

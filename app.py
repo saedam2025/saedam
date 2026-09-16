@@ -48,6 +48,10 @@ from routes.parent_notifications import (
     ensure_parent_notification_schema,
     parent_notification_bp,
 )
+from routes.instructor_attendance import (
+    init_instructor_attendance_schema,
+    instructor_attendance_bp,
+)
 from routes.points import points_bp, award_response_activity
 from routes.unified_search import unified_search_bp
 
@@ -106,6 +110,7 @@ with app.app_context():
         ensure_interview_schema()
         ensure_mydesk_schema()
         init_survey_schema()
+        init_instructor_attendance_schema()
         event_conn = get_db()
         try:
             ensure_event_schema(event_conn)
@@ -202,7 +207,14 @@ EXEMPT_ROUTES = [
 # 엔드포인트 이름과 무관하게 로그인을 요구하지 않는 공개 경로.
 # /portal 은 학교회원 전용 포털이다. 인트라넷 계정(emp_no)과 무관하게
 # 자체 로그인(billing_member_id)으로 보호하므로 인트라넷 로그인 검사에서 뺀다.
-PUBLIC_PATH_PREFIXES = ('/survey/r/', '/portal')
+# 강사출결 스캔·QR표시 화면은 강사 휴대폰과 학교 태블릿이 계정 없이 연다.
+# (오늘 발급된 QR 토큰과 표시용 비밀키로 보호한다.)
+PUBLIC_PATH_PREFIXES = (
+    '/survey/r/',
+    '/portal',
+    '/instructor-attendance/scan/',
+    '/instructor-attendance/display/',
+)
 
 def _is_script_request() -> bool:
     """브라우저 주소창이 아니라 화면 속 스크립트가 부른 요청인지 판단한다."""
@@ -319,6 +331,7 @@ def _classify_menu(path):
         ('/smart-document', '스마트공문발송'),
         ('/payroll', '급여/업무지원'),
         ('/attendance', '근태관리'),
+        ('/instructor-attendance', '강사출결시스템'),
         ('/contacts', '본사연락망'),
         ('/memo', '개인화이트보드'),
         ('/meeting', '회의센터'),
@@ -1109,6 +1122,7 @@ app.register_blueprint(photobook_bp, url_prefix='/photobook')
 app.register_blueprint(meeting_bp, url_prefix='/meeting')
 app.register_blueprint(manual_bp, url_prefix='/manual')
 app.register_blueprint(parent_notification_bp)
+app.register_blueprint(instructor_attendance_bp)
 app.register_blueprint(points_bp)
 app.register_blueprint(unified_search_bp)
 
