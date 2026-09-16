@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>새담 강사 출석</title>
+<style>
+:root{--blue:#2563eb;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--green:#16a34a;--red:#dc2626}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:linear-gradient(180deg,#eff6ff 0,#f8fafc 45%);color:var(--ink);font-family:Pretendard,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+.top{padding:22px 20px 18px;text-align:center}
+.brand{font-size:13px;font-weight:800;color:var(--blue);letter-spacing:.02em}
+.school{margin:6px 0 2px;font-size:22px;font-weight:900}
+.date{font-size:14px;color:var(--muted)}
+.card{margin:0 16px;background:#fff;border:1px solid var(--line);border-radius:22px;padding:30px 22px;box-shadow:0 12px 30px rgba(15,23,42,.08);text-align:center}
+.icon{width:92px;height:92px;margin:0 auto 16px;border-radius:50%;display:grid;place-items:center;font-size:48px}
+.icon.ok{background:#dcfce7;color:var(--green)}
+.icon.info{background:#dbeafe;color:var(--blue)}
+.icon.bad{background:#fee2e2;color:var(--red)}
+h1{margin:0 0 8px;font-size:24px}
+.name{font-size:20px;font-weight:900}
+.time{margin:14px 0 4px;font-size:44px;font-weight:900;color:var(--green);font-variant-numeric:tabular-nums}
+p{margin:8px 0 0;color:var(--muted);line-height:1.65;font-size:15px}
+form{text-align:left;margin-top:18px}
+label{display:block;font-size:14px;font-weight:800;margin:14px 0 6px}
+input{width:100%;font:inherit;font-size:18px;padding:14px;border:1px solid #cbd5e1;border-radius:12px;outline:none}
+input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+button{width:100%;margin-top:20px;border:0;border-radius:14px;background:var(--blue);color:#fff;font:inherit;font-size:18px;font-weight:900;padding:16px;cursor:pointer}
+button:disabled{opacity:.6}
+.spinner{width:52px;height:52px;margin:10px auto 18px;border:5px solid #dbeafe;border-top-color:var(--blue);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.note{margin:18px 16px 30px;font-size:13px;color:var(--muted);text-align:center;line-height:1.6}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header class="top">
+    <div class="brand">새담 방과후학교 · 강사 출석</div>
+    <div class="school">{{ school_name or '강사 출석' }}</div>
+    <div class="date">{{ today }} ({{ weekday }})</div>
+</header>
+
+<main class="card">
+    {% if error %}
+    <div class="icon bad">!</div>
+    <h1>출석할 수 없습니다</h1>
+    <p>{{ error }}</p>
+    {% else %}
+    <section id="loading"><div class="spinner"></div><p>출석을 확인하고 있습니다...</p></section>
+
+    <section id="done" hidden>
+        <div class="icon ok">✓</div>
+        <h1 id="doneTitle">출석 완료</h1>
+        <div class="name" id="doneName"></div>
+        <div class="time" id="doneTime"></div>
+        <p id="doneMsg"></p>
+    </section>
+
+    <section id="register" hidden>
+        <div class="icon info">📱</div>
+        <h1>처음 한 번만 확인할게요</h1>
+        <p>담당자가 등록한 이름과 휴대폰번호를 입력하면<br>이 휴대폰이 강사님 기기로 등록됩니다.<br>다음부터는 QR만 찍으면 바로 출석됩니다.</p>
+        <form id="registerForm">
+            <label for="name">이름</label>
+            <input id="name" autocomplete="name" maxlength="40" required>
+            <label for="phone">휴대폰번호</label>
+            <input id="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000" maxlength="13" required>
+            <button type="submit" id="registerBtn">확인하고 출석하기</button>
+        </form>
+    </section>
+
+    <section id="fail" hidden>
+        <div class="icon bad">!</div>
+        <h1>출석하지 못했습니다</h1>
+        <p id="failMsg"></p>
+        <button type="button" id="retryBtn">다시 시도</button>
+    </section>
+    {% endif %}
+</main>
+<div class="note">본인 휴대폰에서만 사용해주세요.<br>휴대폰을 바꾸셨다면 담당자에게 기기 초기화를 요청해주세요.</div>
+
+{% if not error %}
+<script>
+(function(){
+    const url = {{ url_for('instructor_attendance.scan_check_in', school_id=school_id, token=token)|tojson }};
+    const $ = id => document.getElementById(id);
+    function show(id){ ['loading','done','register','fail'].forEach(k => $(k).hidden = k !== id); }
+
+    async function checkIn(body){
+        show('loading');
+        try{
+            const res = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify(body || {})});
+            const data = await res.json().catch(() => ({message:'서버 응답을 읽을 수 없습니다.'}));
+            if(data.status === 'need_register'){ show('register'); $('name').focus(); return; }
+            if(!res.ok || data.status !== 'success'){
+                $('failMsg').textContent = data.message || '잠시 후 다시 시도해주세요.';
+                // 등록 정보 불일치는 입력창으로 돌아가 다시 입력하게 한다.
+                if(body && body.phone && res.status === 404){ show('register'); alert(data.message); return; }
+                show('fail'); return;
+            }
+            $('doneTitle').textContent = data.already ? '이미 출석했어요' : '출석 완료';
+            $('doneName').textContent = data.name + ' 강사님';
+            $('doneTime').textContent = data.check_in_time;
+            $('doneMsg').textContent = data.already
+                ? '오늘 출석은 이미 기록되어 있습니다.'
+                : (data.device_registered ? '이 휴대폰이 등록되었습니다. 다음부터는 QR만 찍으면 됩니다.' : '오늘도 수고 많으십니다!');
+            show('done');
+            if(navigator.vibrate) navigator.vibrate(120);
+        }catch(e){
+            $('failMsg').textContent = '인터넷 연결을 확인한 뒤 다시 시도해주세요.';
+            show('fail');
+        }
+    }
+    $('phone').addEventListener('input', e => {
+        const d = e.target.value.replace(/\D/g, '').slice(0, 11);
+        e.target.value = d.length > 7 ? `${d.slice(0,3)}-${d.slice(3, d.length - 4)}-${d.slice(-4)}` : d.length > 3 ? `${d.slice(0,3)}-${d.slice(3)}` : d;
+    });
+    $('registerForm').addEventListener('submit', e => {
+        e.preventDefault();
+        checkIn({name: $('name').value.trim(), phone: $('phone').value});
+    });
+    $('retryBtn').onclick = () => checkIn({});
+    checkIn({});
+})();
+</script>
+{% endif %}
+</body>
+</html>

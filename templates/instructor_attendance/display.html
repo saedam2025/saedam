@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>강사 출석 QR</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.4vh;background:#f8fafc;color:#0f172a;font-family:Pretendard,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;text-align:center;padding:2vh 16px}
+.brand{font-size:clamp(14px,2.2vh,22px);font-weight:800;color:#2563eb}
+h1{margin:0;font-size:clamp(26px,5vh,54px);font-weight:900}
+.date{font-size:clamp(18px,3.2vh,34px);font-weight:800;color:#334155}
+.qr{background:#fff;border-radius:24px;padding:2vh;box-shadow:0 14px 40px rgba(15,23,42,.1)}
+.qr img{display:block;width:min(62vh,82vw);height:min(62vh,82vw)}
+.guide{font-size:clamp(16px,2.6vh,28px);color:#475569;line-height:1.5}
+.clock{font-size:clamp(14px,2.2vh,22px);color:#94a3b8;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+{% if invalid %}
+<h1>사용할 수 없는 링크입니다</h1>
+<p class="guide">링크가 새로 만들어졌거나 삭제되었습니다.<br>담당자에게 새 표시용 링크를 요청해주세요.</p>
+{% else %}
+<div class="brand">새담 방과후학교 · 강사 출석</div>
+<h1>{{ school_name }}</h1>
+<div class="date" id="date">{{ today }} ({{ weekday }})</div>
+<div class="qr"><img id="qr" src="{{ url_for('instructor_attendance.display_qr_svg', display_key=display_key) }}?d={{ today }}" alt="오늘의 출석 QR"></div>
+<div class="guide">휴대폰 카메라로 QR을 찍으면 출석이 기록됩니다</div>
+<div class="clock" id="clock"></div>
+<script>
+(function(){
+    const pageDate = {{ today|tojson }};
+    const img = document.getElementById('qr');
+    const base = img.src.split('?')[0];
+    // 태블릿 시계와 무관하게 한국시간 기준으로 날짜를 계산한다.
+    function kstNow(){ return new Date(Date.now() + (new Date().getTimezoneOffset() + 540) * 60000); }
+    function kstDate(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+    function tick(){
+        const now = kstNow();
+        document.getElementById('clock').textContent = now.toTimeString().slice(0, 8);
+        // 자정이 지나면 새 날짜의 QR로 페이지 전체를 다시 불러온다.
+        if(kstDate(now) !== pageDate) location.reload();
+    }
+    setInterval(tick, 1000); tick();
+    // 관리자가 재발급한 경우를 반영하도록 10분마다 QR 이미지를 새로 받는다.
+    setInterval(() => { img.src = base + '?d=' + pageDate + '&r=' + Date.now(); }, 10 * 60 * 1000);
+})();
+</script>
+{% endif %}
+</body>
+</html>

@@ -1,0 +1,570 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .ia-page{max-width:1280px;margin:0 auto;padding:28px 18px 80px;color:#1f2937}
+    .ia-hero{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+    .ia-hero h1{margin:0;font-size:1.5rem;font-weight:800;display:flex;align-items:center;gap:10px;color:#1e293b}
+    .ia-hero h1 i{color:#2563eb}
+    .ia-hero p{margin:6px 0 0;font-size:.86rem;color:#64748b}
+    .ia-school{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:6px 8px 6px 14px}
+    .ia-school label{font-size:.8rem;font-weight:700;color:#475569;white-space:nowrap}
+    .ia-select,.ia-input{border:1px solid #d7dee8;border-radius:9px;padding:9px 12px;font:inherit;font-size:.88rem;color:#1f2937;background:#fff;outline:none}
+    .ia-select:focus,.ia-input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+    .ia-school .ia-select{border:0;min-width:220px;font-weight:700}
+
+    .ia-tabs{display:flex;gap:6px;border-bottom:2px solid #e2e8f0;margin-bottom:18px;overflow-x:auto}
+    .ia-tab{border:0;background:none;padding:12px 16px;font:inherit;font-size:.92rem;font-weight:700;color:#64748b;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
+    .ia-tab.active{color:#2563eb;border-bottom-color:#2563eb}
+    .ia-panel{display:none}
+    .ia-panel.active{display:block}
+
+    .ia-card{background:#fff;border:1px solid #e8edf3;border-radius:14px;padding:20px;box-shadow:0 4px 14px rgba(15,23,42,.04);margin-bottom:16px}
+    .ia-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+    .ia-toolbar .ia-spacer{flex:1}
+    .ia-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid #d7dee8;background:#fff;color:#334155;border-radius:9px;padding:9px 14px;font:inherit;font-size:.84rem;font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap}
+    .ia-btn:hover{border-color:#2563eb;color:#2563eb}
+    .ia-btn.primary{background:#2563eb;border-color:#2563eb;color:#fff}
+    .ia-btn.primary:hover{background:#1d4ed8;color:#fff}
+    .ia-btn.danger{color:#dc2626;border-color:#fecaca}
+    .ia-btn.danger:hover{background:#fef2f2}
+    .ia-btn.sm{padding:5px 10px;font-size:.76rem;border-radius:7px}
+    .ia-date-label{font-size:1.05rem;font-weight:800;color:#1e293b;padding:0 6px}
+
+    .ia-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+    .ia-stat{border-radius:12px;padding:14px 16px;background:#f8fafc;border:1px solid #edf1f6}
+    .ia-stat span{display:block;font-size:.76rem;font-weight:700;color:#64748b}
+    .ia-stat strong{display:block;margin-top:4px;font-size:1.6rem;font-weight:800;color:#0f172a}
+    .ia-stat.ok{background:#f0fdf4;border-color:#dcfce7}.ia-stat.ok strong{color:#15803d}
+    .ia-stat.no{background:#fef2f2;border-color:#fee2e2}.ia-stat.no strong{color:#dc2626}
+    .ia-stat.rate{background:#eff6ff;border-color:#dbeafe}.ia-stat.rate strong{color:#1d4ed8}
+
+    .ia-table-wrap{overflow-x:auto}
+    .ia-table{width:100%;border-collapse:collapse;font-size:.86rem}
+    .ia-table th{background:#f8fafc;color:#475569;font-weight:700;padding:11px 10px;border-bottom:2px solid #e8edf3;text-align:left;white-space:nowrap}
+    .ia-table td{padding:11px 10px;border-bottom:1px solid #f0f3f7;vertical-align:middle}
+    .ia-table tr.absent td{background:#fffbfb}
+    .ia-school-row td{background:#f1f5f9!important;font-weight:800;color:#334155}
+    .ia-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:.75rem;font-weight:800;white-space:nowrap}
+    .ia-badge.ok{background:#dcfce7;color:#15803d}
+    .ia-badge.no{background:#fee2e2;color:#b91c1c}
+    .ia-badge.gray{background:#f1f5f9;color:#64748b}
+    .ia-badge.blue{background:#dbeafe;color:#1d4ed8}
+    .ia-time{font-weight:800;font-variant-numeric:tabular-nums}
+    .ia-muted{color:#94a3b8;font-size:.78rem}
+    .ia-empty{text-align:center;padding:40px 10px;color:#94a3b8}
+
+    .ia-month td,.ia-month th{padding:7px 4px;text-align:center;font-size:.76rem;border:1px solid #eef2f6}
+    .ia-month th{background:#f8fafc;line-height:1.25}
+    .ia-month th.we,.ia-month td.we{background:#f8fafc;color:#94a3b8}
+    .ia-month th.sun{color:#dc2626}.ia-month th.sat{color:#2563eb}
+    .ia-month th.today{background:#dbeafe;color:#1d4ed8}
+    .ia-month td.name{text-align:left;font-weight:700;white-space:nowrap;position:sticky;left:0;background:#fff;z-index:1;min-width:110px}
+    .ia-month th.name{text-align:left;position:sticky;left:0;z-index:2}
+    .ia-month td.hit{background:#dcfce7;color:#15803d;font-weight:800;font-size:.7rem}
+    .ia-month td.hit.manual{background:#fef3c7;color:#b45309}
+    .ia-month td.total{font-weight:800;background:#eff6ff}
+    .ia-month tfoot td{font-weight:800;background:#f8fafc}
+    .ia-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.76rem;color:#64748b;margin-top:10px}
+    .ia-legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+
+    .ia-grid2{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+    .ia-form label{display:block;font-size:.78rem;font-weight:700;color:#475569;margin:0 0 5px}
+    .ia-form .ia-input{width:100%;box-sizing:border-box;margin-bottom:12px}
+    .ia-form textarea.ia-input{min-height:150px;resize:vertical;line-height:1.6}
+    .ia-card h3{margin:0 0 14px;font-size:1rem;font-weight:800;color:#1e293b;display:flex;align-items:center;gap:8px}
+    .ia-help{font-size:.76rem;color:#64748b;line-height:1.6;margin:-4px 0 12px}
+
+    .ia-qr-layout{display:grid;grid-template-columns:380px minmax(0,1fr);gap:16px;align-items:start}
+    .ia-qr-box{text-align:center}
+    .ia-qr-box img{width:300px;height:300px;border:1px solid #e2e8f0;border-radius:12px;padding:8px;background:#fff}
+    .ia-qr-school{font-size:1.2rem;font-weight:800;margin:12px 0 2px}
+    .ia-qr-date{color:#2563eb;font-weight:800}
+    .ia-qr-warn{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:.86rem;line-height:1.55;text-align:left}
+    .ia-qr-url{margin:10px 0 0;font-size:.8rem;color:#64748b;word-break:break-all;text-align:left}
+    .ia-link{display:flex;gap:6px;margin-bottom:8px}
+    .ia-link .ia-input{flex:1;min-width:0;font-size:.78rem;background:#f8fafc}
+    .ia-steps{margin:0;padding-left:18px;font-size:.84rem;line-height:1.9;color:#334155}
+
+    .ia-modal{position:fixed;inset:0;z-index:3000;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.45);padding:16px}
+    .ia-modal.open{display:flex}
+    .ia-modal-box{background:#fff;border-radius:14px;padding:22px;width:min(420px,100%)}
+    .ia-modal-box h3{margin:0 0 14px}
+    .ia-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+    .ia-toast{position:fixed;left:50%;bottom:30px;transform:translate(-50%,20px);opacity:0;background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:.86rem;font-weight:700;z-index:3100;transition:.2s;pointer-events:none;max-width:90vw}
+    .ia-toast.show{opacity:1;transform:translate(-50%,0)}
+    .ia-toast.bad{background:#b91c1c}
+
+    @media(max-width:900px){
+        .ia-grid2,.ia-qr-layout{grid-template-columns:1fr}
+        .ia-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .ia-school{width:100%}.ia-school .ia-select{min-width:0;flex:1}
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ia-page">
+    <div class="ia-hero">
+        <div>
+            <h1><i class="fa-solid fa-qrcode"></i> 강사출결시스템</h1>
+            <p>방과후강사가 학교에 비치된 오늘의 QR을 휴대폰으로 찍으면 자동으로 출석이 기록됩니다.</p>
+        </div>
+        <div class="ia-school">
+            <label for="iaSchool"><i class="fa-solid fa-school"></i> 학교</label>
+            <select id="iaSchool" class="ia-select">
+                <option value="">전체 학교</option>
+                {% for school in schools %}<option value="{{ school.id }}">{{ school.label }}</option>{% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="ia-tabs" role="tablist">
+        <button class="ia-tab active" data-tab="daily"><i class="fa-solid fa-calendar-day"></i> 일별 출결현황</button>
+        <button class="ia-tab" data-tab="monthly"><i class="fa-solid fa-table-cells"></i> 월별 출결표</button>
+        <button class="ia-tab" data-tab="instructors"><i class="fa-solid fa-user-plus"></i> 강사 등록</button>
+        <button class="ia-tab" data-tab="qr"><i class="fa-solid fa-qrcode"></i> 오늘의 QR 발급</button>
+    </div>
+
+    <!-- 일별 -->
+    <section class="ia-panel active" id="panel-daily">
+        <div class="ia-card">
+            <div class="ia-toolbar">
+                <button class="ia-btn" id="dayPrev" title="이전 날"><i class="fa-solid fa-chevron-left"></i></button>
+                <input type="date" id="dayDate" class="ia-input" value="{{ today }}">
+                <button class="ia-btn" id="dayNext" title="다음 날"><i class="fa-solid fa-chevron-right"></i></button>
+                <button class="ia-btn" id="dayToday">오늘</button>
+                <span class="ia-date-label" id="dayLabel"></span>
+                <span class="ia-spacer"></span>
+                <button class="ia-btn" id="dayRefresh"><i class="fa-solid fa-rotate"></i> 새로고침</button>
+            </div>
+            <div class="ia-stats">
+                <div class="ia-stat"><span>등록 강사</span><strong id="stTotal">0</strong></div>
+                <div class="ia-stat ok"><span>출석</span><strong id="stPresent">0</strong></div>
+                <div class="ia-stat no"><span>미출석</span><strong id="stAbsent">0</strong></div>
+                <div class="ia-stat rate"><span>출석률</span><strong id="stRate">0%</strong></div>
+            </div>
+            <div class="ia-table-wrap">
+                <table class="ia-table">
+                    <thead><tr><th>#</th><th>강사명</th><th>과목</th><th>연락처</th><th>상태</th><th>출석시각</th><th>방식</th><th>휴대폰 연결</th><th>관리</th></tr></thead>
+                    <tbody id="dailyBody"><tr><td colspan="9" class="ia-empty">불러오는 중...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- 월별 -->
+    <section class="ia-panel" id="panel-monthly">
+        <div class="ia-card">
+            <div class="ia-toolbar">
+                <button class="ia-btn" id="monPrev"><i class="fa-solid fa-chevron-left"></i></button>
+                <input type="month" id="monMonth" class="ia-input" value="{{ today[:7] }}">
+                <button class="ia-btn" id="monNext"><i class="fa-solid fa-chevron-right"></i></button>
+                <span class="ia-date-label" id="monLabel"></span>
+                <span class="ia-spacer"></span>
+                <a class="ia-btn" id="monExcel" href="#"><i class="fa-solid fa-file-excel"></i> 엑셀 다운로드</a>
+            </div>
+            <div class="ia-table-wrap" id="monthlyWrap"><div class="ia-empty">학교를 선택하면 월별 출결표가 표시됩니다.</div></div>
+            <div class="ia-legend">
+                <span><i style="background:#dcfce7"></i>QR 출석(시각)</span>
+                <span><i style="background:#fef3c7"></i>관리자 수동 처리</span>
+                <span><i style="background:#f1f5f9"></i>주말</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- 강사 등록 -->
+    <section class="ia-panel" id="panel-instructors">
+        <div class="ia-grid2">
+            <div class="ia-card">
+                <div class="ia-toolbar">
+                    <h3 style="margin:0"><i class="fa-solid fa-users"></i> <span id="insTitle">등록 강사 명단</span></h3>
+                    <span class="ia-spacer"></span>
+                    <span class="ia-muted" id="insCount"></span>
+                </div>
+                <div class="ia-table-wrap">
+                    <table class="ia-table">
+                        <thead><tr><th>#</th><th>강사명</th><th>과목</th><th>휴대폰</th><th>휴대폰 연결</th><th>관리</th></tr></thead>
+                        <tbody id="insBody"><tr><td colspan="6" class="ia-empty">학교를 선택해주세요.</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+            <div>
+                <div class="ia-card ia-form">
+                    <h3><i class="fa-solid fa-user-plus"></i> <span id="formTitle">강사 개별 등록</span></h3>
+                    <input type="hidden" id="fId">
+                    <label for="fName">강사명 *</label><input id="fName" class="ia-input" maxlength="40">
+                    <label for="fPhone">휴대폰번호 *</label><input id="fPhone" class="ia-input" inputmode="tel" placeholder="010-0000-0000" maxlength="13">
+                    <label for="fSubject">과목</label><input id="fSubject" class="ia-input" maxlength="60" placeholder="예: 로봇과학">
+                    <label for="fMemo">메모</label><input id="fMemo" class="ia-input" maxlength="200">
+                    <div class="ia-modal-actions">
+                        <button class="ia-btn" id="fCancel" style="display:none">취소</button>
+                        <button class="ia-btn primary" id="fSave"><i class="fa-solid fa-check"></i> 저장</button>
+                    </div>
+                </div>
+                <div class="ia-card ia-form">
+                    <h3><i class="fa-solid fa-list"></i> 명단 일괄 등록</h3>
+                    <p class="ia-help">한 줄에 한 명씩 <b>이름, 휴대폰번호, 과목</b> 순서로 입력하세요.<br>엑셀에서 세 칸을 복사해 붙여넣어도 됩니다.</p>
+                    <textarea id="bulkText" class="ia-input" placeholder="홍길동, 010-1234-5678, 로봇과학&#10;김영희, 01098765432, 바이올린"></textarea>
+                    <div class="ia-modal-actions"><button class="ia-btn primary" id="bulkSave"><i class="fa-solid fa-upload"></i> 일괄 등록</button></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QR -->
+    <section class="ia-panel" id="panel-qr">
+        <div class="ia-qr-layout">
+            <div class="ia-card ia-qr-box" id="qrBox"><div class="ia-empty">학교를 선택하면 오늘의 QR이 표시됩니다.</div></div>
+            <div>
+                <div class="ia-card">
+                    <h3><i class="fa-solid fa-tablet-screen-button"></i> 학교 태블릿·모니터에 띄우기 (권장)</h3>
+                    <p class="ia-help">아래 링크를 학교에 비치한 태블릿이나 PC에서 한 번만 열어두면 <b>매일 자정에 새 QR로 자동 교체</b>됩니다. 매일 인쇄할 필요가 없습니다.</p>
+                    <div class="ia-link"><input class="ia-input" id="displayUrl" readonly><button class="ia-btn" data-copy="displayUrl"><i class="fa-regular fa-copy"></i> 복사</button></div>
+                    <div class="ia-toolbar" style="margin:0">
+                        <a class="ia-btn" id="displayOpen" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> 열기</a>
+                        <button class="ia-btn danger" id="displayReset"><i class="fa-solid fa-link-slash"></i> 링크 새로 만들기</button>
+                    </div>
+                </div>
+                <div class="ia-card">
+                    <h3><i class="fa-solid fa-circle-info"></i> 사용 방법</h3>
+                    <ol class="ia-steps">
+                        <li>[강사 등록] 탭에서 학교별 강사의 이름·휴대폰번호를 먼저 등록합니다.</li>
+                        <li>오늘의 QR을 태블릿에 띄우거나 인쇄해 교무실·출입구에 비치합니다.</li>
+                        <li>강사가 휴대폰 카메라로 QR을 찍습니다. <b>처음 한 번만</b> 이름·휴대폰번호를 입력하면 그 휴대폰이 등록됩니다.</li>
+                        <li>다음부터는 찍기만 하면 출석이 기록됩니다. 어제 QR·사진으로는 출석되지 않습니다.</li>
+                        <li>휴대폰을 바꾼 강사는 [강사 등록] 탭에서 <b>기기 초기화</b> 후 다시 찍으면 됩니다.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="ia-modal" id="manualModal">
+    <div class="ia-modal-box ia-form">
+        <h3 id="manualTitle">수동 출석 처리</h3>
+        <label for="mTime">출석시각</label><input type="time" id="mTime" class="ia-input">
+        <label for="mNote">사유</label><input id="mNote" class="ia-input" maxlength="200" placeholder="예: 휴대폰 배터리 방전">
+        <div class="ia-modal-actions">
+            <button class="ia-btn" data-close-modal>닫기</button>
+            <button class="ia-btn primary" id="mSave">출석 처리</button>
+        </div>
+    </div>
+</div>
+<div class="ia-toast" id="iaToast"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+    const $ = id => document.getElementById(id);
+    const TODAY = {{ today|tojson }};
+    const schoolSelect = $('iaSchool');
+    let activeTab = 'daily';
+    let manualTarget = null;
+    let editingId = null;
+
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function toast(msg, bad){
+        const el = $('iaToast');
+        el.textContent = msg; el.className = 'ia-toast show' + (bad ? ' bad' : '');
+        clearTimeout(el._t); el._t = setTimeout(() => el.className = 'ia-toast', 3500);
+    }
+    async function api(url, body){
+        const opts = body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)};
+        const res = await fetch(url, opts);
+        const data = await res.json().catch(() => ({}));
+        if(!res.ok || data.status === 'error'){
+            const err = new Error(data.message || '요청 처리에 실패했습니다.');
+            err.data = data; throw err;
+        }
+        return data;
+    }
+    const schoolId = () => schoolSelect.value;
+    function shiftDate(iso, days){
+        const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + days);
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+    function requireSchool(){
+        if(schoolId()) return true;
+        if(schoolSelect.options.length > 1){ schoolSelect.selectedIndex = 1; return true; }
+        return false;
+    }
+
+    // ---------- 탭 ----------
+    document.querySelectorAll('.ia-tab').forEach(btn => btn.addEventListener('click', () => {
+        activeTab = btn.dataset.tab;
+        document.querySelectorAll('.ia-tab').forEach(b => b.classList.toggle('active', b === btn));
+        document.querySelectorAll('.ia-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + activeTab));
+        if(activeTab !== 'daily') requireSchool();
+        refresh();
+    }));
+    schoolSelect.addEventListener('change', () => {
+        try{ localStorage.setItem('ia_school', schoolId()); }catch(e){}
+        refresh();
+    });
+    try{
+        const saved = localStorage.getItem('ia_school');
+        if(saved && [...schoolSelect.options].some(o => o.value === saved)) schoolSelect.value = saved;
+    }catch(e){}
+
+    function refresh(){
+        ({daily: loadDaily, monthly: loadMonthly, instructors: loadInstructors, qr: loadQr})[activeTab]();
+    }
+
+    // ---------- 일별 ----------
+    async function loadDaily(){
+        const date = $('dayDate').value || TODAY;
+        const body = $('dailyBody');
+        try{
+            const data = await api(`/instructor-attendance/api/daily?date=${date}&school_id=${schoolId()}`);
+            const s = data.summary;
+            $('dayLabel').textContent = `${data.date} (${data.weekday})` + (data.date === TODAY ? ' · 오늘' : '');
+            $('stTotal').textContent = s.total;
+            $('stPresent').textContent = s.present;
+            $('stAbsent').textContent = s.absent;
+            $('stRate').textContent = s.total ? Math.round(s.present / s.total * 100) + '%' : '-';
+            if(!data.items.length){
+                body.innerHTML = `<tr><td colspan="9" class="ia-empty">등록된 강사가 없습니다. [강사 등록] 탭에서 먼저 등록해주세요.</td></tr>`;
+                return;
+            }
+            let html = '', lastSchool = null, n = 0;
+            const showSchool = !schoolId();
+            data.items.forEach(it => {
+                if(showSchool && it.school_id !== lastSchool){
+                    const group = data.items.filter(x => x.school_id === it.school_id);
+                    const p = group.filter(x => x.present).length;
+                    html += `<tr class="ia-school-row"><td colspan="9"><i class="fa-solid fa-school"></i> ${esc(it.school_name)} <span class="ia-muted">출석 ${p} / ${group.length}</span></td></tr>`;
+                    lastSchool = it.school_id; n = 0;
+                }
+                n++;
+                html += `<tr class="${it.present ? '' : 'absent'}">
+                    <td>${n}</td>
+                    <td><b>${esc(it.name)}</b>${it.removed ? ' <span class="ia-badge gray">명단제외</span>' : ''}</td>
+                    <td>${esc(it.subject) || '<span class="ia-muted">-</span>'}</td>
+                    <td class="ia-muted">${esc(it.phone)}</td>
+                    <td>${it.present ? '<span class="ia-badge ok"><i class="fa-solid fa-check"></i>출석</span>' : '<span class="ia-badge no">미출석</span>'}</td>
+                    <td class="ia-time">${it.check_in_time || '-'}</td>
+                    <td>${it.method ? (it.method === 'QR' ? '<span class="ia-badge blue">QR</span>' : `<span class="ia-badge gray" title="${esc(it.note)} / ${esc(it.recorded_by)}">수동</span>`) : '-'}</td>
+                    <td>${it.device_bound ? '<span class="ia-badge ok">연결됨</span>' : '<span class="ia-badge gray">미연결</span>'}</td>
+                    <td>${it.present
+                        ? `<button class="ia-btn sm danger" data-cancel="${it.instructor_id}" data-name="${esc(it.name)}">출석취소</button>`
+                        : `<button class="ia-btn sm" data-manual="${it.instructor_id}" data-name="${esc(it.name)}">수동출석</button>`}</td>
+                </tr>`;
+            });
+            body.innerHTML = html;
+        }catch(e){
+            body.innerHTML = `<tr><td colspan="9" class="ia-empty">${esc(e.message)}</td></tr>`;
+        }
+    }
+    $('dayDate').addEventListener('change', loadDaily);
+    $('dayPrev').onclick = () => { $('dayDate').value = shiftDate($('dayDate').value || TODAY, -1); loadDaily(); };
+    $('dayNext').onclick = () => { $('dayDate').value = shiftDate($('dayDate').value || TODAY, 1); loadDaily(); };
+    $('dayToday').onclick = () => { $('dayDate').value = TODAY; loadDaily(); };
+    $('dayRefresh').onclick = loadDaily;
+
+    $('dailyBody').addEventListener('click', async ev => {
+        const manual = ev.target.closest('[data-manual]');
+        const cancel = ev.target.closest('[data-cancel]');
+        const date = $('dayDate').value || TODAY;
+        if(manual){
+            manualTarget = manual.dataset.manual;
+            $('manualTitle').textContent = `${manual.dataset.name} · ${date} 수동 출석`;
+            const now = new Date();
+            $('mTime').value = date === TODAY ? String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') : '';
+            $('mNote').value = '';
+            $('manualModal').classList.add('open');
+        }
+        if(cancel){
+            if(!confirm(`${cancel.dataset.name} 강사의 ${date} 출석 기록을 취소할까요?`)) return;
+            try{
+                const r = await api('/instructor-attendance/api/attendance/manual', {instructor_id: cancel.dataset.cancel, date, action:'cancel'});
+                toast(r.message); loadDaily();
+            }catch(e){ toast(e.message, true); }
+        }
+    });
+    $('mSave').onclick = async () => {
+        try{
+            const r = await api('/instructor-attendance/api/attendance/manual', {
+                instructor_id: manualTarget, date: $('dayDate').value || TODAY, action:'check',
+                time: $('mTime').value, note: $('mNote').value
+            });
+            $('manualModal').classList.remove('open'); toast(r.message); loadDaily();
+        }catch(e){ toast(e.message, true); }
+    };
+    document.querySelectorAll('[data-close-modal]').forEach(b => b.onclick = () => b.closest('.ia-modal').classList.remove('open'));
+
+    // ---------- 월별 ----------
+    async function loadMonthly(){
+        const wrap = $('monthlyWrap');
+        const month = $('monMonth').value || TODAY.slice(0,7);
+        if(!schoolId()){ wrap.innerHTML = '<div class="ia-empty">학교를 선택해주세요.</div>'; return; }
+        $('monExcel').href = `/instructor-attendance/monthly.xlsx?month=${month}&school_id=${schoolId()}`;
+        try{
+            const d = await api(`/instructor-attendance/api/monthly?month=${month}&school_id=${schoolId()}`);
+            $('monLabel').textContent = `${d.school_name} · ${d.month.replace('-', '년 ')}월`;
+            if(!d.rows.length){ wrap.innerHTML = '<div class="ia-empty">이 학교에 등록된 강사가 없습니다.</div>'; return; }
+            const todayDay = TODAY.slice(0,7) === d.month ? String(Number(TODAY.slice(8))) : '';
+            const thCls = day => [day.weekend ? 'we' : '', day.weekday === '일' ? 'sun' : '', day.weekday === '토' ? 'sat' : '', String(day.day) === todayDay ? 'today' : ''].join(' ');
+            let html = '<table class="ia-table ia-month"><thead><tr><th class="name">강사명</th>';
+            d.days.forEach(day => html += `<th class="${thCls(day)}">${day.day}<br>${day.weekday}</th>`);
+            html += '<th>출석<br>일수</th></tr></thead><tbody>';
+            d.rows.forEach(r => {
+                html += `<tr><td class="name" title="${esc(r.subject)}">${esc(r.name)}${r.removed ? ' <span class="ia-muted">(제외)</span>' : ''}</td>`;
+                d.days.forEach(day => {
+                    const m = r.days[String(day.day)];
+                    html += m
+                        ? `<td class="hit ${m.method === 'QR' ? '' : 'manual'}" title="${day.day}일 ${m.time} ${m.method}">${m.time}</td>`
+                        : `<td class="${day.weekend ? 'we' : ''}"></td>`;
+                });
+                html += `<td class="total">${r.total}</td></tr>`;
+            });
+            html += '</tbody><tfoot><tr><td class="name">일별 출석</td>';
+            d.days.forEach(day => html += `<td class="${day.weekend ? 'we' : ''}">${d.day_totals[String(day.day)] || ''}</td>`);
+            html += `<td class="total">${d.rows.reduce((a, r) => a + r.total, 0)}</td></tr></tfoot></table>`;
+            wrap.innerHTML = html;
+        }catch(e){ wrap.innerHTML = `<div class="ia-empty">${esc(e.message)}</div>`; }
+    }
+    function shiftMonth(delta){
+        const [y, m] = ($('monMonth').value || TODAY.slice(0,7)).split('-').map(Number);
+        const d = new Date(y, m - 1 + delta, 1);
+        $('monMonth').value = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+        loadMonthly();
+    }
+    $('monMonth').addEventListener('change', loadMonthly);
+    $('monPrev').onclick = () => shiftMonth(-1);
+    $('monNext').onclick = () => shiftMonth(1);
+
+    // ---------- 강사 등록 ----------
+    let instructorCache = [];
+    async function loadInstructors(){
+        const body = $('insBody');
+        const label = schoolSelect.options[schoolSelect.selectedIndex]?.text || '';
+        if(!schoolId()){ body.innerHTML = '<tr><td colspan="6" class="ia-empty">학교를 선택해주세요.</td></tr>'; return; }
+        $('insTitle').textContent = `${label} 강사 명단`;
+        try{
+            const d = await api(`/instructor-attendance/api/instructors?school_id=${schoolId()}`);
+            instructorCache = d.instructors;
+            $('insCount').textContent = `총 ${d.instructors.length}명 · 휴대폰 연결 ${d.instructors.filter(i => i.device_bound_at).length}명`;
+            body.innerHTML = d.instructors.length ? d.instructors.map((it, i) => `<tr>
+                <td>${i+1}</td><td><b>${esc(it.name)}</b>${it.memo ? `<div class="ia-muted">${esc(it.memo)}</div>` : ''}</td>
+                <td>${esc(it.subject) || '<span class="ia-muted">-</span>'}</td><td>${esc(it.phone)}</td>
+                <td>${it.device_bound_at ? `<span class="ia-badge ok" title="최근 사용 ${esc(it.device_last_seen_at)}">연결됨</span><div class="ia-muted">${esc(it.device_bound_at.slice(0,10))}</div>` : '<span class="ia-badge gray">미연결</span>'}</td>
+                <td style="white-space:nowrap">
+                    <button class="ia-btn sm" data-edit="${it.id}">수정</button>
+                    ${it.device_bound_at ? `<button class="ia-btn sm" data-reset="${it.id}" data-name="${esc(it.name)}">기기 초기화</button>` : ''}
+                    <button class="ia-btn sm danger" data-del="${it.id}" data-name="${esc(it.name)}">삭제</button>
+                </td></tr>`).join('')
+                : '<tr><td colspan="6" class="ia-empty">아직 등록된 강사가 없습니다. 오른쪽에서 등록해주세요.</td></tr>';
+        }catch(e){ body.innerHTML = `<tr><td colspan="6" class="ia-empty">${esc(e.message)}</td></tr>`; }
+    }
+    function resetForm(){
+        editingId = null;
+        ['fId','fName','fPhone','fSubject','fMemo'].forEach(id => $(id).value = '');
+        $('formTitle').textContent = '강사 개별 등록';
+        $('fCancel').style.display = 'none';
+    }
+    $('fCancel').onclick = resetForm;
+    $('fSave').onclick = async () => {
+        if(!schoolId()) return toast('학교를 먼저 선택해주세요.', true);
+        try{
+            const r = await api('/instructor-attendance/api/instructors', {
+                id: editingId, school_id: schoolId(), name: $('fName').value, phone: $('fPhone').value,
+                subject: $('fSubject').value, memo: $('fMemo').value
+            });
+            toast(r.message); resetForm(); loadInstructors();
+        }catch(e){ toast(e.message, true); }
+    };
+    $('bulkSave').onclick = async () => {
+        if(!schoolId()) return toast('학교를 먼저 선택해주세요.', true);
+        try{
+            const r = await api('/instructor-attendance/api/instructors/bulk', {school_id: schoolId(), text: $('bulkText').value});
+            toast(r.message); $('bulkText').value = ''; loadInstructors();
+        }catch(e){
+            const errors = e.data && e.data.errors;
+            if(errors && errors.length) alert(e.message + '\n\n' + errors.join('\n'));
+            else toast(e.message, true);
+        }
+    };
+    $('insBody').addEventListener('click', async ev => {
+        const edit = ev.target.closest('[data-edit]');
+        const reset = ev.target.closest('[data-reset]');
+        const del = ev.target.closest('[data-del]');
+        if(edit){
+            const it = instructorCache.find(x => String(x.id) === edit.dataset.edit);
+            if(!it) return;
+            editingId = it.id;
+            $('fName').value = it.name; $('fPhone').value = it.phone; $('fSubject').value = it.subject; $('fMemo').value = it.memo;
+            $('formTitle').textContent = `${it.name} 강사 정보 수정`;
+            $('fCancel').style.display = '';
+            $('fName').focus();
+        }
+        if(reset){
+            if(!confirm(`${reset.dataset.name} 강사의 휴대폰 연결을 초기화할까요?\n새 휴대폰으로 QR을 찍을 때 이름·번호를 다시 입력하게 됩니다.`)) return;
+            try{ toast((await api(`/instructor-attendance/api/instructors/${reset.dataset.reset}/reset-device`, {})).message); loadInstructors(); }
+            catch(e){ toast(e.message, true); }
+        }
+        if(del){
+            if(!confirm(`${del.dataset.name} 강사를 명단에서 삭제할까요?\n지난 출결 기록은 그대로 보존됩니다.`)) return;
+            try{ toast((await api(`/instructor-attendance/api/instructors/${del.dataset.del}/delete`, {})).message); loadInstructors(); }
+            catch(e){ toast(e.message, true); }
+        }
+    });
+
+    // ---------- QR ----------
+    let qrData = null;
+    async function loadQr(){
+        const box = $('qrBox');
+        if(!schoolId()){ box.innerHTML = '<div class="ia-empty">학교를 선택해주세요.</div>'; return; }
+        try{
+            qrData = await api(`/instructor-attendance/api/qr?school_id=${schoolId()}`);
+            box.innerHTML = `
+                <img src="${esc(qrData.qr_svg_url)}" alt="오늘의 출석 QR">
+                <div class="ia-qr-school">${esc(qrData.school_name)}</div>
+                <div class="ia-qr-date">${esc(qrData.date)} (${esc(qrData.weekday)}) 강사 출석 QR</div>
+                <div class="ia-muted" style="margin:6px 0 14px">발급 ${esc(qrData.issued_at)} · ${esc(qrData.issued_by)}<br>오늘 하루만 유효합니다</div>
+                <div class="ia-toolbar" style="justify-content:center;margin:0">
+                    <button class="ia-btn primary" id="qrPrint"><i class="fa-solid fa-print"></i> 인쇄</button>
+                    <button class="ia-btn danger" id="qrReissue"><i class="fa-solid fa-arrows-rotate"></i> 재발급</button>
+                </div>
+                ${qrData.scan_url_warning ? `<div class="ia-qr-warn"><i class="fa-solid fa-triangle-exclamation"></i> ${esc(qrData.scan_url_warning)}</div>` : ''}
+                <div class="ia-qr-url">QR 주소: ${esc(qrData.scan_url)}</div>`;
+            $('displayUrl').value = qrData.display_url;
+            $('displayOpen').href = qrData.display_url;
+            $('qrPrint').onclick = printQr;
+            $('qrReissue').onclick = async () => {
+                if(!confirm('오늘 QR을 재발급할까요?\nQR이 외부에 유출된 경우에만 사용하세요. 이미 비치한 인쇄물은 다시 인쇄해야 합니다.')) return;
+                try{ toast((await api('/instructor-attendance/api/qr/reissue', {school_id: schoolId()})).message); loadQr(); }
+                catch(e){ toast(e.message, true); }
+            };
+        }catch(e){ box.innerHTML = `<div class="ia-empty">${esc(e.message)}</div>`; }
+    }
+    function printQr(){
+        if(!qrData) return;
+        const w = window.open('', '_blank', 'width=720,height=900');
+        w.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>강사 출석 QR</title>
+            <style>body{font-family:Pretendard,'Malgun Gothic',sans-serif;text-align:center;padding:40px}
+            h1{font-size:34px;margin:0 0 8px}h2{font-size:24px;color:#2563eb;margin:0 0 24px}
+            img{width:460px;height:460px}p{font-size:18px;color:#475569;line-height:1.7}</style></head>
+            <body><h1>${esc(qrData.school_name)}</h1><h2>${esc(qrData.date)} (${esc(qrData.weekday)}) 방과후강사 출석</h2>
+            <img src="${location.origin}${qrData.qr_svg_url}" onload="setTimeout(()=>window.print(),200)">
+            <p>휴대폰 카메라로 QR을 찍으면 출석이 기록됩니다.<br><b>이 QR은 ${esc(qrData.date)} 하루만 사용할 수 있습니다.</b></p></body></html>`);
+        w.document.close();
+    }
+    $('displayReset').onclick = async () => {
+        if(!schoolId()) return;
+        if(!confirm('태블릿 표시용 링크를 새로 만들까요?\n기존에 열어둔 태블릿 화면은 더 이상 QR이 표시되지 않습니다.')) return;
+        try{ toast((await api('/instructor-attendance/api/qr/reissue', {school_id: schoolId(), target:'display'})).message); loadQr(); }
+        catch(e){ toast(e.message, true); }
+    };
+    document.querySelectorAll('[data-copy]').forEach(btn => btn.onclick = async () => {
+        const input = $(btn.dataset.copy);
+        try{ await navigator.clipboard.writeText(input.value); }catch(e){ input.select(); document.execCommand('copy'); }
+        toast('링크를 복사했습니다.');
+    });
+
+    loadDaily();
+})();
+</script>
+{% endblock %}
