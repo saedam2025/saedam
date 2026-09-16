@@ -1083,12 +1083,13 @@
                         <!-- 6. 조직관리 메뉴 -->
                         {% if menu_access.get('organization_group', true) %}
                         <li class="menu-item-wrapper dropdown">
-                            <a href="javascript:void(0);" class="menu-item {% if request.path.startswith('/contacts') or request.path.startswith('/attendance') or request.path.startswith('/interview') or request.path.startswith('/event-admin') or request.path.startswith('/user/invite-sender') %}active{% endif %}">
+                            <a href="javascript:void(0);" class="menu-item {% if request.path.startswith('/contacts') or request.path.startswith('/attendance') or request.path.startswith('/instructor-attendance') or request.path.startswith('/interview') or request.path.startswith('/event-admin') or request.path.startswith('/user/invite-sender') %}active{% endif %}">
                                 <i class="fa-solid fa-users-gear"></i> 조직관리
                             </a>
                             <div class="dropdown-content">
                                 {% if menu_access.get('contacts_main', true) %}<a href="/contacts"><i class="fa-solid fa-address-book"></i>본사연락망</a>{% endif %}
                                 {% if menu_access.get('attendance_main', true) %}<a href="/attendance"><i class="fa-solid fa-clock-rotate-left"></i>근태관리</a>{% endif %}
+                                {% if menu_access.get('instructor_attendance', false) %}<a href="{{ url_for('instructor_attendance.admin_page') }}"><i class="fa-solid fa-qrcode"></i>강사출결시스템</a>{% endif %}
                                 {% if menu_access.get('interview_main', false) %}<a href="/interview"><i class="fa-solid fa-user-check"></i>면접관리</a>{% endif %}
                                 {% if menu_access.get('event_admin', false) %}<a href="{{ url_for('event_admin.event_admin_page') }}"><i class="fa-solid fa-gift"></i>이벤트관리</a>{% endif %}
                                 {% if menu_access.get('organization_invite', false) %}<a href="{{ url_for('user_mgmt.invite_sender_page') }}"><i class="fa-solid fa-paper-plane"></i>가입초대메일발송</a>{% endif %}

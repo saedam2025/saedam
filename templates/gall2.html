@@ -7,132 +7,209 @@
     :root {
         --saedam-blue: var(--primary-color);
         --saedam-navy: var(--primary-dark);
-        --saedam-green: var(--primary-color);
         --bg-light: var(--widget-bg, #f4f7fa);
+        --g-radius: 14px;
+        --g-gap: 20px;
+        --g-line: var(--card-border, var(--border-color, #e2e8f0));
+        --g-surface: var(--card-bg, #ffffff);
+        --g-soft: var(--widget-bg, #f5f7fa);
+        --g-ink: var(--text-dark, #1f2937);
+        --g-dim: var(--text-gray, #6b7280);
+        --g-stage: #0f1420;
     }
 
     .gallery-page {
         padding: 0;
-        color: var(--text-dark);
+        color: var(--g-ink);
     }
 
-    /* admin.html의 컨테이너 스타일 적용 */
     .gallery-content-wrapper {
         width: 100%;
         max-width: 1550px;
-        margin: 0 auto 20px;
-        background: #fff;
-        padding: 30px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-        border-top: 5px solid var(--saedam-navy);
-        border-radius: 12px;
+        margin: 0 auto 24px;
+        padding: 26px 28px 32px;
+        border-radius: var(--g-radius);
+        border-top: 4px solid var(--primary-color);
+        background: var(--g-surface);
+        box-shadow: var(--card-shadow, 0 6px 26px rgba(15, 23, 42, 0.07));
+        backdrop-filter: var(--card-backdrop, none);
+        -webkit-backdrop-filter: var(--card-backdrop, none);
         min-height: 520px;
     }
 
-    /* admin.html의 헤더 스타일 적용 */
     .admin-header {
-        display: flex; 
-        justify-content: space-between; 
+        display: flex;
+        justify-content: space-between;
         align-items: center;
-        margin-bottom: 20px; 
-        padding-bottom: 15px; 
-        border-bottom: 2px solid #f1f3f5;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--g-line);
     }
+
+    /* ---------------------------------------------------------- 버튼 */
+
+    .btn-gallery {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 14px;
+        border: 1px solid var(--g-line);
+        border-radius: 9px;
+        background: var(--input-bg, var(--g-surface));
+        color: var(--g-ink);
+        font-size: 0.85rem;
+        font-weight: 600;
+        line-height: 1.2;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+    }
+
+    .btn-gallery:hover {
+        background: var(--widget-hover, #f1f5f9);
+        border-color: color-mix(in srgb, var(--primary-color) 35%, var(--g-line));
+    }
+
+    .btn-gallery:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+
+    .btn-gallery.primary {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+        color: #ffffff;
+    }
+
+    .btn-gallery.primary:hover {
+        background: var(--primary-dark);
+        border-color: var(--primary-dark);
+    }
+
+    .btn-gallery.danger {
+        color: #dc2626;
+        border-color: color-mix(in srgb, #dc2626 45%, transparent);
+    }
+
+    .btn-gallery.danger:hover {
+        background: color-mix(in srgb, #dc2626 8%, transparent);
+        border-color: #dc2626;
+    }
+
+    .btn-gallery:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+
+    /* ---------------------------------------------------------- 목록 도구줄 */
 
     .gallery-toolbar {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
+        flex-wrap: wrap;
         margin-bottom: 20px;
     }
 
-    /* 버튼을 admin.html 스타일로 맞춤 */
-    .btn-gallery {
-        padding: 6px 12px;
+    .gallery-title-block > div {
+        color: var(--g-dim);
         font-size: 0.85rem;
-        font-weight: 600;
-        border-radius: 5px;
-        border: 1px solid var(--border-color);
-        background: #fff;
-        color: var(--text-dark);
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        cursor: pointer;
-        transition: 0.2s;
-        text-decoration: none;
     }
 
-    .btn-gallery:hover {
-        background: #f4f7fa;
-    }
-
-    .btn-gallery.primary {
-        background: var(--saedam-blue);
-        color: white;
-        border: none;
-    }
-
-    .btn-gallery.primary:hover {
-        background: var(--saedam-navy);
-    }
-
-    .btn-gallery.danger {
-        background: #fff;
-        color: #dc3545;
-        border: 1px solid #dc3545;
-    }
-
-    .btn-gallery.danger:hover {
-        background: #fff5f5;
-    }
-
-    .btn-gallery:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
+    /* ---------------------------------------------------------- 사진 격자 */
 
     .post-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(234px, 1fr));
-        gap: 18px;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+        gap: var(--g-gap);
     }
 
     .post-card {
         position: relative;
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        background: #ffffff;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--g-line);
+        border-radius: var(--g-radius);
+        background: var(--g-surface);
         overflow: hidden;
         cursor: pointer;
-        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02), 0 4px 10px rgba(0, 0, 0, 0.04);
         transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
     }
 
-    .post-card::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: 8px;
-        pointer-events: none;
-        box-shadow: inset 0 0 0 3px rgba(248, 250, 252, 0.95), inset 0 4px 0 var(--saedam-blue);
-        z-index: 2;
-    }
-
     .post-card:hover {
-        border-color: var(--saedam-blue);
-        box-shadow: 0 10px 20px rgba(0, 78, 162, 0.1);
-        transform: translateY(-2px);
+        border-color: color-mix(in srgb, var(--primary-color) 50%, var(--g-line));
+        box-shadow: 0 12px 26px rgba(15, 23, 42, 0.13);
+        transform: translateY(-3px);
     }
 
-    .post-card:hover::before {
-        box-shadow: inset 0 0 0 3px rgba(244, 247, 250, 0.95), inset 0 4px 0 var(--saedam-blue);
+    .post-card:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
     }
 
     .post-card.is-selected {
-        border-color: var(--saedam-blue);
-        box-shadow: 0 10px 20px rgba(0, 78, 162, 0.15);
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 35%, transparent);
+    }
+
+    /* 사진을 자르지 않고 전부 보여주되, 남는 자리는 같은 사진을 흐리게 깔아 채운다. */
+    .post-thumb-wrap {
+        position: relative;
+        aspect-ratio: 4 / 3;
+        overflow: hidden;
+        background: var(--g-stage);
+    }
+
+    .post-thumb-bg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        filter: blur(22px) brightness(0.72) saturate(1.15);
+        transform: scale(1.18);
+    }
+
+    .post-thumb {
+        position: relative;
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        transition: transform 0.25s ease;
+    }
+
+    .post-card:hover .post-thumb {
+        transform: scale(1.035);
+    }
+
+    .post-thumb-wrap.empty {
+        display: grid;
+        place-items: center;
+        background: var(--g-soft);
+        color: #94a3b8;
+        font-size: 2.2rem;
+    }
+
+    .post-thumb-count {
+        position: absolute;
+        right: 10px;
+        top: 10px;
+        z-index: 3;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(15, 20, 32, 0.66);
+        color: #ffffff;
+        font-size: 0.72rem;
+        font-weight: 700;
+        pointer-events: none;
+        backdrop-filter: blur(4px);
     }
 
     .post-select-check {
@@ -142,77 +219,62 @@
         z-index: 4;
         width: 20px;
         height: 20px;
-        accent-color: var(--saedam-blue);
+        accent-color: var(--primary-color);
         cursor: pointer;
         opacity: 0;
-        pointer-events: none;
-        transform: translateY(-3px);
-        transition: opacity 0.16s ease, transform 0.16s ease;
+        transition: opacity 0.16s ease;
     }
 
     .post-card:hover .post-select-check,
     .post-card:focus-within .post-select-check,
     .post-select-check:checked {
         opacity: 1;
-        pointer-events: auto;
-        transform: translateY(0);
-    }
-
-    .post-thumb {
-        width: 100%;
-        aspect-ratio: 16 / 10;
-        object-fit: cover;
-        background: #f4f7fa;
-        display: block;
-        border-bottom: 1px solid var(--border-color);
-    }
-
-    .post-thumb.empty {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #94a3b8;
-        font-size: 2rem;
     }
 
     .post-body {
-        padding: 14px 15px 15px;
+        padding: 13px 14px 15px;
     }
 
-.post-title {
+    .post-title {
         margin: 0;
-        font-size: 1rem;
-        font-weight: normal; /* 굵기 해제 (또는 400) */
-        color: var(--text-dark);
-        white-space: nowrap;
+        color: var(--g-ink);
+        font-size: 0.96rem;
+        font-weight: 600;
+        line-height: 1.45;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
         overflow: hidden;
-        text-overflow: ellipsis;
     }
+
     .post-meta {
-        margin-top: 7px;
+        margin-top: 9px;
         display: flex;
         flex-wrap: wrap;
-        gap: 6px 10px;
-        color: #666;
-        font-size: 0.78rem;
+        gap: 4px 12px;
+        color: var(--g-dim);
+        font-size: 0.76rem;
     }
 
+    /* ---------------------------------------------------------- 페이지 이동 */
+
     .gallery-pagination {
-        display: flex; 
-        justify-content: center; 
-        gap: 5px; 
-        margin-top: 25px; 
-        list-style: none; 
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        margin-top: 30px;
         padding: 0;
+        list-style: none;
     }
 
     .page-link-button {
-        padding: 8px 14px;
-        border: 1px solid var(--border-color); 
-        border-radius: 6px;
-        background: #ffffff;
-        color: var(--saedam-navy);
-        font-size: 0.9rem;
+        min-width: 38px;
+        padding: 8px 12px;
+        border: 1px solid var(--g-line);
+        border-radius: 9px;
+        background: var(--input-bg, var(--g-surface));
+        color: var(--g-ink);
+        font-size: 0.88rem;
         font-weight: 600;
         text-decoration: none;
         display: inline-flex;
@@ -221,41 +283,43 @@
     }
 
     .page-link-button:hover {
-        background: #f4f7fa;
+        background: var(--widget-hover, #f1f5f9);
     }
 
     .page-link-button.active {
-        background: var(--saedam-blue);
-        color: white;
-        border-color: var(--saedam-blue);
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+        color: #ffffff;
     }
 
     .page-link-button.disabled {
-        opacity: 0.45;
+        opacity: 0.4;
         pointer-events: none;
     }
 
     .empty-state {
-        min-height: 300px;
+        min-height: 320px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 10px;
-        color: #666;
+        gap: 12px;
+        border: 1px dashed var(--g-line);
+        border-radius: var(--g-radius);
+        background: var(--g-soft);
+        color: var(--g-dim);
         text-align: center;
-        border: 1px dashed var(--border-color);
-        border-radius: 8px;
-        background: #f8fafc;
     }
+
+    /* ---------------------------------------------------------- 업로드 */
 
     .upload-panel {
         display: none;
-        margin-bottom: 22px;
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        background: #f4f7fa;
-        padding: 18px;
+        margin-bottom: 24px;
+        padding: 20px;
+        border: 1px solid var(--g-line);
+        border-radius: var(--g-radius);
+        background: var(--g-soft);
     }
 
     .upload-form-grid {
@@ -269,32 +333,32 @@
     .gallery-textarea {
         width: 100%;
         box-sizing: border-box;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        background: #ffffff;
-        color: var(--text-dark);
-        padding: 10px 12px;
+        padding: 11px 13px;
+        border: 1px solid var(--g-line);
+        border-radius: 9px;
+        background: var(--input-bg, #ffffff);
+        color: var(--input-text, var(--g-ink));
         font-family: inherit;
-        font-size: 0.85rem;
+        font-size: 0.88rem;
         outline: none;
     }
 
     .gallery-textarea {
         min-height: 92px;
         resize: vertical;
-        line-height: 1.5;
+        line-height: 1.6;
     }
 
     .gallery-input:focus,
     .gallery-textarea:focus {
-        border-color: var(--saedam-blue);
-        box-shadow: 0 0 0 2px rgba(0, 78, 162, 0.1);
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 14%, transparent);
     }
 
     .dropzone {
-        background: #ffffff;
+        background: var(--input-bg, #ffffff);
         border: 2px dashed #cbd5e1;
-        border-radius: 8px;
+        border-radius: var(--g-radius);
         min-height: 170px;
         max-height: 360px;
         display: flex;
@@ -308,15 +372,15 @@
     }
 
     .dropzone:hover {
-        border-color: var(--saedam-blue);
-        background: #f8fafc;
+        border-color: var(--primary-color);
+        background: var(--widget-hover, #f8fafc);
     }
 
     .dropzone .dz-message {
         width: 100%;
         text-align: center;
         margin: 28px 0;
-        color: #666;
+        color: var(--g-dim);
     }
 
     .dropzone.dz-started {
@@ -324,23 +388,12 @@
         align-content: flex-start;
     }
 
-    .dropzone.dz-started .dz-message {
-        display: none;
-    }
-
-    .dropzone .dz-preview {
-        margin: 6px;
-        flex: 0 0 120px;
-    }
-
-    .dropzone .dz-preview .dz-image {
-        width: 120px;
-        height: 120px;
-        border-radius: 8px;
-    }
+    .dropzone.dz-started .dz-message { display: none; }
+    .dropzone .dz-preview { margin: 6px; flex: 0 0 120px; }
+    .dropzone .dz-preview .dz-image { width: 120px; height: 120px; border-radius: 8px; }
 
     .upload-action-row {
-        margin-top: 12px;
+        margin-top: 14px;
         display: flex;
         align-items: center;
         justify-content: flex-end;
@@ -350,258 +403,246 @@
 
     .upload-hint {
         margin-right: auto;
-        color: #666;
+        color: var(--g-dim);
         font-size: 0.85rem;
         font-weight: 600;
     }
 
-    .modal-overlay {
-        position: fixed;
-        inset: 0;
-        z-index: 999999;
-        background: rgba(0, 0, 0, 0.5);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 14px;
+    /* ============================================================
+       게시물 보기 — 팝업이 아니라 목록과 같은 페이지에서 전환한다.
+       내용은 넓은 화면에서도 가운데 한 단으로 모아 읽기 편하게 둔다.
+       ============================================================ */
+
+    .post-view[hidden] { display: none; }
+
+    .post-view {
+        max-width: 1120px;
+        margin: 0 auto;
     }
 
-    .post-modal {
-        --modal-media-width: min(760px, calc(96vw - 342px));
-        --modal-image-width: auto;
-        --modal-image-height: auto;
-        width: fit-content;
-        max-width: 96vw;
-        max-height: 94vh;
-        height: auto;
-        overflow: hidden;
-        display: grid;
-        grid-template-rows: auto minmax(0, 1fr);
-        background: #ffffff;
-        border: none;
-        border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-    }
-
-    .post-modal-header {
-        padding: 16px 20px;
-        border-bottom: 1px solid var(--border-color);
+    .post-view-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
         display: flex;
         align-items: center;
-        justify-content: space-between;
         gap: 12px;
+        margin-bottom: 18px;
+        padding: 12px 0 14px;
+        border-bottom: 1px solid var(--g-line);
+        background: var(--g-surface);
     }
 
-    .post-modal-header h3 {
-        margin: 0;
-        font-size: 1.1rem;
-        font-weight: 800;
-        color: var(--saedam-navy);
-    }
-
-    .modal-close {
-        width: 32px;
-        height: 32px;
-        border: none;
-        border-radius: 6px;
-        background: transparent;
-        cursor: pointer;
-        color: #666;
-        font-size: 1.2rem;
-    }
-    
-    .modal-close:hover {
-        background: #f4f7fa;
-    }
-
-    .post-modal-body {
-        overflow: hidden;
-        min-height: 0;
-        max-height: calc(94vh - 68px);
-        padding: 20px;
-        display: grid;
-        grid-template-columns: var(--modal-media-width) 300px;
-        gap: 20px;
-    }
-
-    .modal-media-column {
-        min-height: 0;
-        width: var(--modal-media-width);
-        max-width: calc(96vw - 342px);
-        max-height: calc(94vh - 96px);
-        display: grid;
-        grid-template-rows: minmax(0, 1fr) auto;
-        gap: 12px;
-    }
-
-    .modal-preview {
-        background: transparent;
-        border: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-    }
-
-    .modal-preview img {
-        width: auto;
-        height: auto;
-        width: var(--modal-image-width);
-        height: var(--modal-image-height);
-        max-width: calc(96vw - 342px);
-        max-height: calc(94vh - 172px);
-        object-fit: contain;
-    }
-
-    .modal-overlay.slideshow-active {
-        background: rgba(0, 0, 0, 0.9);
-        padding: 0;
-    }
-
-    .modal-overlay.slideshow-active .post-modal {
-        display: block;
-        width: fit-content;
-        max-width: 100vw;
-        max-height: 100vh;
-        height: auto;
-        background: transparent;
-        box-shadow: none;
-        border-radius: 0;
-    }
-
-    .modal-overlay.slideshow-active .post-modal-header,
-    .modal-overlay.slideshow-active .modal-thumbs,
-    .modal-overlay.slideshow-active .post-detail-panel {
-        display: none;
-    }
-
-    .modal-overlay.slideshow-active .slideshow-stop-button {
-        display: inline-flex;
-    }
-
-    .modal-overlay.slideshow-active .modal-media-column {
-        display: block;
-    }
-
-    .modal-overlay.slideshow-active .post-modal-body {
-        display: block;
-        overflow: hidden;
-        padding: 0;
-    }
-
-    .modal-overlay.slideshow-active .modal-preview {
-        max-width: 100vw;
-        max-height: 100vh;
-    }
-
-    .modal-overlay.slideshow-active .modal-preview img {
-        max-width: 100vw;
-        max-height: 100vh;
-    }
-
-    .modal-thumbs {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
-        gap: 8px;
-        width: 100%;
-        max-width: calc(96vw - 342px);
-        max-height: 66px;
-        overflow: hidden;
-    }
-
-    .modal-thumb {
-        border: 2px solid transparent;
-        border-radius: 6px;
-        padding: 0;
-        overflow: hidden;
-        background: #ffffff;
-        cursor: pointer;
-        aspect-ratio: 1 / 1;
-    }
-
-    .modal-thumb.active {
-        border-color: var(--saedam-blue);
-    }
-
-    .modal-thumb img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-    }
-
-    .post-detail-panel {
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 18px;
-        background: #ffffff;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-        overflow-y: auto;
-    }
-
-    .post-detail-summary {
-        color: #666;
-        font-size: 0.85rem;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        margin: 0 0 15px;
-    }
-
-    .post-detail-title-line {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
-        gap: 6px;
-        align-items: baseline;
-        color: var(--text-dark);
-    }
-
-    .post-detail-title-line strong {
+    .post-view-title {
+        flex: 1;
         min-width: 0;
-        font-size: 1rem;
+        color: var(--g-dim);
+        font-size: 0.88rem;
+        font-weight: 600;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
 
+    .post-view-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .post-view-head { margin: 0 0 16px; }
+
+    .post-view-heading {
+        margin: 0 0 9px;
+        color: var(--g-ink);
+        font-size: 1.5rem;
+        font-weight: 700;
+        line-height: 1.38;
+        overflow-wrap: anywhere;
+    }
+
     .post-detail-byline {
         display: flex;
         flex-wrap: wrap;
-        gap: 4px 8px;
+        gap: 4px 16px;
         align-items: center;
+        color: var(--g-dim);
+        font-size: 0.85rem;
+    }
+
+    /* 사진 무대: 잘라내지 않고(contain) 어두운 바탕 위에 올린다. */
+    .post-view-stage {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: min(66vh, 680px);
+        min-height: 300px;
+        border-radius: var(--g-radius);
+        background: var(--g-stage);
+        overflow: hidden;
+    }
+
+    .modal-preview {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    .modal-preview img {
+        display: block;
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+    }
+
+    .modal-preview img:not([src]) { display: none; }
+
+    .stage-nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        display: grid;
+        place-items: center;
+        width: 46px;
+        height: 46px;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.16);
+        color: #ffffff;
+        font-size: 1.1rem;
+        cursor: pointer;
+        opacity: 0;
+        backdrop-filter: blur(6px);
+        transition: opacity 0.18s ease, background 0.18s ease;
+    }
+
+    .post-view-stage:hover .stage-nav,
+    .stage-nav:focus-visible { opacity: 1; }
+    .stage-nav:hover { background: rgba(255, 255, 255, 0.32); }
+    .stage-nav.prev { left: 16px; }
+    .stage-nav.next { right: 16px; }
+    .stage-nav[disabled] { display: none; }
+
+    .stage-counter {
+        position: absolute;
+        right: 16px;
+        top: 16px;
+        padding: 5px 12px;
+        border-radius: 999px;
+        background: rgba(15, 20, 32, 0.6);
+        color: #ffffff;
+        font-size: 0.76rem;
+        font-weight: 700;
+        backdrop-filter: blur(4px);
+    }
+
+    .stage-counter:empty { display: none; }
+
+    /* 지금 보는 사진의 파일명과 용량 */
+    .stage-caption {
+        position: absolute;
+        left: 16px;
+        bottom: 16px;
+        max-width: calc(100% - 120px);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 13px;
+        border-radius: 999px;
+        background: rgba(15, 20, 32, 0.6);
+        color: rgba(255, 255, 255, 0.92);
+        font-size: 0.76rem;
+        backdrop-filter: blur(4px);
+    }
+
+    .stage-caption:empty { display: none; }
+    .stage-caption b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stage-caption span { flex: none; color: rgba(255, 255, 255, 0.7); }
+
+    /* 아래 필름스트립 */
+    .modal-thumbs {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+        padding-bottom: 6px;
+        overflow-x: auto;
+        scrollbar-width: thin;
+    }
+
+    .modal-thumbs:empty { display: none; }
+
+    .modal-thumb {
+        flex: 0 0 72px;
+        width: 72px;
+        height: 72px;
+        padding: 0;
+        border: 2px solid transparent;
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--g-stage);
+        cursor: pointer;
+        opacity: 0.6;
+        transition: opacity 0.16s ease, border-color 0.16s ease;
+    }
+
+    .modal-thumb:hover { opacity: 1; }
+
+    .modal-thumb.active {
+        border-color: var(--primary-color);
+        opacity: 1;
+    }
+
+    .modal-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+    }
+
+    /* ---------------------------------------------------------- 본문 */
+
+    .post-detail-panel { margin: 26px 0 0; }
+
+    .post-detail-summary {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 6px;
     }
 
     .photo-count-button {
         width: max-content;
-        border: 1px solid var(--border-color);
-        border-radius: 999px;
-        background: #f4f7fa;
-        color: #666;
-        padding: 4px 12px;
-        font-size: 0.8rem;
-        cursor: pointer;
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        transition: 0.2s;
+        padding: 5px 13px;
+        border: 1px solid var(--g-line);
+        border-radius: 999px;
+        background: var(--g-soft);
+        color: var(--g-dim);
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: 0.18s;
     }
 
     .photo-count-button:hover,
     .photo-count-button.active {
-        color: var(--saedam-blue);
-        border-color: var(--saedam-blue);
-        background: #f0f7ff;
+        color: var(--primary-color);
+        border-color: var(--primary-color);
+        background: color-mix(in srgb, var(--primary-color) 8%, transparent);
     }
 
     .photo-info-panel {
         display: none;
-        margin: -4px 0 15px;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        background: #f4f7fa;
-        max-height: 160px;
+        margin: 10px 0 0;
+        border: 1px solid var(--g-line);
+        border-radius: 10px;
+        background: var(--g-soft);
+        max-height: 240px;
         overflow-y: auto;
     }
 
@@ -609,15 +650,13 @@
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 10px;
-        padding: 8px 12px;
-        border-bottom: 1px solid #e2e8f0;
+        padding: 9px 13px;
+        border-bottom: 1px solid var(--g-line);
         font-size: 0.8rem;
-        color: #555;
+        color: var(--g-ink);
     }
 
-    .photo-info-row:last-child {
-        border-bottom: none;
-    }
+    .photo-info-row:last-child { border-bottom: none; }
 
     .photo-info-name {
         overflow: hidden;
@@ -626,145 +665,193 @@
     }
 
     .photo-info-size {
-        color: #666;
+        color: var(--g-dim);
         font-weight: 700;
         white-space: nowrap;
     }
 
+    /* 본문 글은 상자에 가두지 않는다. */
     .post-detail-content {
+        margin-top: 18px;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--g-ink);
+        font-size: 0.97rem;
+        line-height: 1.85;
         white-space: pre-wrap;
-        line-height: 1.6;
-        color: var(--text-dark);
-        min-height: 120px;
-        max-height: 240px;
-        margin-top: 4px;
-        padding: 15px;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        background: #f4f7fa;
-        overflow-y: auto;
-        font-size: 0.85rem;
+        overflow-wrap: anywhere;
     }
 
+    .post-detail-content.is-empty { color: var(--g-dim); }
+
+    /* ---------------------------------------------------------- 댓글 */
+
     .gallery-comments {
-        margin-top: 14px;
-        padding-top: 12px;
-        border-top: 1px solid var(--border-color);
+        margin-top: 26px;
+        padding-top: 18px;
+        border-top: 1px solid var(--g-line);
     }
+
     .gallery-comments-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 8px;
-        color: var(--text-dark);
-        font-size: 0.82rem;
-        font-weight: 800;
+        margin-bottom: 10px;
+        color: var(--g-ink);
+        font-size: 0.88rem;
+        font-weight: 700;
     }
+
     .gallery-comment-list {
         display: flex;
         flex-direction: column;
-        gap: 7px;
-        max-height: 150px;
+        gap: 8px;
+        max-height: 320px;
         overflow-y: auto;
-        margin-bottom: 9px;
+        margin-bottom: 12px;
     }
+
     .gallery-comment-item {
-        padding: 8px 9px;
-        border: 1px solid var(--border-color);
-        border-radius: 7px;
-        background: var(--widget-bg, #f8fafc);
+        padding: 10px 12px;
+        border: 1px solid var(--g-line);
+        border-radius: 10px;
+        background: var(--g-soft);
     }
+
     .gallery-comment-meta {
         display: flex;
         justify-content: space-between;
         gap: 8px;
-        margin-bottom: 4px;
-        color: var(--text-gray, #64748b);
-        font-size: 0.68rem;
+        margin-bottom: 5px;
+        color: var(--g-dim);
+        font-size: 0.72rem;
     }
+
     .gallery-comment-content {
-        color: var(--text-dark);
-        font-size: 0.78rem;
-        line-height: 1.45;
+        color: var(--g-ink);
+        font-size: 0.85rem;
+        line-height: 1.55;
         white-space: pre-wrap;
         overflow-wrap: anywhere;
     }
+
     .gallery-comment-empty {
-        padding: 12px 4px;
-        color: var(--text-gray, #94a3b8);
-        font-size: 0.76rem;
+        padding: 16px 4px;
+        color: var(--g-dim);
+        font-size: 0.8rem;
         text-align: center;
     }
-    .gallery-comment-form { display: flex; gap: 7px; align-items: flex-end; }
-    .gallery-comment-form textarea {
-        min-height: 52px;
-        max-height: 100px;
-        resize: vertical;
-        padding: 8px 9px;
-        font-size: 0.76rem;
-    }
+
+    .gallery-comment-form { display: flex; gap: 8px; align-items: flex-end; }
+    .gallery-comment-form textarea { min-height: 58px; max-height: 120px; font-size: 0.84rem; }
 
     .post-modal-actions {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-top: auto;
-        padding-top: 15px;
+        margin-top: 26px;
+        padding-top: 18px;
+        border-top: 1px solid var(--g-line);
     }
+
+    /* ---------------------------------------------------------- 수정 폼 */
 
     .post-edit-form {
         display: none;
-        margin-top: 15px;
-        padding-top: 15px;
-        border-top: 1px solid var(--border-color);
+        margin-top: 20px;
+        padding: 20px;
+        border: 1px solid var(--g-line);
+        border-radius: var(--g-radius);
+        background: var(--g-soft);
     }
 
     .edit-photo-manager {
-        margin-top: 12px;
-        padding: 10px;
-        border: 1px solid var(--border-color);
-        border-radius: 7px;
-        background: var(--widget-bg, #f4f7fa);
+        margin-top: 16px;
+        padding: 16px;
+        border: 1px solid var(--g-line);
+        border-radius: 12px;
+        background: var(--input-bg, var(--g-surface));
     }
 
     .edit-photo-manager-title {
         display: flex;
         justify-content: space-between;
         gap: 8px;
-        margin-bottom: 8px;
-        color: var(--text-dark);
-        font-size: 0.8rem;
-        font-weight: 800;
+        margin-bottom: 12px;
+        color: var(--g-ink);
+        font-size: 0.85rem;
+        font-weight: 700;
     }
 
+    /* 관리용 사진은 작고 촘촘하게, 파일명과 용량을 함께 보여준다. */
     .edit-photo-list {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 7px;
-        margin-bottom: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
     }
 
     .edit-photo-item {
         position: relative;
-        aspect-ratio: 1 / 1;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--g-line);
+        border-radius: 10px;
         overflow: hidden;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        background: #fff;
+        background: var(--g-surface);
     }
 
-    .edit-photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .edit-photo-delete {
+    .edit-photo-item img {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: contain;
+        background: var(--g-stage);
+        display: block;
+    }
+
+    .edit-photo-name,
+    .edit-selected-preview-name {
+        display: block;
+        padding: 6px 8px 0;
+        color: var(--g-ink);
+        font-size: 0.68rem;
+        line-height: 1.35;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .edit-photo-size,
+    .edit-selected-preview-size {
+        display: block;
+        padding: 2px 8px 7px;
+        color: var(--g-dim);
+        font-size: 0.66rem;
+        font-weight: 700;
+    }
+
+    .edit-photo-delete,
+    .edit-selected-remove {
         position: absolute;
-        top: 3px;
-        right: 3px;
+        top: 5px;
+        right: 5px;
         width: 24px;
         height: 24px;
         border: 0;
         border-radius: 50%;
         background: rgba(185, 28, 28, 0.92);
-        color: #fff;
+        color: #ffffff;
+        font-size: 0.7rem;
         cursor: pointer;
+    }
+
+    .edit-photo-empty {
+        grid-column: 1 / -1;
+        padding: 18px 4px;
+        color: var(--g-dim);
+        font-size: 0.8rem;
+        text-align: center;
     }
 
     .edit-photo-dropzone {
@@ -774,82 +861,101 @@
         align-items: center;
         justify-content: center;
         gap: 6px;
-        padding: 14px;
-        border: 2px dashed var(--card-border, var(--border-color));
-        border-radius: 8px;
-        background: var(--input-bg, var(--card-bg, #fff));
-        color: var(--text-gray);
+        padding: 16px;
+        border: 2px dashed var(--g-line);
+        border-radius: 12px;
+        background: var(--g-soft);
+        color: var(--g-dim);
         text-align: center;
         cursor: pointer;
-        transition: border-color .18s ease, background .18s ease, transform .18s ease;
+        transition: border-color 0.18s ease, background 0.18s ease;
     }
+
     .edit-photo-dropzone:hover,
     .edit-photo-dropzone:focus,
     .edit-photo-dropzone.is-dragover {
         border-color: var(--primary-color);
-        background: color-mix(in srgb, var(--primary-color) 7%, var(--card-bg, #fff));
+        background: color-mix(in srgb, var(--primary-color) 7%, var(--g-surface));
         outline: none;
     }
-    .edit-photo-dropzone.is-dragover { transform: scale(1.01); }
-    .edit-photo-dropzone.is-disabled { opacity: .55; cursor: not-allowed; }
+
+    .edit-photo-dropzone.is-disabled { opacity: 0.55; cursor: not-allowed; }
     .edit-photo-dropzone i { color: var(--primary-color); font-size: 1.45rem; }
-    .edit-photo-dropzone strong { color: var(--text-dark); font-size: .8rem; }
-    .edit-photo-dropzone span { font-size: .72rem; line-height: 1.45; overflow-wrap: anywhere; }
-    .edit-selected-wrap { margin-top: 9px; }
-    .edit-selected-title { margin-bottom: 6px; color: var(--text-dark); font-size: .76rem; font-weight: 800; }
+    .edit-photo-dropzone strong { color: var(--g-ink); font-size: 0.82rem; }
+    .edit-photo-dropzone span { font-size: 0.74rem; line-height: 1.45; overflow-wrap: anywhere; }
+
+    .edit-selected-wrap { margin-top: 14px; }
+
+    .edit-selected-title {
+        margin-bottom: 8px;
+        color: var(--g-ink);
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
     .edit-selected-previews {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 7px;
+        grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+        gap: 10px;
     }
+
     .edit-selected-preview {
         position: relative;
         min-width: 0;
         overflow: hidden;
-        border: 2px solid color-mix(in srgb, var(--primary-color) 55%, var(--card-border, #dbe4ee));
-        border-radius: 7px;
-        background: #fff;
+        border: 2px solid color-mix(in srgb, var(--primary-color) 50%, var(--g-line));
+        border-radius: 10px;
+        background: var(--g-surface);
     }
-    .edit-selected-preview img { width: 100%; aspect-ratio: 1 / 1; display: block; object-fit: cover; }
-    .edit-selected-preview-name {
+
+    .edit-selected-preview img {
+        width: 100%;
+        aspect-ratio: 1 / 1;
         display: block;
-        padding: 5px 6px;
-        color: var(--text-dark);
-        font-size: .66rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        object-fit: contain;
+        background: var(--g-stage);
     }
-    .edit-selected-preview-size {
-        display: block;
-        padding: 0 6px 5px;
-        color: var(--text-gray);
-        font-size: .64rem;
-        font-weight: 700;
-    }
+
     .edit-selected-preview-fallback {
         display: none;
         aspect-ratio: 1 / 1;
         align-items: center;
         justify-content: center;
         padding: 8px;
-        background: var(--widget-bg, #eef2f7);
-        color: var(--text-gray);
-        font-size: .66rem;
+        background: var(--g-soft);
+        color: var(--g-dim);
+        font-size: 0.68rem;
         text-align: center;
     }
-    .edit-selected-remove {
-        position: absolute;
-        top: 4px;
-        right: 4px;
-        width: 24px;
-        height: 24px;
-        border: 0;
-        border-radius: 50%;
-        background: rgba(15, 23, 42, .86);
-        color: #fff;
-        cursor: pointer;
+
+    .edit-form-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 14px;
     }
+
+    /* ---------------------------------------------------------- 슬라이드쇼 */
+
+    .post-view.slideshow-active .post-view-topbar,
+    .post-view.slideshow-active .post-view-head,
+    .post-view.slideshow-active .modal-thumbs,
+    .post-view.slideshow-active .post-detail-panel { display: none; }
+
+    .post-view.slideshow-active .post-view-stage {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        height: 100vh;
+        border-radius: 0;
+        background: #000000;
+    }
+
+    .post-view.slideshow-active .stage-counter,
+    .post-view.slideshow-active .stage-caption,
+    .post-view.slideshow-active .stage-nav { display: none; }
+
+    .post-view.slideshow-active .slideshow-stop-button { display: inline-flex; }
 
     .slideshow-stop-button {
         position: fixed;
@@ -859,159 +965,48 @@
         display: none;
         align-items: center;
         gap: 6px;
-        border: 1px solid rgba(255, 255, 255, 0.5);
-        border-radius: 8px;
-        background: rgba(0, 0, 0, 0.8);
+        padding: 11px 18px;
+        border: 1px solid rgba(255, 255, 255, 0.45);
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.72);
         color: #ffffff;
-        padding: 10px 16px;
-        font-size: 0.9rem;
-        font-weight: 800;
+        font-size: 0.88rem;
+        font-weight: 700;
         cursor: pointer;
+        backdrop-filter: blur(6px);
     }
 
-    /* 공통 테마 호환 */
-    .gallery-content-wrapper,
-    .post-card,
-    .post-modal,
-    .post-detail-panel {
-        background: var(--card-bg, #ffffff);
-        border-color: var(--card-border, var(--border-color));
-        box-shadow: var(--card-shadow, 0 4px 20px rgba(0, 0, 0, 0.08));
-        backdrop-filter: var(--card-backdrop, none);
-        -webkit-backdrop-filter: var(--card-backdrop, none);
-    }
-    .gallery-content-wrapper {
-        border-top-color: var(--primary-color);
-    }
-    .admin-header,
-    .post-modal-header,
-    .post-edit-form,
-    .post-detail-content,
-    .photo-info-row,
-    .post-thumb {
-        border-color: var(--card-border, var(--border-color));
-    }
-    .btn-gallery,
-    .page-link-button,
-    .modal-thumb {
-        background: var(--input-bg, var(--card-bg, #ffffff));
-        border-color: var(--card-border, var(--border-color));
-        color: var(--text-dark);
-    }
-    .btn-gallery:hover,
-    .page-link-button:hover,
-    .modal-close:hover {
-        background: var(--widget-hover, #f4f7fa);
-    }
-    .btn-gallery.primary,
-    .page-link-button.active {
-        background: var(--primary-color);
-        border-color: var(--primary-color);
-        color: #ffffff;
-    }
-    .btn-gallery.primary:hover {
-        background: var(--primary-dark);
-    }
-    .post-card::before {
-        box-shadow:
-            inset 0 0 0 3px color-mix(in srgb, var(--card-border, #e2e8f0) 75%, transparent),
-            inset 0 4px 0 var(--primary-color);
-    }
-    .post-card:hover,
-    .post-card.is-selected,
-    .modal-thumb.active {
-        border-color: var(--primary-color);
-    }
-    .post-card:hover::before {
-        box-shadow:
-            inset 0 0 0 3px color-mix(in srgb, var(--primary-color) 12%, transparent),
-            inset 0 4px 0 var(--primary-color);
-    }
-    .post-select-check {
-        accent-color: var(--primary-color);
-    }
-    .post-thumb,
-    .empty-state,
-    .upload-panel,
-    .photo-count-button,
-    .photo-info-panel,
-    .post-detail-content {
-        background: var(--widget-bg, #f4f7fa);
-    }
-    .post-thumb.empty,
-    .post-meta,
-    .empty-state,
-    .dropzone .dz-message,
-    .upload-hint,
-    .post-detail-summary,
-    .photo-count-button,
-    .photo-info-row,
-    .photo-info-size,
-    .modal-close {
-        color: var(--text-gray);
-    }
-    .admin-header > div:last-child,
-    .gallery-title-block > div {
-        color: var(--text-gray) !important;
-    }
-    .post-title,
-    .post-detail-title-line,
-    .post-detail-content,
-    .post-modal-header h3 {
-        color: var(--text-dark);
-    }
-    .upload-panel,
-    .empty-state,
-    .gallery-input,
-    .gallery-textarea,
-    .dropzone,
-    .photo-count-button,
-    .photo-info-panel,
-    .post-detail-content {
-        border-color: var(--card-border, var(--border-color));
-    }
-    .gallery-input,
-    .gallery-textarea,
-    .dropzone {
-        background: var(--input-bg, #ffffff);
-        color: var(--input-text, var(--text-dark));
-    }
-    .gallery-input:focus,
-    .gallery-textarea:focus,
-    .dropzone:hover,
-    .photo-count-button:hover,
-    .photo-count-button.active {
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 13%, transparent);
-    }
-    .dropzone:hover,
-    .photo-count-button:hover,
-    .photo-count-button.active {
-        background: var(--widget-hover, #f8fafc);
-        color: var(--primary-color);
-    }
+    /* ---------------------------------------------------------- 좁은 화면 */
 
     @media (max-width: 860px) {
-        .upload-form-grid,
-        .post-modal-body {
-            grid-template-columns: 1fr;
+        .gallery-content-wrapper { padding: 18px 14px 24px; }
+        .upload-form-grid { grid-template-columns: 1fr; }
+
+        .post-grid {
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
         }
 
-        .post-modal {
-            width: min(94vw, 720px);
-            height: auto;
+        .gallery-toolbar { flex-direction: column; align-items: stretch; }
+        .post-view-title { display: none; }
+        .post-view-heading { font-size: 1.22rem; }
+
+        .post-view-stage {
+            height: 52vh;
+            min-height: 220px;
+            border-radius: 10px;
         }
 
-        .modal-media-column,
-        .modal-preview img,
-        .modal-thumbs {
-            width: 100%;
-            max-width: 100%;
-        }
+        /* 손가락 조작에서는 좌우 버튼을 항상 보이게 둔다. */
+        .stage-nav { opacity: 1; width: 38px; height: 38px; }
+        .stage-caption { max-width: calc(100% - 32px); }
 
-        .modal-preview img {
-            max-height: calc(84vh - 270px);
-        }
+        .modal-thumb { flex-basis: 56px; width: 56px; height: 56px; }
+
+        .edit-photo-list,
+        .edit-selected-previews { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+
+        .post-edit-form { padding: 14px; }
     }
 </style>
 
@@ -1030,6 +1025,7 @@
             </div>
         </div>
 
+        <div id="galleryListView">
         <div class="gallery-toolbar">
             <div class="gallery-title-block">
                 <div style="font-size: 0.85rem; color: #555;">
@@ -1075,14 +1071,22 @@
         {% if posts %}
         <div class="post-grid">
             {% for post in posts %}
-            <article class="post-card" onclick="openGalleryPost({{ post.id }})">
+            <article class="post-card" role="button" tabindex="0" onclick="openGalleryPost({{ post.id }})"
+                     onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();openGalleryPost({{ post.id }});}">
                 {% if not school_gallery or post.can_manage|default(false) %}
                 <input type="checkbox" class="post-select-check" value="{{ post.id }}" aria-label="게시물 선택" onclick="event.stopPropagation();">
                 {% endif %}
+                {% if (post.photo_count or 0) > 1 %}
+                <span class="post-thumb-count"><i class="far fa-images"></i> {{ post.photo_count }}</span>
+                {% endif %}
                 {% if post.cover_thumb %}
-                <img class="post-thumb" src="{{ url_for('gall2.school_gallery_serve_thumb', school_key=school_gallery.access_key, filename=post.cover_thumb) if school_gallery else url_for('gall2.serve_thumb', filename=post.cover_thumb) }}" alt="{{ post.title }}" loading="lazy">
+                {% set cover_src = url_for('gall2.school_gallery_serve_thumb', school_key=school_gallery.access_key, filename=post.cover_thumb) if school_gallery else url_for('gall2.serve_thumb', filename=post.cover_thumb) %}
+                <div class="post-thumb-wrap">
+                    <img class="post-thumb-bg" src="{{ cover_src }}" alt="" aria-hidden="true" loading="lazy">
+                    <img class="post-thumb" src="{{ cover_src }}" alt="{{ post.title }}" loading="lazy">
+                </div>
                 {% else %}
-                <div class="post-thumb empty"><i class="far fa-images"></i></div>
+                <div class="post-thumb-wrap empty"><i class="far fa-images"></i></div>
                 {% endif %}
                 <div class="post-body">
                     <h3 class="post-title">{{ post.title }}</h3>
@@ -1113,33 +1117,44 @@
             <span>게시물 작성 버튼으로 사진과 내용을 함께 올려주세요.</span>
         </div>
         {% endif %}
-    </div>
-</div>
-
-<div id="postModal" class="modal-overlay">
-    <div class="post-modal">
-        <div class="post-modal-header">
-            <h3 id="modalTitle">게시물</h3>
-            <button type="button" class="modal-close" onclick="closePostModal()"><i class="fas fa-times"></i></button>
         </div>
-        <div class="post-modal-body">
-            <div class="modal-media-column">
-                <div class="modal-preview">
-                    <img id="modalMainImage" src="" alt="">
+
+        <!-- 게시물 보기: 팝업(모달)을 띄우지 않고 목록 자리에서 그대로 펼친다. -->
+        <section id="postView" class="post-view" hidden>
+            <div class="post-view-topbar">
+                <button type="button" class="btn-gallery" onclick="closePostView()">
+                    <i class="fas fa-arrow-left"></i> 목록으로
+                </button>
+                <span id="modalTitle" class="post-view-title"></span>
+                <div class="post-view-actions">
+                    <button type="button" id="btnModalSlideshow" class="btn-gallery"><i class="fas fa-play"></i> 슬라이드쇼 재생</button>
+                    <button type="button" id="btnModalEdit" class="btn-gallery"><i class="fas fa-pen"></i> 수정</button>
+                    <button type="button" id="btnModalDelete" class="btn-gallery danger"><i class="fas fa-trash"></i> 삭제</button>
                 </div>
-                <div id="modalThumbs" class="modal-thumbs"></div>
             </div>
-            <aside class="post-detail-panel">
+
+            <header class="post-view-head">
+                <h2 id="modalSideTitle" class="post-view-heading"></h2>
+                <div class="post-detail-byline">
+                    <span id="modalAuthor"></span>
+                    <span id="modalDate"></span>
+                    <span id="modalViews"></span>
+                </div>
+            </header>
+
+            <div class="post-view-stage">
+                <button type="button" class="stage-nav prev" id="btnPrevPhoto" aria-label="이전 사진"><i class="fas fa-chevron-left"></i></button>
+                <div class="modal-preview">
+                    <img id="modalMainImage" alt="">
+                </div>
+                <button type="button" class="stage-nav next" id="btnNextPhoto" aria-label="다음 사진"><i class="fas fa-chevron-right"></i></button>
+                <div class="stage-counter" id="stageCounter"></div>
+                <div class="stage-caption" id="stageCaption"></div>
+            </div>
+            <div id="modalThumbs" class="modal-thumbs"></div>
+
+            <article class="post-detail-panel">
                 <div class="post-detail-summary">
-                    <div class="post-detail-title-line">
-                        <span>제목:</span>
-                        <strong id="modalSideTitle"></strong>
-                    </div>
-                    <div class="post-detail-byline">
-                        <span id="modalAuthor"></span>
-                        <span id="modalDate"></span>
-                        <span id="modalViews"></span>
-                    </div>
                     <button type="button" id="modalCount" class="photo-count-button"></button>
                 </div>
                 <div id="photoInfoPanel" class="photo-info-panel"></div>
@@ -1175,20 +1190,19 @@
                             <div id="modalEditSelectedPreviews" class="edit-selected-previews"></div>
                         </div>
                     </div>
-                    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+                    <div class="edit-form-actions">
                         <button type="button" id="btnCancelEdit" class="btn-gallery">취소</button>
                         <button type="button" id="btnSaveEdit" class="btn-gallery primary">저장</button>
                     </div>
                 </div>
                 <div class="post-modal-actions">
-                    <button type="button" id="btnModalEdit" class="btn-gallery"><i class="fas fa-pen"></i> 수정</button>
-                    <button type="button" id="btnModalDelete" class="btn-gallery danger"><i class="fas fa-trash"></i> 삭제</button>
-                    <button type="button" id="btnModalSlideshow" class="btn-gallery"><i class="fas fa-play"></i> 슬라이드쇼 재생</button>
+                    <button type="button" class="btn-gallery" onclick="closePostView()"><i class="fas fa-list"></i> 목록으로</button>
                 </div>
-            </aside>
-        </div>
+            </article>
+            <button type="button" id="btnSlideshowStop" class="slideshow-stop-button">[X] 슬라이드쇼 중지</button>
+        </section>
+
     </div>
-    <button type="button" id="btnSlideshowStop" class="slideshow-stop-button">[X] 중지</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/dropzone.min.js"></script>
@@ -1227,35 +1241,13 @@
             .replaceAll("'", '&#039;');
     }
 
-    function fitModalToCurrentImage() {
-        const modal = document.querySelector('#postModal .post-modal');
-        const image = document.getElementById('modalMainImage');
-        if (!modal || !image || !image.naturalWidth || !image.naturalHeight) return;
-        if (document.getElementById('postModal').classList.contains('slideshow-active')) return;
-
-        const sidePanelWidth = 300;
-        const bodyPaddingX = 40; /* 패딩 20px * 2 */
-        const bodyPaddingY = 40;
-        const bodyGap = 20;
-        const headerReserve = 70;
-        const thumbsReserve = document.getElementById('modalThumbs').children.length > 0 ? 76 : 0;
-        const maxImageWidth = Math.max(220, Math.floor(window.innerWidth * 0.96 - sidePanelWidth - bodyGap - bodyPaddingX));
-        const maxImageHeight = Math.max(240, Math.floor(window.innerHeight * 0.94 - headerReserve - bodyPaddingY - thumbsReserve));
-        const scale = Math.min(1, maxImageWidth / image.naturalWidth, maxImageHeight / image.naturalHeight);
-        const imageWidth = Math.max(1, Math.floor(image.naturalWidth * scale));
-        const imageHeight = Math.max(1, Math.floor(image.naturalHeight * scale));
-
-        modal.style.setProperty('--modal-media-width', `${imageWidth}px`);
-        modal.style.setProperty('--modal-image-width', `${imageWidth}px`);
-        modal.style.setProperty('--modal-image-height', `${imageHeight}px`);
-    }
-
     function stopSlideshow() {
         if (slideshowTimer) {
             clearInterval(slideshowTimer);
             slideshowTimer = null;
         }
-        document.getElementById('postModal').classList.remove('slideshow-active');
+        document.getElementById('postView').classList.remove('slideshow-active');
+        document.body.style.overflow = '';
         document.getElementById('btnModalSlideshow').innerHTML = '<i class="fas fa-play"></i> 슬라이드쇼 재생';
     }
 
@@ -1275,12 +1267,16 @@
     function renderEditPhotoManager() {
         const images = activePost && activePost.images ? activePost.images : [];
         document.getElementById('editPhotoCount').textContent = `${images.length}/20장`;
-        document.getElementById('modalEditImages').innerHTML = images.map(image => `
+        document.getElementById('modalEditImages').innerHTML = images.map(image => {
+            const name = image.title || image.filename || '사진';
+            return `
             <div class="edit-photo-item">
-                <img src="${fileUrl(thumbUrlTemplate, image.thumb_name)}" alt="${escapeHtml(image.title || '게시물 사진')}">
+                <img src="${fileUrl(thumbUrlTemplate, image.thumb_name)}" alt="${escapeHtml(name)}">
                 <button type="button" class="edit-photo-delete" data-image-id="${image.id}" title="이 사진 삭제"><i class="fas fa-times"></i></button>
-            </div>
-        `).join('') || '<div style="grid-column:1/-1; color:var(--text-gray); font-size:.78rem;">등록된 사진이 없습니다.</div>';
+                <span class="edit-photo-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+                <span class="edit-photo-size">${escapeHtml(image.file_size_label || '-')}</span>
+            </div>`;
+        }).join('') || '<div class="edit-photo-empty">등록된 사진이 없습니다.</div>';
         refreshEditPhotoDropzone();
     }
 
@@ -1416,17 +1412,35 @@
     }
 
     function setModalImage(index) {
-        if (!activePost || !activePost.images || activePost.images.length === 0) return;
-        activeImageIndex = index;
-        const image = activePost.images[index];
+        const images = (activePost && activePost.images) || [];
+        if (images.length === 0) return;
+        activeImageIndex = ((index % images.length) + images.length) % images.length;
+        const image = images[activeImageIndex];
         const mainImage = document.getElementById('modalMainImage');
-        mainImage.onload = fitModalToCurrentImage;
         mainImage.src = fileUrl(rawUrlTemplate, image.filename);
         mainImage.alt = image.title || activePost.title;
-        if (mainImage.complete) fitModalToCurrentImage();
         document.querySelectorAll('.modal-thumb').forEach((el, i) => {
-            el.classList.toggle('active', i === index);
+            const isActive = i === activeImageIndex;
+            el.classList.toggle('active', isActive);
+            if (isActive) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         });
+        document.getElementById('stageCounter').textContent =
+            images.length > 1 ? `${activeImageIndex + 1} / ${images.length}` : '';
+        const caption = document.getElementById('stageCaption');
+        const name = image.title || image.filename || '';
+        caption.innerHTML = name
+            ? `<b title="${escapeHtml(name)}">${escapeHtml(name)}</b><span>${escapeHtml(image.file_size_label || '')}</span>`
+            : '';
+        const hasMany = images.length > 1;
+        document.getElementById('btnPrevPhoto').disabled = !hasMany;
+        document.getElementById('btnNextPhoto').disabled = !hasMany;
+    }
+
+    function stepPhoto(offset) {
+        const images = (activePost && activePost.images) || [];
+        if (images.length < 2) return;
+        stopSlideshow();
+        setModalImage(activeImageIndex + offset);
     }
 
     async function recordGalleryView(postId) {
@@ -1479,10 +1493,19 @@
         }
     }
 
-    function openGalleryPost(postId) {
+    function galleryUrl(postId) {
+        const separator = galleryIndexUrl.includes('?') ? '&' : '?';
+        const base = `${galleryIndexUrl}${separator}page=${currentPage}`;
+        return postId ? `${base}&post_id=${postId}` : base;
+    }
+
+    function openGalleryPost(postId, options) {
         activePost = galleryPosts.find(post => Number(post.id) === Number(postId));
         if (!activePost) return;
         stopSlideshow();
+        if (!options || options.pushHistory !== false) {
+            history.pushState({ postId: Number(postId) }, '', galleryUrl(postId));
+        }
         document.getElementById('modalTitle').textContent = activePost.title || '게시물';
         document.getElementById('modalSideTitle').textContent = activePost.title || '게시물';
         document.getElementById('modalAuthor').textContent = `작성자: ${activePost.author || '관리자'}`;
@@ -1490,7 +1513,9 @@
         document.getElementById('modalViews').textContent = `조회 ${Number(activePost.view_count || 0)}`;
         document.getElementById('modalCount').innerHTML = `<i class="far fa-image"></i> ${(activePost.images || []).length}장`;
         renderPhotoInfoPanel();
-        document.getElementById('modalContent').textContent = activePost.content || '등록된 내용이 없습니다.';
+        const contentBox = document.getElementById('modalContent');
+        contentBox.textContent = activePost.content || '등록된 내용이 없습니다.';
+        contentBox.classList.toggle('is-empty', !activePost.content);
         document.getElementById('modalEditTitle').value = activePost.title || '';
         document.getElementById('modalEditContent').value = activePost.content || '';
         resetEditPhotoFiles();
@@ -1518,25 +1543,55 @@
             setModalImage(0);
         } else {
             document.getElementById('modalMainImage').removeAttribute('src');
+            document.getElementById('stageCounter').textContent = '';
+            document.getElementById('stageCaption').innerHTML = '';
+            document.getElementById('btnPrevPhoto').disabled = true;
+            document.getElementById('btnNextPhoto').disabled = true;
         }
 
-        document.getElementById('postModal').style.display = 'flex';
-        fitModalToCurrentImage();
+        document.getElementById('galleryListView').hidden = true;
+        document.getElementById('postView').hidden = false;
+        window.scrollTo({ top: 0, behavior: 'auto' });
         if (isSchoolGallery) {
             recordGalleryView(activePost.id);
             loadGalleryComments(activePost.id);
         }
     }
 
-    function closePostModal() {
+    function closePostView(options) {
         stopSlideshow();
-        document.getElementById('postModal').style.display = 'none';
+        document.getElementById('postView').hidden = true;
+        document.getElementById('galleryListView').hidden = false;
+        document.getElementById('postEditForm').style.display = 'none';
+        if (!options || options.pushHistory !== false) {
+            history.pushState({ postId: null }, '', galleryUrl(null));
+        }
+        const card = activePost && document.querySelector(`.post-select-check[value="${activePost.id}"]`);
+        const target = card ? card.closest('.post-card') : null;
+        if (target) target.scrollIntoView({ block: 'center' });
+        activePost = null;
+    }
+
+    function isPostViewOpen() {
+        return !document.getElementById('postView').hidden;
+    }
+
+    function syncViewWithLocation(pushHistory) {
+        const requestedPostId = new URLSearchParams(window.location.search).get('post_id');
+        if (requestedPostId && galleryPosts.some(post => Number(post.id) === Number(requestedPostId))) {
+            openGalleryPost(requestedPostId, { pushHistory });
+        } else if (isPostViewOpen()) {
+            closePostView({ pushHistory });
+        }
     }
 
     document.addEventListener("DOMContentLoaded", function() {
-        document.body.appendChild(document.getElementById('postModal'));
-        const requestedPostId = new URLSearchParams(window.location.search).get('post_id');
-        if (requestedPostId) openGalleryPost(requestedPostId);
+        syncViewWithLocation(false);
+    });
+
+    // 브라우저 뒤로/앞으로 가기로도 목록과 게시물 사이를 오갈 수 있게 한다.
+    window.addEventListener('popstate', function() {
+        syncViewWithLocation(false);
     });
 
     function getSelectedPostIds() {
@@ -1880,7 +1935,8 @@
             return;
         }
         this.innerHTML = '<i class="fas fa-pause"></i> 슬라이드쇼 중지';
-        document.getElementById('postModal').classList.add('slideshow-active');
+        document.getElementById('postView').classList.add('slideshow-active');
+        document.body.style.overflow = 'hidden';
         slideshowTimer = setInterval(() => {
             const nextIndex = (activeImageIndex + 1) % activePost.images.length;
             setModalImage(nextIndex);
@@ -1899,16 +1955,20 @@
         stopSlideshow();
     });
 
-    document.getElementById('postModal').addEventListener('click', function(event) {
-        if (event.target === this) closePostModal();
-    });
+    document.getElementById('btnPrevPhoto').addEventListener('click', () => stepPhoto(-1));
+    document.getElementById('btnNextPhoto').addEventListener('click', () => stepPhoto(1));
 
     document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape' && document.getElementById('postModal').style.display === 'flex') {
-            closePostModal();
+        if (!isPostViewOpen()) return;
+        const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
+        if (event.key === 'Escape') {
+            if (slideshowTimer) stopSlideshow();
+            else if (!typing) closePostView();
+            return;
         }
+        if (typing) return;
+        if (event.key === 'ArrowLeft') { event.preventDefault(); stepPhoto(-1); }
+        if (event.key === 'ArrowRight') { event.preventDefault(); stepPhoto(1); }
     });
-
-    window.addEventListener('resize', fitModalToCurrentImage);
 </script>
 {% endblock %}
