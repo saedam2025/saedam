@@ -787,7 +787,7 @@ def _menu_usage_label(path):
         ('/chat_popup', '사내메신저'), ('/school', '학교업무메뉴'), ('/document', '증명발급'),
         ('/gall2', '갤러리'), ('/gallery', '갤러리'), ('/approval', '사내결재'),
         ('/expense', '지출결의'), ('/ai-mail', 'AI메일전송'), ('/payroll', '급여/업무지원'), ('/attendance', '근태관리'),
-        ('/contacts', '본사연락망'), ('/memo', '개인화이트보드'), ('/excel-generator', '입금용 엑셀 생성기'),
+        ('/instructor-attendance', '강사출결시스템'), ('/contacts', '본사연락망'), ('/memo', '개인화이트보드'), ('/excel-generator', '입금용 엑셀 생성기'),
         ('/ebook/books', 'eBook'), ('/ebook', 'e리플렛'),
     ]
     if path == '/':

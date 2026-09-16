@@ -10,7 +10,7 @@ import smtplib
 import tempfile
 import time
 import zipfile
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -203,11 +203,46 @@ def _parse_amount_strict(value):
         return None, f"금액 형식이 올바르지 않습니다: {text} (예: 128000 또는 128,000)"
 
 
+EXCEL_EPOCH = datetime(1899, 12, 30)
+# 엑셀 날짜 일련번호로 인정할 범위(1990-01-01 ~ 2099-12-31).
+# 금액이 날짜 칸에 잘못 들어간 경우까지 날짜로 바꿔버리지 않도록 좁게 잡는다.
+EXCEL_SERIAL_MIN = 32874
+EXCEL_SERIAL_MAX = 73050
+
+
+def _date_from_excel_serial(value):
+    """서식이 깨진 엑셀에서 날짜가 숫자(예: 46218)로 읽힐 때 날짜로 되돌린다.
+
+    openpyxl은 셀 서식을 보고 날짜로 변환하는데, 다른 프로그램에서 저장한
+    파일은 서식 정보가 깨져 날짜 셀이 일련번호 그대로 넘어오는 경우가 있다.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        serial = float(value)
+    else:
+        text = str(value).strip().replace(',', '')
+        if not re.fullmatch(r'\d+(\.\d+)?', text):
+            return None
+        serial = float(text)
+
+    if not (EXCEL_SERIAL_MIN <= serial <= EXCEL_SERIAL_MAX):
+        return None
+    # 1900년 윤년 버그 구간(<61)은 위 범위에서 이미 제외된다.
+    return (EXCEL_EPOCH + timedelta(days=serial)).date()
+
+
 def _normalize_date(value):
     if not value:
         return ''
     if isinstance(value, datetime):
         return value.strftime('%Y-%m-%d')
+    if isinstance(value, date):
+        return value.strftime('%Y-%m-%d')
+    serial_date = _date_from_excel_serial(value)
+    if serial_date:
+        return serial_date.strftime('%Y-%m-%d')
+
     text = str(value).strip()
     for fmt in ('%Y-%m-%d', '%Y.%m.%d', '%Y/%m/%d', '%y-%m-%d', '%y.%m.%d', '%y/%m/%d'):
         try:
@@ -224,6 +259,10 @@ def _normalize_date_strict(value):
         return value.strftime('%Y-%m-%d'), ''
     if isinstance(value, date):
         return value.strftime('%Y-%m-%d'), ''
+
+    serial_date = _date_from_excel_serial(value)
+    if serial_date:
+        return serial_date.strftime('%Y-%m-%d'), ''
 
     text = str(value).strip()
     for fmt in ('%Y-%m-%d', '%Y.%m.%d', '%Y/%m/%d', '%y-%m-%d', '%y.%m.%d', '%y/%m/%d'):

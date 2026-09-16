@@ -132,6 +132,7 @@ MENU_GROUPS = (
         'children': (
             ('contacts_main', '본사연락망', 'fa-address-book', 14),
             ('attendance_main', '근태관리', 'fa-clock-rotate-left', 14),
+            ('instructor_attendance', '강사출결시스템', 'fa-qrcode', 5),
             ('interview_main', '면접관리', 'fa-user-check', 4),
             ('event_admin', '이벤트관리', 'fa-gift', 2),
             ('organization_invite', '가입초대메일발송', 'fa-paper-plane', 2),
@@ -517,6 +518,12 @@ def resolve_request_menu(path, endpoint='', view_args=None):
         return 'event_admin'
     if path.startswith('/attendance') or path.startswith('/api/attendance'):
         return 'attendance_main'
+    # 강사 휴대폰 스캔 화면과 학교 태블릿 QR 표시 화면은 계정 없이 여는 공개 주소다.
+    if path.startswith('/instructor-attendance/scan/') \
+            or path.startswith('/instructor-attendance/display/'):
+        return None
+    if path.startswith('/instructor-attendance'):
+        return 'instructor_attendance'
     # 면접자 사전질문지는 로그인 없는 공개 링크이므로 메뉴 권한 검사에서 제외한다.
     if path.startswith('/interview/q/'):
         return None
