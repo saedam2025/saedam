@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+{% block title %}전시관 셋팅 · {{ hall.name }}{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/exhibition.css') }}">
+{% endblock %}
+{% block content %}
+<div class="ex-page">
+
+  <section class="ex-hero">
+    <div>
+      <span class="ex-eyebrow"><i class="fa-solid fa-sliders"></i> 전시관 셋팅</span>
+      <h1>{{ hall.name }}</h1>
+      <p>{{ layout.name }} · 전시공간 {{ slot_count }}곳 · {{ layout.size.width|int }}m × {{ layout.size.depth|int }}m</p>
+    </div>
+    <div class="ex-hero-actions">
+      <a class="ex-btn ghost" href="{{ url_for('exhibition.files', hall_id=hall.id) }}">
+        <i class="fa-solid fa-images"></i> 전시파일 셋팅
+      </a>
+      <a class="ex-btn ghost" href="{{ url_for('exhibition.view', hall_id=hall.id) }}">
+        <i class="fa-solid fa-person-walking"></i> 관람하기
+      </a>
+      <a class="ex-btn ghost" href="{{ url_for('exhibition.index') }}">
+        <i class="fa-solid fa-list"></i> 목록
+      </a>
+    </div>
+  </section>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="ex-flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <form method="post" enctype="multipart/form-data">
+
+    <div class="ex-form-card">
+      <h2><i class="fa-solid fa-signature"></i> 전시관 소개</h2>
+      <p class="ex-help">관람자가 전시장에 들어오기 전 보게 되는 안내 문구입니다.</p>
+      <div class="ex-grid">
+        <div class="ex-field">
+          <label for="exName">전시관 이름</label>
+          <input id="exName" type="text" name="name" maxlength="80" required value="{{ hall.name }}">
+        </div>
+        <div class="ex-field">
+          <label for="exIntroTitle">입장 화면 제목</label>
+          <input id="exIntroTitle" type="text" name="intro_title" maxlength="80" value="{{ hall.intro_title }}">
+        </div>
+      </div>
+      <div class="ex-field" style="margin-top:16px;">
+        <label for="exIntroText">입장 화면 안내글</label>
+        <textarea id="exIntroText" name="intro_text" maxlength="1000"
+                  placeholder="전시 소개, 관람 순서, 기간 등을 적어 주세요.">{{ hall.intro_text }}</textarea>
+      </div>
+      <label class="ex-switch" style="margin-top:16px;">
+        <input type="checkbox" name="is_published" {% if hall.is_published %}checked{% endif %}>
+        전시관 공개 (끄면 만든 사람과 관리자만 볼 수 있습니다)
+      </label>
+    </div>
+
+    <div class="ex-form-card">
+      <h2><i class="fa-solid fa-palette"></i> 공간 꾸미기</h2>
+      <p class="ex-help">설정을 저장한 뒤 관람 화면을 열면 적용됩니다. 기본 추천은 라운지의 오크 바닥·회벽, 갤러리의 콘크리트 바닥·회벽입니다. 색상은 재질 위에 입히는 색조입니다.</p>
+      <div class="ex-grid" style="margin-bottom:20px;">
+        {% for field, label, options in [
+          ('wall_texture', '벽 텍스처', [('auto','전시관 기본 추천'),('plaster','미세 회벽'),('concrete','노출 콘크리트'),('limestone','라임스톤'),('plain','무늬 없음')]),
+          ('floor_texture', '바닥 텍스처', [('auto','전시관 기본 추천'),('oak','내추럴 오크'),('walnut','월넛 원목'),('concrete','콘크리트'),('limestone','라임스톤 타일'),('plain','무늬 없음')]),
+          ('frame_style', '액자 재질', [('auto','전시관 기본 추천'),('oak','오크 원목'),('walnut','월넛 원목'),('black','무광 블랙 메탈'),('brass','브러시드 황동')])
+        ] %}
+        <div class="ex-field">
+          <label for="ex-{{ field }}">{{ label }}</label>
+          <select id="ex-{{ field }}" name="{{ field }}">
+            {% for value, text in options %}<option value="{{ value }}" {% if hall[field] == value %}selected{% endif %}>{{ text }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="ex-grid">
+        <div class="ex-field">
+          <label for="exWallColor">벽 색상</label>
+          <input id="exWallColor" type="color" name="wall_color" value="{{ hall.wall_color }}">
+        </div>
+        <div class="ex-field">
+          <label for="exFloorColor">바닥 색상</label>
+          <input id="exFloorColor" type="color" name="floor_color" value="{{ hall.floor_color }}">
+        </div>
+        <div class="ex-field">
+          <label for="exAccentColor">포인트 색상 <small>(작품 팻말 테두리)</small></label>
+          <input id="exAccentColor" type="color" name="accent_color" value="{{ hall.accent_color }}">
+        </div>
+        <div class="ex-field">
+          <label for="exLight">조명 밝기</label>
+          <div class="ex-range">
+            <input id="exLight" type="range" name="light_intensity" min="30" max="200" step="5"
+                   value="{{ hall.light_intensity }}" oninput="this.nextElementSibling.value = this.value + '%'">
+            <output>{{ hall.light_intensity }}%</output>
+          </div>
+        </div>
+        <div class="ex-field">
+          <label for="exSpeed">걷는 속도</label>
+          <div class="ex-range">
+            <input id="exSpeed" type="range" name="move_speed" min="50" max="200" step="10"
+                   value="{{ hall.move_speed }}" oninput="this.nextElementSibling.value = this.value + '%'">
+            <output>{{ hall.move_speed }}%</output>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ex-form-card">
+      <h2><i class="fa-solid fa-image"></i> 작품 표시 방법</h2>
+      <p class="ex-help">작품 아래 팻말에는 [전시파일 셋팅]에서 적은 작품제목·작가명이 나옵니다.</p>
+      <div class="ex-grid">
+        <div class="ex-field">
+          <label class="ex-switch">
+            <input type="checkbox" name="placard_enabled" {% if hall.placard_enabled %}checked{% endif %}>
+            작품 아래 팻말(작품제목·작가명) 보이기
+          </label>
+        </div>
+        <div class="ex-field">
+          <label class="ex-switch">
+            <input type="checkbox" name="auto_slide" {% if hall.auto_slide %}checked{% endif %}>
+            사진이 여러 장이면 벽에서 자동으로 넘기기
+          </label>
+        </div>
+        <div class="ex-field">
+          <label for="exSlide">자동으로 넘기는 간격</label>
+          <div class="ex-range">
+            <input id="exSlide" type="range" name="slide_seconds" min="2" max="30" step="1"
+                   value="{{ hall.slide_seconds }}" oninput="this.nextElementSibling.value = this.value + '초'">
+            <output>{{ hall.slide_seconds }}초</output>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ex-form-card">
+      <h2><i class="fa-solid fa-music"></i> 배경음악</h2>
+      <p class="ex-help">전시장에 입장하면 음악이 자동으로 재생됩니다. MP3·M4A·OGG·WAV, 최대 20MB.</p>
+      <div class="ex-grid">
+        <div class="ex-field">
+          <label class="ex-switch">
+            <input type="checkbox" name="bgm_enabled" {% if hall.bgm_enabled %}checked{% endif %}>
+            입장할 때 배경음악 재생
+          </label>
+        </div>
+        <div class="ex-field">
+          <label for="exVolume">음량</label>
+          <div class="ex-range">
+            <input id="exVolume" type="range" name="bgm_volume" min="0" max="100" step="5"
+                   value="{{ hall.bgm_volume }}" oninput="this.nextElementSibling.value = this.value + '%'">
+            <output>{{ hall.bgm_volume }}%</output>
+          </div>
+        </div>
+        <div class="ex-field">
+          <label for="exBgm">음악 파일 {% if hall.bgm_filename %}바꾸기{% endif %}</label>
+          <input id="exBgm" type="file" name="bgm" accept="audio/*">
+          {% if hall.bgm_filename %}
+          <small>현재 파일: {{ hall.bgm_filename }}</small>
+          <label class="ex-switch" style="margin-top:8px;">
+            <input type="checkbox" name="remove_bgm" value="1"> 배경음악 삭제
+          </label>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="ex-form-actions">
+      <a class="ex-btn" href="{{ url_for('exhibition.index') }}">취소</a>
+      <button class="ex-btn primary" type="submit"><i class="fa-solid fa-floppy-disk"></i> 설정 저장</button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

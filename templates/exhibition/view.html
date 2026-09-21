@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block title %}{{ hall.name }} · 3D전시장{% endblock %}
+{% block body_class %}ex-viewing{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/exhibition.css') }}">
+{% endblock %}
+{% block content %}
+<div class="ex-stage" id="exStage">
+
+  <div class="ex-loading" id="exLoading">
+    <i class="fa-solid fa-cube fa-beat" style="font-size:30px;color:#60a5fa;"></i>
+    <span id="exLoadingText">전시관을 준비하는 중…</span>
+    <div class="bar"><i id="exLoadingBar"></i></div>
+  </div>
+
+  <div class="ex-gate" id="exGate" hidden>
+    <div class="ex-gate-inner">
+      <span class="ex-gate-badge"><i class="fa-solid fa-cube"></i> 3D EXHIBITION</span>
+      <h1>{{ hall.intro_title or hall.name }}</h1>
+      <p>{{ hall.intro_text or '전시관에 입장해 자유롭게 걸어 다니며 작품을 감상해 보세요.' }}</p>
+
+      <div class="ex-gate-guide">
+        <div><strong><i class="fa-solid fa-keyboard"></i> PC</strong>방향키(또는 WASD)로 이동, 마우스를 끌어 둘러보기, 작품 클릭</div>
+        <div><strong><i class="fa-solid fa-mobile-screen"></i> 모바일</strong>왼쪽 조이스틱으로 이동, 화면을 쓸어 둘러보기, 작품 터치</div>
+        <div><strong><i class="fa-solid fa-vr-cardboard"></i> VR</strong>조작스틱으로 이동·회전, 작품을 겨눠 트리거</div>
+      </div>
+
+      <div class="ex-gate-actions">
+        <button class="ex-enter-btn" type="button" id="exEnterBtn">
+          <i class="fa-solid fa-door-open"></i> 전시장 입장하기
+        </button>
+        <button class="ex-btn ghost" type="button" id="exVrSlot" hidden></button>
+        <a class="ex-btn ghost" href="{{ url_for('exhibition.index') }}">
+          <i class="fa-solid fa-arrow-left"></i> 목록으로
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="ex-hud" id="exHud" hidden>
+    <div class="ex-hud-title">
+      {{ hall.name }}
+      <small id="exFocusLabel">작품 가까이 다가가 클릭하면 크게 볼 수 있습니다</small>
+    </div>
+    <div class="ex-hud-tools">
+      <button class="ex-hud-btn" type="button" id="exBgmBtn" title="배경음악 켜기/끄기">
+        <i class="fa-solid fa-music"></i>
+      </button>
+      <button class="ex-hud-btn" type="button" id="exFullBtn" title="전체화면">
+        <i class="fa-solid fa-expand"></i>
+      </button>
+      {% if can_manage %}
+      <a class="ex-hud-btn" href="{{ url_for('exhibition.files', hall_id=hall.id) }}"
+         title="전시파일 셋팅" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;">
+        <i class="fa-solid fa-images"></i>
+      </a>
+      {% endif %}
+      <a class="ex-hud-btn" href="{{ url_for('exhibition.index') }}" title="전시장 나가기"
+         style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;">
+        <i class="fa-solid fa-right-from-bracket"></i>
+      </a>
+    </div>
+  </div>
+
+  <div class="ex-reticle" id="exReticle"></div>
+
+  <div class="ex-touch" id="exTouch" hidden>
+    <div class="ex-joystick" id="exJoystick"><i id="exJoystickKnob"></i></div>
+    <div class="ex-touch-tip">화면을 쓸어<br>둘러보세요</div>
+  </div>
+
+  <div class="ex-hint" id="exHint" hidden>방향키 / WASD 이동 · 마우스 드래그로 둘러보기 · 작품 클릭</div>
+
+  <div class="ex-modal" id="exModal">
+    <div class="ex-modal-inner">
+      <button class="ex-modal-close" type="button" id="exModalClose"><i class="fa-solid fa-xmark"></i></button>
+      <div class="ex-modal-stage" id="exModalStage">
+        <button class="ex-modal-nav prev" type="button" id="exModalPrev"><i class="fa-solid fa-chevron-left"></i></button>
+        <button class="ex-modal-nav next" type="button" id="exModalNext"><i class="fa-solid fa-chevron-right"></i></button>
+      </div>
+      <div class="ex-modal-caption" id="exModalCaption"></div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script id="exSceneData" type="application/json">{{ scene_json | safe }}</script>
+<script>
+// 3D 준비 중 문제가 생기면 "전시관을 준비하는 중…" 화면에 갇히지 않도록 이유를 알려준다.
+(function () {
+  var loading = document.getElementById('exLoading');
+  var shown = false;
+  function fail() {
+    if (shown || !loading || loading.hidden) return;   // 이미 입장했으면 건드리지 않는다.
+    shown = true;
+    var text = document.getElementById('exLoadingText');
+    var bar = document.getElementById('exLoadingBar');
+    if (text) text.textContent = '전시장을 여는 중 문제가 발생했습니다. 새로고침 후 다시 시도해 주세요.';
+    if (bar) bar.style.width = '100%';
+  }
+  window.addEventListener('error', function (event) {
+    // 사진·동영상 같은 개별 파일 오류는 제외하고 스크립트 오류만 잡는다.
+    if (event.target && event.target !== window) return;
+    fail();
+  }, true);
+  window.addEventListener('unhandledrejection', fail);
+})();
+</script>
+<script type="module" src="{{ url_for('static', filename='js/exhibition_viewer.js') }}"></script>
+{% endblock %}

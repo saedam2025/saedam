@@ -35,33 +35,6 @@
       <input id="manualDescription" type="text" maxlength="1000" value="{{ manual.description }}" placeholder="메뉴얼에 대한 간단한 설명">
     </div>
 
-    <div class="manual-thumbnail-field">
-      <label>목록 썸네일</label>
-      <div class="manual-thumbnail-row">
-        <div class="manual-thumbnail-preview" id="thumbnailPreview">
-          {% if manual.thumbnail_source == 'uploaded' and manual.thumbnail %}
-          <img src="{{ manual.thumbnail }}" alt="메뉴얼 썸네일" id="thumbnailPreviewImage">
-          <div class="manual-thumbnail-empty" id="thumbnailEmpty" hidden>
-            <strong>텍스트 표지</strong>
-            <span>썸네일 미등록</span>
-          </div>
-          {% else %}
-          <img src="" alt="메뉴얼 썸네일" id="thumbnailPreviewImage" hidden>
-          <div class="manual-thumbnail-empty" id="thumbnailEmpty">
-            <strong>텍스트 표지</strong>
-            <span>썸네일 미등록</span>
-          </div>
-          {% endif %}
-        </div>
-        <div class="manual-thumbnail-actions">
-          <label class="manual-btn manual-btn-light manual-thumb-upload" for="thumbnailInput">썸네일 업로드</label>
-          <input id="thumbnailInput" type="file" accept="image/*" hidden>
-          <button class="manual-btn manual-btn-light" type="button" id="thumbnailDeleteBtn"
-                  {% if manual.thumbnail_source != 'uploaded' or not manual.thumbnail %}hidden{% endif %}>썸네일 삭제</button>
-          <small>업로드하지 않으면 목록에서 기존 텍스트 표지를 사용합니다.</small>
-        </div>
-      </div>
-    </div>
   </section>
 
   <div class="manual-editor-shell">
@@ -185,8 +158,6 @@ window.SAEDAM_MANUAL_EDITOR = {
   deleteUrl: {{ url_for('manual.delete_manual', manual_id=manual.id)|tojson }},
   uploadImageUrl: {{ url_for('manual.upload_image')|tojson }},
   deleteImageUrl: {{ url_for('manual.delete_image')|tojson }},
-  uploadThumbnailUrl: {{ url_for('manual.upload_thumbnail')|tojson }},
-  deleteThumbnailUrl: {{ url_for('manual.delete_thumbnail')|tojson }},
   uploadTxtUrl: {{ url_for('manual.upload_txt')|tojson }},
   importFileUrl: {{ url_for('manual.import_file')|tojson }},
   sampleFormatUrl: {{ url_for('manual.sample_format')|tojson }}

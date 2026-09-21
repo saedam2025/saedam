@@ -34,40 +34,46 @@
              data-title="{{ (item.title ~ ' ' ~ item.description)|lower }}">
       <a class="manual-card-open"
          href="{% if item.status == 'published' %}{{ url_for('manual.view_manual', manual_id=item.id) }}{% else %}{{ url_for('manual.edit_manual', manual_id=item.id) }}{% endif %}">
-        <div class="manual-cover">
-          {% if item.thumbnail_source == 'uploaded' and item.thumbnail %}
-            <img src="{{ item.thumbnail }}" alt="">
-          {% else %}
-            <div class="manual-cover-generated">
-              <div class="manual-cover-brand">SAEDAM</div>
-              <div class="manual-cover-title">{{ item.title }}</div>
-              <div class="manual-cover-foot">WORK MANUAL</div>
-            </div>
-          {% endif %}
-          <span class="manual-status {{ item.status }}">
-            {{ '작성완료' if item.status == 'published' else '작성중' }}
-          </span>
+        <div class="manual-plate {{ item.status }}">
+          <div class="manual-plate-figure">
+            <svg class="manual-plate-icon" viewBox="10 2 39 48" aria-hidden="true">
+            <rect class="mi-back" x="17" y="5" width="30" height="40" rx="5"></rect>
+            <rect class="mi-page" x="12" y="8" width="32" height="40" rx="5"></rect>
+            <rect class="mi-spine" x="12" y="8" width="8" height="40" rx="4"></rect>
+            <path class="mi-mark" d="M36 8v15l-4.6-3.5L26.8 23V8z"></path>
+            <g class="mi-lines">
+              <rect x="25" y="31" width="14" height="2.6" rx="1.3"></rect>
+              <rect x="25" y="37" width="10" height="2.6" rx="1.3"></rect>
+            </g>
+          </svg>
+          </div>
         </div>
 
         <div class="manual-card-body">
           <h2>{{ item.title }}</h2>
-          <p>{{ item.description or '설명이 등록되지 않았습니다.' }}</p>
           <div class="manual-card-meta">
-            <span>목차 {{ item.section_count }}개</span>
+            <span class="manual-status {{ item.status }}">
+              {{ '작성완료' if item.status == 'published' else '작성중' }}
+            </span>
             <span>{{ (item.published_at or item.updated_at or '')[:10] }}</span>
           </div>
         </div>
       </a>
 
-      <div class="manual-card-actions">
-        <a href="{{ url_for('manual.edit_manual', manual_id=item.id) }}">수정</a>
-        <a href="{{ url_for('manual.preview_manual', manual_id=item.id) }}">미리보기</a>
-        <a href="{{ url_for('manual.export_markdown', manual_id=item.id) }}"
-           download title="이 메뉴얼을 MD 파일로 내려받습니다.">MD 저장</a>
-        <button type="button"
-                class="manual-card-delete"
-                data-delete-url="{{ url_for('manual.delete_manual', manual_id=item.id) }}"
-                data-title="{{ item.title }}">삭제</button>
+      <div class="manual-card-menu">
+        <button type="button" class="manual-card-menu-btn"
+                aria-haspopup="true" aria-expanded="false"
+                aria-label="{{ item.title }} 메뉴 열기">⋯</button>
+        <div class="manual-card-menu-list" hidden>
+          <a href="{{ url_for('manual.edit_manual', manual_id=item.id) }}">수정</a>
+          <a href="{{ url_for('manual.preview_manual', manual_id=item.id) }}">미리보기</a>
+          <a href="{{ url_for('manual.export_markdown', manual_id=item.id) }}"
+             download title="이 메뉴얼을 MD 파일로 내려받습니다.">MD 저장</a>
+          <button type="button"
+                  class="manual-card-delete"
+                  data-delete-url="{{ url_for('manual.delete_manual', manual_id=item.id) }}"
+                  data-title="{{ item.title }}">삭제</button>
+        </div>
       </div>
     </article>
     {% endfor %}
@@ -151,6 +157,42 @@
       if (empty) empty.hidden = visible !== 0;
     });
   }
+
+  // 카드 우하단 ⋯ 메뉴
+  const menus = [...document.querySelectorAll('.manual-card-menu')];
+
+  function closeMenus(except){
+    menus.forEach(menu => {
+      if (menu === except) return;
+      menu.classList.remove('open');
+      menu.querySelector('.manual-card-menu-btn')?.setAttribute('aria-expanded','false');
+      const list = menu.querySelector('.manual-card-menu-list');
+      if (list) list.hidden = true;
+    });
+  }
+
+  menus.forEach(menu => {
+    const btn = menu.querySelector('.manual-card-menu-btn');
+    const list = menu.querySelector('.manual-card-menu-list');
+    if (!btn || !list) return;
+
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const willOpen = list.hidden;
+      closeMenus(menu);
+      list.hidden = !willOpen;
+      menu.classList.toggle('open', willOpen);
+      btn.setAttribute('aria-expanded', String(willOpen));
+    });
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.manual-card-menu')) closeMenus(null);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeMenus(null);
+  });
 
   // 목록에서 바로 삭제
   document.querySelectorAll('.manual-card-delete').forEach(btn => {

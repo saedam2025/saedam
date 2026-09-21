@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block title %}전시파일 셋팅 · {{ hall.name }}{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/exhibition.css') }}">
+{% endblock %}
+{% block content %}
+<div class="ex-page">
+
+  <section class="ex-hero">
+    <div>
+      <span class="ex-eyebrow"><i class="fa-solid fa-images"></i> 전시파일 셋팅</span>
+      <h1>{{ hall.name }}</h1>
+      <p>전시공간마다 사진(여러 장이면 슬라이드 쇼) 또는 동영상을 올리고, 작품 아래 팻말 내용을 적어 주세요.<br>
+         사진 최대 {{ max_image_mb }}MB · 동영상 최대 {{ max_video_mb }}MB · 한 자리에 {{ max_media }}개까지.</p>
+    </div>
+    <div class="ex-hero-actions">
+      <a class="ex-btn ghost" href="{{ url_for('exhibition.settings', hall_id=hall.id) }}">
+        <i class="fa-solid fa-sliders"></i> 전시관 셋팅
+      </a>
+      <a class="ex-btn ghost" href="{{ url_for('exhibition.view', hall_id=hall.id) }}">
+        <i class="fa-solid fa-person-walking"></i> 관람하기
+      </a>
+      <a class="ex-btn ghost" href="{{ url_for('exhibition.index') }}">
+        <i class="fa-solid fa-list"></i> 목록
+      </a>
+    </div>
+  </section>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="ex-flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <h2 class="ex-section-title">
+    <i class="fa-solid fa-map-location-dot"></i> 전시공간 {{ slots|length }}곳
+    <small>{{ layout.name }}</small>
+  </h2>
+
+  <div class="ex-slot-grid">
+    {% for slot in slots %}
+    <section class="ex-slot {% if slot.media %}filled{% endif %}" id="slot-{{ slot.code }}">
+      <div class="ex-slot-head">
+        <span class="ex-slot-code">{{ slot.code }}</span>
+        <strong style="flex:1;">{{ slot.name }}</strong>
+        <span class="ex-chip">{{ slot.media|length }}개</span>
+      </div>
+
+      {% if slot.media %}
+      <div class="ex-media-list">
+        {% for item in slot.media %}
+        <div class="ex-media-item">
+          {% if item.media_kind == 'image' %}
+          <img class="ex-media-thumb" loading="lazy" alt="{{ item.filename }}"
+               src="{{ url_for('exhibition.serve_media', media_id=item.id) }}">
+          {% else %}
+          <div class="ex-media-thumb video"><i class="fa-solid fa-film"></i></div>
+          {% endif %}
+          <div class="ex-media-name">
+            {{ item.filename }}
+            <em>{{ '사진' if item.media_kind == 'image' else '동영상' }}{% if item.width %} · {{ item.width }}×{{ item.height }}{% endif %}</em>
+          </div>
+          <div class="ex-media-tools">
+            <form class="ex-inline-form" method="post"
+                  action="{{ url_for('exhibition.move_media', hall_id=hall.id, media_id=item.id) }}">
+              <input type="hidden" name="direction" value="up">
+              <button class="ex-icon-btn" type="submit" title="앞으로"><i class="fa-solid fa-arrow-up"></i></button>
+            </form>
+            <form class="ex-inline-form" method="post"
+                  action="{{ url_for('exhibition.move_media', hall_id=hall.id, media_id=item.id) }}">
+              <input type="hidden" name="direction" value="down">
+              <button class="ex-icon-btn" type="submit" title="뒤로"><i class="fa-solid fa-arrow-down"></i></button>
+            </form>
+            <form class="ex-inline-form" method="post"
+                  action="{{ url_for('exhibition.delete_media', hall_id=hall.id, media_id=item.id) }}"
+                  onsubmit="return confirm('이 전시파일을 삭제할까요?');">
+              <button class="ex-icon-btn danger" type="submit" title="삭제"><i class="fa-solid fa-trash"></i></button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="margin:10px 0;font-size:13px;color:#94a3b8;">아직 올린 전시파일이 없는 빈 자리입니다.</p>
+      {% endif %}
+
+      <form method="post" enctype="multipart/form-data"
+            action="{{ url_for('exhibition.save_slot', hall_id=hall.id, slot_code=slot.code) }}">
+        <div class="ex-field" style="margin-bottom:10px;">
+          <label for="title-{{ slot.code }}">작품제목 <small>(팻말 첫 줄)</small></label>
+          <input id="title-{{ slot.code }}" type="text" name="title" maxlength="120"
+                 value="{{ slot.row.title if slot.row else '' }}" placeholder="예: 봄날의 교정">
+        </div>
+        <div class="ex-field" style="margin-bottom:10px;">
+          <label for="artist-{{ slot.code }}">작가명 <small>(팻말 둘째 줄)</small></label>
+          <input id="artist-{{ slot.code }}" type="text" name="artist" maxlength="60"
+                 value="{{ slot.row.artist if slot.row else '' }}" placeholder="예: 홍길동 · 2026">
+        </div>
+        <div class="ex-field" style="margin-bottom:10px;">
+          <label for="desc-{{ slot.code }}">작품설명 <small>(클릭했을 때 함께 보임)</small></label>
+          <textarea id="desc-{{ slot.code }}" name="description" maxlength="500"
+                    style="min-height:64px;">{{ slot.row.description if slot.row else '' }}</textarea>
+        </div>
+        <div class="ex-field" style="margin-bottom:12px;">
+          <label for="media-{{ slot.code }}">사진 · 동영상 추가</label>
+          <input id="media-{{ slot.code }}" type="file" name="media" multiple
+                 accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/ogg,video/quicktime">
+          <small>사진을 여러 장 올리면 클릭했을 때 슬라이드 쇼로 넘어갑니다.</small>
+        </div>
+        <button class="ex-btn primary sm" type="submit">
+          <i class="fa-solid fa-floppy-disk"></i> 이 자리 저장
+        </button>
+      </form>
+    </section>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}
