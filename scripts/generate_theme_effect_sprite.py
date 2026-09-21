@@ -23,6 +23,7 @@ EFFECTS = [
     "springBreeze", "cherryBlossoms", "summerVacation", "chuseokMoon",
     "seollalRibbons", "christmasMagic", "peperoDay", "roseDay",
     "christmasSeason2",
+    "chuseokHangawi",
 ]
 
 WHITE = (255, 255, 255, 210)
@@ -239,6 +240,18 @@ def draw_effect(name: str) -> Image.Image:
         draw = ImageDraw.Draw(tile)
         draw.ellipse((76,14,166,104), fill=(255,239,155,215), outline=WHITE, width=2)
         draw.arc((18,87,222,142), 188, 352, fill=WHITE, width=2)
+
+    elif name == "chuseokHangawi":
+        glow_ellipses(tile, rng, 2, [(252, 211, 77, 140)], large=True)
+        draw = ImageDraw.Draw(tile)
+        draw.ellipse((88, 12, 158, 82), fill=(255, 243, 191, 225), outline=WHITE, width=2)
+        for cx, cy, r in [(60, 52, 22), (168, 40, 17), (110, 100, 27)]:
+            draw.ellipse((cx - r * 1.7, cy - r * 0.6, cx + r * 1.7, cy + r * 0.6), fill=(255, 255, 255, 120))
+            draw.ellipse((cx - r * 0.8, cy - r, cx + r * 0.5, cy + r * 0.4), fill=(255, 255, 255, 120))
+        for x, y, s_ in [(34, 24, 13), (206, 74, 15), (52, 112, 11), (150, 124, 12), (192, 16, 9)]:
+            draw.polygon(star_points(x, y, s_, s_ * 0.3, 4), fill=(255, 251, 235, 235))
+            draw.ellipse((x - 2, y - 2, x + 2, y + 2), fill=WHITE)
+        random_dots(draw, rng, 10, [WHITE, GOLD], (1, 2))
 
     elif name == "seollalRibbons":
         for index, color in enumerate([RED, GOLD, CYAN, PINK]):
