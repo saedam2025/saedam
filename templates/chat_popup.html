@@ -159,16 +159,50 @@
 .chat-bubble.other.only-file .chat-attachment-link {
     border: 1px solid #e2e8f0;
 }
-        /* === 대화창 상단 메뉴바 3종 (업무요청 / 설문·투표 / 상태표시) === */
-        .chat-menubar { display:flex; gap:7px; margin:-4px 0 10px; }
-        .chat-menubar-btn { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:6px; padding:9px 6px; border:1px solid var(--card-border); background:var(--card-bg); border-radius:10px; cursor:pointer; font-family:inherit; font-size:0.82rem; font-weight:700; color:#334155; white-space:nowrap; overflow:hidden; transition:background 0.15s, border-color 0.15s, color 0.15s; }
+        /* === 대화창 상단 메뉴바 3종 (업무요청 / 설문·투표 / 상태표시) ===
+           브라우저 최상단에 꽉 차게 붙는 이음새 없는 세그먼트 바 */
+        .chat-menubar {
+            display:flex;
+            margin:-20px -20px 14px;
+            position:sticky; top:0; z-index:60;
+            background:linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+            border-bottom:1px solid #cfe1fd;
+            box-shadow:0 4px 16px rgba(15,23,42,0.08);
+            overflow:hidden;
+        }
+        .chat-menubar-btn {
+            position:relative; flex:1 1 0; min-width:0;
+            display:flex; align-items:center; justify-content:center; gap:7px;
+            padding:13px 8px; border:0; border-radius:0; background:transparent;
+            cursor:pointer; font-family:inherit; font-size:0.86rem; font-weight:700;
+            color:#475569; letter-spacing:-0.2px; white-space:nowrap; overflow:hidden;
+            transition:background 0.18s ease, color 0.18s ease;
+        }
+        /* 버튼 사이 이음새: 얇은 구분선 하나로 3칸이 한 덩어리처럼 보이게 */
+        .chat-menubar-btn + .chat-menubar-btn::before {
+            content:''; position:absolute; left:0; top:24%; bottom:24%;
+            width:1px; background:#dbe6f5; transition:opacity 0.18s ease;
+        }
+        .chat-menubar-btn::after {
+            content:''; position:absolute; left:50%; right:50%; bottom:0; height:3px;
+            border-radius:3px 3px 0 0; background:var(--primary-color); opacity:0;
+            transition:left 0.22s ease, right 0.22s ease, opacity 0.22s ease;
+        }
+        .chat-menubar-btn i { font-size:0.95rem; color:#60a5fa; transition:color 0.18s ease; }
         .chat-menubar-btn > span:not(.chat-menubar-badge):not(.chat-menubar-status-dot) { overflow:hidden; text-overflow:ellipsis; }
-        .chat-menubar-btn:hover { background:#eff6ff; border-color:#bfdbfe; }
-        .chat-menubar-btn.active { background:var(--primary-color); border-color:var(--primary-color); color:#fff; }
-        .chat-menubar-badge { display:none; min-width:17px; padding:1px 5px; border-radius:999px; background:#ef4444; color:#fff; font-size:0.66rem; font-weight:800; line-height:1.5; }
-        .chat-menubar-btn.active .chat-menubar-badge { background:#fff; color:var(--primary-color); }
-        .chat-menubar-status-dot { width:9px; height:9px; border-radius:50%; background:#cbd5e1; }
-        .chat-menubar-btn.active .chat-menubar-status-dot { box-shadow:0 0 0 2px rgba(255,255,255,0.9); }
+        .chat-menubar-btn:hover { background:rgba(219,234,254,0.5); color:#1d4ed8; }
+        .chat-menubar-btn:hover i { color:#3b82f6; }
+        .chat-menubar-btn:hover::after { left:38%; right:38%; opacity:0.4; }
+        .chat-menubar-btn:focus-visible { outline:2px solid #2563eb; outline-offset:-3px; }
+        .chat-menubar-btn.active { background:linear-gradient(180deg, #e8f1ff 0%, #d6e6ff 100%); color:#1d4ed8; }
+        .chat-menubar-btn.active i { color:#1d4ed8; }
+        .chat-menubar-btn.active::after { left:14%; right:14%; opacity:1; }
+        .chat-menubar-btn.active::before,
+        .chat-menubar-btn.active + .chat-menubar-btn::before { opacity:0; }
+        .chat-menubar-badge { display:none; min-width:17px; padding:1px 5px; border-radius:999px; background:#ef4444; color:#fff; font-size:0.66rem; font-weight:800; line-height:1.5; box-shadow:0 1px 3px rgba(239,68,68,0.4); }
+        .chat-menubar-btn.active .chat-menubar-badge { background:#ef4444; color:#fff; }
+        .chat-menubar-status-dot { width:9px; height:9px; border-radius:50%; background:#cbd5e1; box-shadow:0 0 0 3px rgba(148,163,184,0.22); }
+        .chat-menubar-btn.active .chat-menubar-status-dot { box-shadow:0 0 0 3px rgba(59,130,246,0.25); }
 
         .chat-panel { display:none; background:var(--card-bg); border:1px solid var(--card-border); border-radius:12px; padding:12px; margin-bottom:10px; max-height:300px; overflow-y:auto; box-shadow:0 6px 18px rgba(15,23,42,0.07); }
         .chat-panel.open { display:block; }
@@ -237,9 +271,8 @@
         .chat-attachment-gone .chat-attachment-name { text-decoration:line-through; }
 
         @media (max-width: 430px) {
-            .chat-menubar { gap:5px; }
-            .chat-menubar-btn { font-size:0.72rem; padding:8px 4px; gap:4px; }
-            .chat-menubar-btn i { font-size:0.8rem; }
+            .chat-menubar-btn { font-size:0.75rem; padding:11px 4px; gap:5px; }
+            .chat-menubar-btn i { font-size:0.85rem; }
             .chat-status-banner { gap:10px; padding:11px 12px; }
             .chat-status-banner-icon { font-size:2.2rem; }
             .chat-status-banner-title { font-size:0.9rem; }
@@ -260,6 +293,23 @@
             <small>한 번에 1개 · 10MB 미만</small>
         </div>
     </div>
+
+    <div class="chat-menubar">
+        <button type="button" id="chatMenuTaskBtn" class="chat-menubar-btn" onclick="toggleChatPanel('task')" title="선택한 내 메시지를 업무요청으로 등록하고, 받은 업무에 응답합니다.">
+            <i class="fa-solid fa-clipboard-check"></i><span>업무요청</span>
+            <span id="chatTaskBadge" class="chat-menubar-badge">0</span>
+        </button>
+        <button type="button" id="chatMenuPollBtn" class="chat-menubar-btn" onclick="toggleChatPanel('poll')" title="단체 대화방 설문 및 투표">
+            <i class="fa-solid fa-square-poll-vertical"></i><span>설문/투표</span>
+        </button>
+        <button type="button" id="chatMenuStatusBtn" class="chat-menubar-btn" onclick="toggleChatPanel('status')" title="자리비움·회의중 등 내 상태 표시">
+            <span id="chatStatusDot" class="chat-menubar-status-dot"></span><span id="chatStatusBtnLabel">상태표시</span>
+        </button>
+    </div>
+
+    <div id="chatTaskPanel" class="chat-panel"></div>
+    <div id="chatPollPanel" class="chat-panel"></div>
+    <div id="chatStatusPanel" class="chat-panel"></div>
 
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; position:relative;">
         <h3 style="color: var(--text-dark); margin: 0; font-weight:800; display:flex; align-items:center; gap:8px; max-width: 75%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
@@ -294,22 +344,6 @@
         </div>
     </div>
 
-    <div class="chat-menubar">
-        <button type="button" id="chatMenuTaskBtn" class="chat-menubar-btn" onclick="toggleChatPanel('task')" title="선택한 내 메시지를 업무요청으로 등록하고, 받은 업무에 응답합니다.">
-            <i class="fa-solid fa-clipboard-check"></i><span>업무요청</span>
-            <span id="chatTaskBadge" class="chat-menubar-badge">0</span>
-        </button>
-        <button type="button" id="chatMenuPollBtn" class="chat-menubar-btn" onclick="toggleChatPanel('poll')" title="단체 대화방 설문 및 투표">
-            <i class="fa-solid fa-square-poll-vertical"></i><span>설문/투표</span>
-        </button>
-        <button type="button" id="chatMenuStatusBtn" class="chat-menubar-btn" onclick="toggleChatPanel('status')" title="자리비움·회의중 등 내 상태 표시">
-            <span id="chatStatusDot" class="chat-menubar-status-dot"></span><span id="chatStatusBtnLabel">상태표시</span>
-        </button>
-    </div>
-
-    <div id="chatTaskPanel" class="chat-panel"></div>
-    <div id="chatPollPanel" class="chat-panel"></div>
-    <div id="chatStatusPanel" class="chat-panel"></div>
 
     <div id="chatSearchPanel" class="chat-search-panel">
         <div class="chat-search-row">

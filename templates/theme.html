@@ -294,6 +294,23 @@
         @keyframes moonPulse { 0% { transform: scale(0.96); filter: brightness(1); } 100% { transform: scale(1.03); filter: brightness(1.12); } }
 
         /* ==========================================
+           3010번 테마: 한가위 보름달 두둥실 전용 연출
+           ========================================== */
+        .chuseok-fullmoon, .chuseok-cloud, .chuseok-star { position: absolute; pointer-events: none; }
+        .chuseok-fullmoon { top: 12%; left: -26vw; width: min(24vw, 210px); height: min(24vw, 210px); border-radius: 50%; background: radial-gradient(circle at 34% 30%, #fffdf2, #fff3bf 44%, #fcd34d 76%, #f59e0b); box-shadow: 0 0 60px rgba(252, 211, 77, 0.55), 0 0 150px rgba(245, 158, 11, 0.35); animation: chuseokMoonDrift 52s linear infinite, chuseokMoonBob 6.5s ease-in-out infinite alternate; }
+        .chuseok-fullmoon::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 63% 58%, rgba(202, 138, 4, 0.22) 0 9%, transparent 10%), radial-gradient(circle at 41% 70%, rgba(202, 138, 4, 0.18) 0 6%, transparent 7%), radial-gradient(circle at 56% 34%, rgba(202, 138, 4, 0.16) 0 5%, transparent 6%); }
+        .chuseok-cloud { border-radius: 999px; background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(224, 231, 255, 0.48)); filter: blur(2px); animation: chuseokCloudDrift linear infinite; }
+        .chuseok-cloud::before, .chuseok-cloud::after { content: ''; position: absolute; border-radius: 50%; background: inherit; }
+        .chuseok-cloud::before { width: 54%; height: 165%; left: 10%; top: -78%; }
+        .chuseok-cloud::after { width: 38%; height: 128%; right: 12%; top: -46%; }
+        .chuseok-star { background: radial-gradient(circle at 50% 50%, #ffffff 0 16%, #fff7cf 34%, rgba(252, 211, 77, 0.85) 58%, rgba(252, 211, 77, 0) 78%); clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%); filter: drop-shadow(0 0 10px rgba(253, 224, 71, 0.9)); animation: chuseokStarTwinkle ease-in-out infinite; }
+        .chuseok-star::before { content: ''; position: absolute; inset: 22%; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 70%); }
+        @keyframes chuseokMoonDrift { 0% { transform: translate3d(0, 0, 0) scale(0.92); } 50% { transform: translate3d(75vw, 0, 0) scale(1); } 100% { transform: translate3d(152vw, 0, 0) scale(0.92); } }
+        @keyframes chuseokMoonBob { 0% { top: 10%; } 100% { top: 18%; } }
+        @keyframes chuseokCloudDrift { 0% { transform: translate3d(-32vw, 0, 0); opacity: 0; } 12%, 88% { opacity: var(--cloud-opacity, 0.7); } 100% { transform: translate3d(132vw, 0, 0); opacity: 0; } }
+        @keyframes chuseokStarTwinkle { 0%, 100% { transform: scale(0.45) rotate(0deg); opacity: 0.15; } 50% { transform: scale(1.35) rotate(22deg); opacity: 1; } }
+
+        /* ==========================================
            3009번 테마: 크리스마스 시즌2 전용 애니메이션
            ========================================== */
         .santa-fly { 
@@ -362,7 +379,7 @@
         }
         .theme-thumbnail-effect {
             position:absolute; inset:0; z-index:1; pointer-events:none;
-            background-image:url("{{ url_for('static', filename='images/theme-effects/effect-sprite.webp') }}?v=20260720-1");
+            background-image:url("{{ url_for('static', filename='images/theme-effects/effect-sprite.webp') }}?v=20260920-chuseok2");
             background-repeat:no-repeat; background-size:700% 700%;
             background-position:var(--effect-thumb-x) var(--effect-thumb-y);
             opacity:.78;
@@ -567,7 +584,7 @@
         </form>
     </div>
 
-    <script src="{{ url_for('static', filename='js/saedam_theme_catalog.js') }}?v=20260908-sitemap-theme"></script>
+    <script src="{{ url_for('static', filename='js/saedam_theme_catalog.js') }}?v=20260920-chuseok"></script>
     <script>
         // === 엔진 설정 ===
         // 🌟 다크모드(사이버)를 제외하고 5가지 밝은 UI 스타일만 순환 적용
@@ -583,7 +600,7 @@
         const themeEffectThumbnailOrder = [
             ...effectsList,
             'springBreeze', 'cherryBlossoms', 'summerVacation', 'chuseokMoon',
-            'seollalRibbons', 'christmasMagic', 'peperoDay', 'roseDay', 'christmasSeason2'
+            'seollalRibbons', 'christmasMagic', 'peperoDay', 'roseDay', 'christmasSeason2', 'chuseokHangawi'
         ];
         const themeEffectThumbnailPositions = Object.fromEntries(
             themeEffectThumbnailOrder.map((effect, index) => [effect, {
@@ -939,6 +956,26 @@
             el.style.setProperty('--drift', (Math.random() * 90 - 45) + 'px');
         }
 
+        function configureChuseokCloud(el) {
+            const width = Math.random() * 170 + 120;
+            el.style.width = width + 'px';
+            el.style.height = (width * 0.28) + 'px';
+            el.style.top = (Math.random() * 56 + 6) + '%';
+            el.style.animationDuration = (Math.random() * 30 + 34) + 's';
+            el.style.animationDelay = (-Math.random() * 40) + 's';
+            el.style.setProperty('--cloud-opacity', (Math.random() * 0.28 + 0.3).toFixed(2));
+        }
+
+        function configureChuseokStar(el) {
+            // 화면 여기저기에서 큼직하게 반짝이도록 크기와 주기를 넓게 흩뿌린다.
+            const size = Math.random() * 44 + 26;
+            el.style.left = Math.random() * 96 + '%';
+            el.style.top = Math.random() * 92 + '%';
+            el.style.width = el.style.height = size + 'px';
+            el.style.animationDuration = (Math.random() * 3.5 + 2.5) + 's';
+            el.style.animationDelay = (-Math.random() * 6) + 's';
+        }
+
         function renderSeasonalThemeEffect(container, effectType, buildFn) {
             if (effectType === 'springBreeze') {
                 buildFn(container, 'seasonal-petal spring-leaf', 34, (el) => configureSeasonalFall(el, { sizeMin: 8, sizeRange: 14, durationMin: 7, durationRange: 6, opacity: 0.82 }));
@@ -954,6 +991,14 @@
             } else if (effectType === 'chuseokMoon') {
                 buildFn(container, 'harvest-moon', 1, () => {});
                 buildFn(container, 'seasonal-petal spring-leaf', 24, (el) => configureSeasonalFall(el, { sizeMin: 10, sizeRange: 18, durationMin: 7, durationRange: 5, opacity: 0.78 }));
+                return true;
+            } else if (effectType === 'chuseokHangawi') {
+                buildFn(container, 'chuseok-fullmoon', 1, (el) => {
+                    // 새로고침할 때마다 보름달이 하늘의 다른 위치에서 떠다니도록 시작 시점을 앞당긴다.
+                    el.style.animationDelay = (-Math.random() * 46) + 's, -2s';
+                });
+                buildFn(container, 'chuseok-cloud', 7, configureChuseokCloud);
+                buildFn(container, 'chuseok-star', 22, configureChuseokStar);
                 return true;
             } else if (effectType === 'seollalRibbons') {
                 buildFn(container, 'festival-ribbon', 38, (el) => configureSeasonalFall(el, { sizeMin: 7, sizeRange: 7, height: size => size * 3.2, durationMin: 5, durationRange: 5, opacity: 0.88 }));

@@ -2461,6 +2461,19 @@
         editor.nodeChanged();
     }
 
+    function insertPostEditorTable(editor) {
+        const input = prompt('삽입할 표 크기를 "행x열" 형식으로 입력하세요. 예: 4x3', '3x3');
+        if(!input) return;
+        const match = String(input).match(/^\s*(\d{1,2})\s*[x*×]\s*(\d{1,2})\s*$/i);
+        if(!match) {
+            alert('예시처럼 "행x열" 형식으로 입력해 주세요.');
+            return;
+        }
+        const rows = Math.min(30, Math.max(1, Number(match[1])));
+        const columns = Math.min(20, Math.max(1, Number(match[2])));
+        editor.execCommand('mceInsertTable', false, { rows: rows, columns: columns });
+    }
+
     function initPostEditor() {
     if(getPostEditor()) return;
     tinymce.init({
@@ -2474,12 +2487,15 @@
         branding: false,
         promotion: false,
         placeholder: '내용을 입력하세요...',
-        plugins: 'advlist autolink lists link image noneditable table',
-        toolbar_mode: 'sliding',
+        // noneditable은 TinyMCE 6부터 코어에 포함되어 별도 플러그인이 없다(로드 실패 오류만 남음).
+        plugins: 'advlist autolink lists link image table',
+        toolbar_mode: 'wrap',
         toolbar_sticky: true,
-        
+
         // 메인 툴바 메뉴 구성
-        toolbar: 'undo redo | fontfamily fontsize lineheight | bold italic underline forecolor backcolor removeformat | alignleft aligncenter alignright bullist numlist outdent indent | table tableprops tablerowprops tablecellprops tablecellbackgroundcolor tablecellbordercolor tablecellborderwidth tablecellborderstyle tableinsertrowafter tableinsertcolafter tabledeleterow tabledeletecol tablemergecells tablesplitcells tabledelete tabletuning',
+        // 표 기능은 개별 버튼을 늘어놓는 대신 '표' 메뉴 하나로 묶어, 표 안에 커서를 둘 때
+        // 뜨던 떠다니는 표 툴바(본문을 가림) 없이도 툴바에서 바로 쓸 수 있게 한다.
+        toolbar: 'undo redo | fontfamily fontsize lineheight | bold italic underline forecolor backcolor removeformat | alignleft aligncenter alignright bullist numlist outdent indent | tablemenu tablecellbackgroundcolor tablecellbordercolor',
         
         font_family_formats: '맑은 고딕=Malgun Gothic,맑은 고딕,sans-serif;굴림=Gulim,굴림,sans-serif;돋움=Dotum,돋움,sans-serif;바탕=Batang,바탕,serif;궁서=Gungsuh,궁서,serif;Arial=arial,helvetica,sans-serif;Arial Black=arial black,avant garde;Courier New=courier new,courier,monospace;Helvetica=helvetica,arial,sans-serif;Times New Roman=times new roman,times,serif;Verdana=verdana,geneva,sans-serif',
         font_size_formats: '10px 11px 12px 13px 14px 16px 18px 20px 24px 28px 36px',
@@ -2497,9 +2513,10 @@
         table_default_styles: { width: '100%', 'border-collapse': 'collapse' },
         
         contextmenu: 'table',
-        
-        // 팝업 표 툴바 활성화 (기존에 비워두었던 부분 복구)
-        table_toolbar: 'tableprops tablecellprops tablerowprops | tablecellbackgroundcolor tablecellbordercolor tablecellborderwidth tablecellborderstyle | tablemergecells tablesplitcells | tableinsertrowbefore tableinsertrowafter tabledeleterow | tableinsertcolbefore tableinsertcolafter tabledeletecol | tabledelete tabletuning',
+
+        // 표 안에 커서를 놓으면 떠오르던 팝업 툴바가 입력 중인 글자를 가려서 끄고,
+        // 같은 기능을 위쪽 툴바의 '표' 메뉴와 우클릭 메뉴로 제공한다.
+        table_toolbar: '',
         
         content_style: `
             body { font-family:"Malgun Gothic", "맑은 고딕", sans-serif; font-size:14px; line-height:1.5; color:#0f172a; padding:10px; }
@@ -2508,23 +2525,60 @@
             td, th { border:1px solid #cbd5e1; padding:6px 8px; vertical-align:top; word-break:break-all; }
         `,
         setup: function(editor) {
+            const tableTuningItems = () => ([
+                { type: 'menuitem', text: '표 간격 좁게', onAction: () => applyPostEditorTablePadding(editor, '4px 6px') },
+                { type: 'menuitem', text: '표 간격 기본', onAction: () => applyPostEditorTablePadding(editor, '8px 10px') },
+                { type: 'separator' },
+                { type: 'menuitem', text: '표 전체 너비 지정', onAction: () => setPostEditorTableSize(editor, 'width') },
+                { type: 'menuitem', text: '표 전체 높이 지정', onAction: () => setPostEditorTableSize(editor, 'height') },
+                { type: 'separator' },
+                { type: 'menuitem', text: '선택 셀/열 폭 지정', onAction: () => setPostEditorCellSize(editor, 'width') },
+                { type: 'menuitem', text: '선택 셀/행 높이 지정', onAction: () => setPostEditorCellSize(editor, 'height') }
+            ]);
+
             editor.ui.registry.addMenuButton('tabletuning', {
                 text: '표 조정',
                 tooltip: '표 간격과 셀 크기 조정',
+                fetch: function(callback) { callback(tableTuningItems()); }
+            });
+
+            // 표 삽입·행·열·셀 편집을 툴바의 '표' 메뉴 한 곳에 모은다.
+            const runCommand = (command, value) => () => editor.execCommand(command, false, value);
+            editor.ui.registry.addMenuButton('tablemenu', {
+                icon: 'table',
+                text: '표',
+                tooltip: '표 삽입과 편집',
                 fetch: function(callback) {
                     callback([
-                        { type: 'menuitem', text: '표 간격 좁게', onAction: () => applyPostEditorTablePadding(editor, '4px 6px') },
-                        { type: 'menuitem', text: '표 간격 기본', onAction: () => applyPostEditorTablePadding(editor, '8px 10px') },
+                        { type: 'menuitem', text: '표 삽입 (3×3)', icon: 'table',
+                          onAction: runCommand('mceInsertTable', { rows: 3, columns: 3 }) },
+                        { type: 'menuitem', text: '크기 지정해서 표 삽입',
+                          onAction: () => insertPostEditorTable(editor) },
                         { type: 'separator' },
-                        { type: 'menuitem', text: '표 전체 너비 지정', onAction: () => setPostEditorTableSize(editor, 'width') },
-                        { type: 'menuitem', text: '표 전체 높이 지정', onAction: () => setPostEditorTableSize(editor, 'height') },
+                        { type: 'nestedmenuitem', text: '행', getSubmenuItems: () => ([
+                            { type: 'menuitem', text: '위에 행 추가', onAction: runCommand('mceTableInsertRowBefore') },
+                            { type: 'menuitem', text: '아래에 행 추가', onAction: runCommand('mceTableInsertRowAfter') },
+                            { type: 'menuitem', text: '행 삭제', onAction: runCommand('mceTableDeleteRow') },
+                            { type: 'menuitem', text: '행 속성', onAction: runCommand('mceTableRowProps') }
+                        ]) },
+                        { type: 'nestedmenuitem', text: '열', getSubmenuItems: () => ([
+                            { type: 'menuitem', text: '왼쪽에 열 추가', onAction: runCommand('mceTableInsertColBefore') },
+                            { type: 'menuitem', text: '오른쪽에 열 추가', onAction: runCommand('mceTableInsertColAfter') },
+                            { type: 'menuitem', text: '열 삭제', onAction: runCommand('mceTableDeleteCol') }
+                        ]) },
+                        { type: 'nestedmenuitem', text: '셀', getSubmenuItems: () => ([
+                            { type: 'menuitem', text: '셀 병합', onAction: runCommand('mceTableMergeCells') },
+                            { type: 'menuitem', text: '셀 분할', onAction: runCommand('mceTableSplitCells') },
+                            { type: 'menuitem', text: '셀 속성(배경·테두리)', onAction: runCommand('mceTableCellProps') }
+                        ]) },
+                        { type: 'nestedmenuitem', text: '표 조정', getSubmenuItems: tableTuningItems },
                         { type: 'separator' },
-                        { type: 'menuitem', text: '선택 셀/열 폭 지정', onAction: () => setPostEditorCellSize(editor, 'width') },
-                        { type: 'menuitem', text: '선택 셀/행 높이 지정', onAction: () => setPostEditorCellSize(editor, 'height') }
+                        { type: 'menuitem', text: '표 속성', onAction: runCommand('mceTableProps') },
+                        { type: 'menuitem', text: '표 삭제', onAction: runCommand('mceTableDelete') }
                     ]);
                 }
             });
-            
+
             // 주의: 기존에 있던 addContextToolbar 및 focus 강제 이벤트는 모두 삭제했습니다.
             
             editor.on('init', function() {

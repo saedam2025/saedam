@@ -599,7 +599,13 @@
     .contact-table th { position:sticky; top:0; z-index:1; background:var(--ct-surface); color:var(--ct-muted); }
     .contact-table td { color:var(--ct-text); }
     .contact-table tbody tr:hover td { background:var(--ct-hover); }
-    .contact-page:not(.edit-mode) .contact-manage-col, .contact-page:not(.edit-mode) .manual-contact-footer { display:none!important; }
+    .contact-page:not(.edit-mode) .manual-contact-footer { display:none!important; }
+    .contact-page:not(.edit-mode) .contact-manage-col {
+        width:0!important; max-width:0!important;
+        padding-left:0!important; padding-right:0!important;
+        overflow:hidden!important;
+    }
+    .contact-page:not(.edit-mode) .contact-manage-col > * { display:none!important; }
     .contact-page.edit-mode .contact-section { border-color:color-mix(in srgb,var(--ct-primary) 35%,var(--ct-border)); }
     .contact-page.edit-mode .contact-manage-col { animation:contactFade .18s ease-out; }
     @keyframes contactFade { from { opacity:0; } to { opacity:1; } }
@@ -643,6 +649,181 @@
     @media (max-width:980px) { .contact-builder-body { display:block; overflow-y:auto; } .contact-builder-controls { overflow:visible; border-right:0; } .contact-builder-preview { overflow:visible; } }
     @media (max-width:620px) { .contact-header { align-items:flex-start; padding:17px; } .contact-actions { width:100%; } .contact-overview { grid-template-columns:1fr; } .contact-help-grid { grid-template-columns:1fr; } .contact-builder-backdrop { padding:4px; } .contact-builder-modal { height:calc(100vh - 8px); height:calc(100dvh - 8px); border-radius:12px; } .contact-builder-foot { overflow-x:auto; justify-content:flex-start; } }
 
+
+    /* ================= 본사연락망 정리 디자인 (한 줄 = 한 사람) ================= */
+    /* 전체 폭 80% */
+    .contact-shell { width:80%; margin:0 auto; }
+    @media (max-width:1280px) { .contact-shell { width:92%; } }
+    @media (max-width:900px)  { .contact-shell { width:100%; } }
+
+    /* 머리말 : 작고 가볍게 */
+    .contact-header { margin:0 0 12px; padding:14px 16px; border-radius:12px; background:var(--ct-card); }
+    .contact-title { gap:11px; }
+    .contact-title-icon { width:36px; height:36px; flex:0 0 36px; border-radius:10px; font-size:.9rem; box-shadow:none; }
+    .contact-title-icon i { font-size:.9rem; }
+    .contact-title h2 { font-size:1rem; font-weight:600; letter-spacing:-.02em; }
+    .contact-title p { margin-top:3px; font-size:.72rem; font-weight:400; }
+    .contact-btn { min-height:30px; padding:5px 10px; border-radius:7px; font-size:.72rem; font-weight:500; }
+    .contact-btn:hover { transform:none; }
+
+    /* 검색 줄 */
+    .contact-smartbar { margin-bottom:10px; padding:6px; border-radius:10px; }
+    .contact-view-tab { min-height:30px; padding:5px 11px; border-radius:7px; font-size:.73rem; font-weight:500; }
+    .contact-search { width:min(300px,100%); }
+    .contact-search input { min-height:32px; padding:6px 32px; border-radius:7px; font-size:.75rem; }
+    .contact-search > i { left:11px; font-size:.75rem; }
+    .contact-search-clear { top:2px; right:3px; width:26px; height:26px; }
+
+    /* 구역 : 한 줄에 하나씩 */
+    .contact-row-split { display:block; }
+    .contact-section { margin-bottom:10px; border-radius:11px; box-shadow:0 2px 10px rgba(15,23,42,.04); }
+    .section-head { padding:9px 13px; background:var(--ct-surface); }
+    .section-title { gap:8px; }
+    .section-title > i { width:26px; height:26px; border-radius:7px; font-size:.72rem; }
+    .section-title h3 { font-size:.82rem; font-weight:600; }
+    .section-title span { font-size:.68rem; font-weight:400; }
+
+    /* 표 : 모든 구역이 같은 열 너비 · 같은 행 높이 */
+    .contact-table { min-width:960px; table-layout:fixed; }
+    .contact-table th,
+    .contact-table td {
+        height:32px;
+        padding:0 10px;
+        border-bottom:1px solid var(--ct-border);
+        font-size:.74rem;
+        font-weight:400;
+        text-align:left;
+        vertical-align:middle;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+    }
+    .contact-table th { height:30px; font-size:.69rem; font-weight:500; color:var(--ct-muted); }
+    .contact-table .contact-col-name  { width:110px; }
+    .contact-table .contact-col-role  { width:104px; }
+    .contact-table .contact-col-phone { width:128px; }
+    .contact-table .contact-col-email { width:210px; }
+    .contact-table .contact-col-manage { width:72px; }
+    .contact-table td.contact-manage-col { text-align:center; padding:0 6px; }
+
+    /* 이름 : 굵기 제거 */
+    .contact-name,
+    .contact-name a,
+    .business-card-link { font-weight:400; color:var(--ct-text); text-decoration:none; }
+    .business-card-link:hover { color:var(--ct-primary); text-decoration:underline; }
+    .contact-click-cell { text-align:left !important; }
+
+    /* 그룹 줄 (팀 · 학교) */
+    .contact-team-row td {
+        height:28px;
+        padding:0 12px !important;
+        background:var(--ct-surface) !important;
+        color:var(--ct-muted) !important;
+        font-size:.7rem;
+        font-weight:500;
+    }
+    .contact-team-row small { margin-left:8px; color:var(--ct-muted); font-size:.66rem; font-weight:400; }
+    .contact-team-row .contact-expand-link { color:var(--ct-text); font-size:.72rem; font-weight:500; }
+    /* 성명 열 왼쪽 여백 */
+    .contact-table th:first-child,
+    .contact-table td:first-child { padding-left:22px; }
+    /* 그룹(팀·학교) 아래 사람 줄은 한 단 들여써서 그룹 표시가 도드라지게 */
+    .contact-table tbody tr.contact-person-row td:first-child,
+    .contact-table tbody tr.contact-primary-row td:first-child { padding-left:44px; }
+    .contact-table tbody tr.contact-team-row td { padding-left:14px !important; }
+
+    .contact-table .contact-col-place { width:150px; }
+    .contact-table .contact-col-school { width:185px; }
+    /* 학교 연락망은 열이 많아 최소 폭을 따로 준다 (주소 칸이 눌리지 않도록) */
+    .contact-section[data-print-section="schools"] .contact-table { min-width:1180px; }
+
+
+    /* 늘봄실장·실무사 : 기본 접힘 */
+    .contact-staff-row { display:none; }
+    .contact-staff-row.is-open { display:table-row; }
+    .contact-staff-row[hidden] { display:none !important; }
+    .contact-staff-toggle {
+        margin-left:10px;
+        padding:2px 9px;
+        border:1px solid var(--ct-border);
+        border-radius:999px;
+        background:var(--ct-card);
+        color:var(--ct-muted);
+        font:inherit;
+        font-size:.66rem;
+        font-weight:400;
+        cursor:pointer;
+    }
+    .contact-staff-toggle:hover { border-color:var(--ct-primary); color:var(--ct-primary); }
+    .contact-staff-toggle.is-open { border-color:var(--ct-primary); color:var(--ct-primary); }
+    .contact-staff-toggle i { margin-left:3px; font-size:.58rem; transition:transform .15s ease; }
+    .contact-staff-toggle.is-open i { transform:rotate(180deg); }
+
+    .contact-expand-link { font-weight:400; font-size:.74rem; }
+    .contact-icon-btn { width:24px; height:24px; font-size:.66rem; }
+    .contact-detail-row td { padding:0; border-bottom:1px solid var(--ct-border); background:var(--ct-surface); }
+    .contact-detail-panel { padding:9px 14px 10px; }
+    .manual-detail-panel { margin-left:0; }
+    .contact-detail-list { gap:4px; line-height:1.4; }
+    .contact-detail-item { grid-template-columns:100px minmax(0,1fr); gap:6px; min-height:0; }
+    .manual-detail-list .contact-detail-item { grid-template-columns:100px minmax(0,1fr); }
+    .contact-detail-label { color:var(--ct-muted); font-size:.66rem; font-weight:400; }
+    .contact-detail-label::before, .contact-detail-label::after { content:none; }
+    .contact-detail-value { color:var(--ct-text); font-size:.7rem; font-weight:400; }
+    .empty-row { padding:16px; color:var(--ct-muted); font-size:.74rem; font-weight:400; text-align:center; }
+    .contact-no-results { margin:12px 0; padding:30px 16px; font-size:.75rem; }
+    .contact-no-results strong { font-weight:500; }
+
+
+    /* ---- 마무리 정리 : 머리행 가운데 정렬 · 점선 구분 · 구역 제목 배경 ---- */
+    .contact-table th { text-align:center; }
+
+    /* 내용 행 사이 : 점 간격이 넓은 느슨한 점선 */
+    .contact-page { --ct-dash:repeating-linear-gradient(to right, color-mix(in srgb, var(--ct-border) 92%, transparent) 0 2px, transparent 2px 9px); }
+    .contact-table td {
+        border-bottom:0;
+        background-image:var(--ct-dash);
+        background-repeat:no-repeat;
+        background-size:100% 1px;
+        background-position:0 100%;
+    }
+    .contact-table th { border-bottom:1px solid var(--ct-border); }
+    .contact-table tbody tr:last-child td { background-image:none; }
+    /* 바탕색이 바뀌어도 점선이 사라지지 않게 한다 */
+    .contact-table tbody tr:hover td {
+        background-color:var(--ct-hover);
+        background-image:var(--ct-dash);
+        background-repeat:no-repeat;
+        background-size:100% 1px;
+        background-position:0 100%;
+    }
+    .contact-table tbody tr:last-child:hover td { background-image:none; }
+    .contact-team-row td { background-image:none !important; border-bottom:1px solid var(--ct-border) !important; }
+
+    /* 표가 카드 폭을 끝까지 채우도록 (가로선이 중간에 끊기지 않게) */
+    .contact-table-wrap { width:100%; }
+    .contact-table { width:100%; }
+    .contact-page:not(.edit-mode) .contact-table .contact-col-manage { width:0; }
+
+    /* 구역 제목 줄에 배경색 */
+    .section-head {
+        background:linear-gradient(180deg,color-mix(in srgb,var(--ct-primary) 9%,#fff),color-mix(in srgb,var(--ct-primary) 5%,#fff));
+        border-bottom:1px solid color-mix(in srgb,var(--ct-primary) 18%,var(--ct-border));
+    }
+    .section-title > i { background:#fff; }
+
+    /* 학교 연락망 : 늘봄 담당자 줄 */
+    .contact-staff-cell { padding-left:44px !important; color:var(--ct-muted); }
+    .contact-staff-role {
+        display:inline-block;
+        min-width:64px;
+        margin-right:10px;
+        color:var(--ct-muted);
+        font-size:.68rem;
+    }
+    .contact-staff-cell .business-card-link { margin-right:14px; color:var(--ct-text); }
+    .contact-staff-phone { color:var(--ct-muted); }
+    .contact-staff-toggle { margin-left:8px; padding:1px 8px; }
     @media print {
         .navbar,
         .main-footer,
@@ -689,6 +870,13 @@
         .contact-detail-row {
             display: table-row !important;
         }
+        /* 인쇄물에는 접어 둔 늘봄 담당자도 모두 포함 */
+        .contact-staff-row {
+            display: table-row !important;
+        }
+        .contact-staff-toggle {
+            display: none !important;
+        }
         .contact-expand-link i {
             display: none !important;
         }
@@ -722,10 +910,10 @@
             <i class="fa-solid fa-chevron-down"></i>
         </button>
     </td>
-    <td>{{ item.organization_name }}</td>
     <td>{{ item.role_title }}</td>
+    <td title="{{ item.organization_name }}">{{ item.organization_name }}</td>
     <td>{{ item.phone }}</td>
-    <td>{{ item.email }}</td>
+    <td title="{{ item.email }}">{{ item.email }}</td>
     {% if can_edit_defaults %}
     <td class="contact-manage-col">
         <button
@@ -805,13 +993,6 @@
             </div>
         </div>
 
-        <div class="contact-overview">
-            <div class="contact-stat"><span class="contact-stat-icon"><i class="fa-solid fa-building"></i></span><div><strong>{{ manual_count.value + (headquarters_contacts|length) }}</strong><span>본부·협력 연락처</span></div></div>
-            <div class="contact-stat"><span class="contact-stat-icon"><i class="fa-solid fa-user-tie"></i></span><div><strong>{{ center_contacts|length }}</strong><span>센터장 연락처</span></div></div>
-            <div class="contact-stat"><span class="contact-stat-icon"><i class="fa-solid fa-school"></i></span><div><strong>{{ school_contacts|length }}</strong><span>학교 연락처</span></div></div>
-            <div class="contact-stat"><span class="contact-stat-icon"><i class="fa-solid fa-bookmark"></i></span><div><strong id="savedDirectoryCount">{{ saved_contact_directories|length }}</strong><span>내 저장 연락망</span></div></div>
-        </div>
-
         <div class="contact-smartbar">
             <div class="contact-view-tabs" role="tablist" aria-label="연락망 구역 선택">
                 <button type="button" class="contact-view-tab active" data-contact-view="all" onclick="setContactView('all',this)"><i class="fa-solid fa-border-all"></i> 전체</button>
@@ -823,7 +1004,6 @@
         </div>
         <div class="contact-no-results" id="contactNoResults"><i class="fa-solid fa-magnifying-glass"></i><strong>검색 결과가 없습니다.</strong><div>이름, 소속, 학교명 또는 전화번호를 다시 확인해주세요.</div></div>
 
-        <div class="contact-row-split">
         <section class="contact-section" data-print-section="headquarters">
             <div class="section-head">
                 <div class="section-title">
@@ -841,11 +1021,11 @@
                 <table class="contact-table">
                     <thead>
                         <tr>
-                            <th style="width:120px;">성명</th>
-                            <th style="width:100px;">직급</th>
-                            <th style="width:130px;">소속</th>
-                            <th style="width:130px;">연락처</th>
-                            <th>이메일</th>
+                            <th class="contact-col-name">성명</th>
+                            <th class="contact-col-role">직급</th>
+                            <th>소속</th>
+                            <th class="contact-col-phone">연락처</th>
+                            <th class="contact-col-email">이메일</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -859,9 +1039,9 @@
                                 {% endif %}
                             </td>
                             <td>{{ item.position }}</td>
-                            <td>{{ item.department }}</td>
+                            <td title="{{ item.department }}">{{ item.department }}</td>
                             <td>{{ item.phone }}</td>
-                            <td>{{ item.email }}</td>
+                            <td title="{{ item.email }}">{{ item.email }}</td>
                         </tr>
                         {% else %}
                         <tr><td colspan="5"><div class="empty-row">본부 연락망에 표시할 인사관리 데이터가 없습니다.</div></td></tr>
@@ -888,16 +1068,18 @@
                 <table class="contact-table">
                     <thead>
                         <tr>
-                            <th style="width:120px;">성명</th>
-                            <th style="width:110px;">직급</th>
+                            <th class="contact-col-name">성명</th>
+                            <th class="contact-col-role">직급</th>
                             <th>담당학교</th>
-                            <th style="width:130px;">연락처</th>
-                            {% if can_edit_defaults %}<th class="contact-manage-col" style="width:80px;">관리</th>{% endif %}
+                            <th class="contact-col-place">지원실 위치</th>
+                            <th class="contact-col-phone">연락처</th>
+                            <th class="contact-col-email">이메일</th>
+                            {% if can_edit_defaults %}<th class="contact-manage-col contact-col-manage">관리</th>{% endif %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for team in center_contact_groups %}
-                        <tr class="contact-team-row"><td colspan="{{ 5 if can_edit_defaults else 4 }}"><i class="fa-solid fa-people-group"></i> {{ team.team_name }} <small>{{ team.contacts|length }}명</small></td></tr>
+                        <tr class="contact-team-row"><td colspan="{{ 7 if can_edit_defaults else 6 }}"><i class="fa-solid fa-people-group"></i> {{ team.team_name }} <small>{{ team.contacts|length }}명</small></td></tr>
                         {% for item in team.contacts %}
                         <tr class="contact-primary-row">
                             <td class="contact-name contact-click-cell">
@@ -906,13 +1088,12 @@
                                 {% else %}
                                 -
                                 {% endif %}
-                                <button type="button" class="contact-expand-link" aria-expanded="false" onclick="toggleContactDetail(this)" title="상세 펼치기">
-                                    <i class="fa-solid fa-chevron-down"></i>
-                                </button>
                             </td>
                             <td>{{ item.position }}</td>
-                            <td>{{ item.assigned_schools }}</td>
+                            <td title="{{ item.assigned_schools }}">{{ item.assigned_schools }}</td>
+                            <td title="{{ item.office_locations }}">{{ item.office_locations }}</td>
                             <td>{{ item.phone }}</td>
+                            <td title="{{ item.email }}">{{ item.email }}</td>
                             {% if can_edit_defaults %}
                             <td class="contact-manage-col">
                                 <button
@@ -936,31 +1117,14 @@
                             </td>
                             {% endif %}
                         </tr>
-                        <tr class="contact-detail-row">
-                            <td colspan="{{ 5 if can_edit_defaults else 4 }}">
-                                <div class="contact-detail-panel manual-detail-panel">
-                                    <div class="contact-detail-list center-detail-list">
-                                        <span class="contact-detail-item">
-                                            <span class="contact-detail-label">이메일</span>
-                                            <span class="contact-detail-value">{{ item.email }}</span>
-                                        </span>
-                                        <span class="contact-detail-item">
-                                            <span class="contact-detail-label">지원실 위치</span>
-                                            <span class="contact-detail-value">{{ item.office_locations }}</span>
-                                        </span>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
                         {% endfor %}
                         {% else %}
-                        <tr><td colspan="{{ 5 if can_edit_defaults else 4 }}"><div class="empty-row">센터장 연락망에 표시할 인사관리 데이터가 없습니다.</div></td></tr>
+                        <tr><td colspan="{{ 7 if can_edit_defaults else 6 }}"><div class="empty-row">센터장 연락망에 표시할 인사관리 데이터가 없습니다.</div></td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         </section>
-        </div>
 
         <section class="contact-section" data-print-section="schools">
             <div class="section-head">
@@ -968,7 +1132,7 @@
                     <i class="fa-solid fa-school" style="color:#2563eb;"></i>
                     <div>
                         <h3>학교 연락망</h3>
-                        <span>학교업무공간 등록 자료 기준 늘봄실무사, 늘봄실장, 학교 연락처</span>
+                        <span>학교업무공간 등록 자료 기준 학교 연락처 (학교명 옆 버튼을 누르면 늘봄 담당자가 열립니다)</span>
                     </div>
                 </div>
                 <div class="section-tools">
@@ -976,80 +1140,58 @@
                 </div>
             </div>
             <div class="contact-table-wrap">
-                <table class="contact-table" style="min-width:840px;">
+                <table class="contact-table">
                     <thead>
                         <tr>
-                            <th class="contact-index-col">번호</th>
-                            <th style="width:150px;">학교명</th>
-                            <th style="width:130px;">계약과목</th>
-                            <th style="width:125px;">지원실 전화</th>
-                            <th style="width:120px;">센터장</th>
-                            <th style="width:125px;">센터장 연락처</th>
-                            <th style="width:110px;">늘봄실장</th>
-                            <th style="width:110px;">늘봄실무사</th>
+                            <th class="contact-col-school">학교명</th>
+                            <th class="contact-col-role">계약과목</th>
+                            <th>주소</th>
+                            <th class="contact-col-place">지원실 위치</th>
+                            <th class="contact-col-phone">지원실 전화</th>
+                            <th class="contact-col-phone">학교 전화</th>
+                            <th class="contact-col-email">대표메일</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for item in school_contacts %}
-                        <tr class="contact-primary-row">
-                            <td class="contact-index">{{ loop.index }}</td>
-                            <td class="contact-name contact-click-cell">
-                                <button type="button" class="contact-expand-link" aria-expanded="false" onclick="toggleContactDetail(this)">
-                                    <span class="contact-expand-text">{{ item.school_name }}</span>
-                                    <i class="fa-solid fa-chevron-down"></i>
+                        {% set staff_count = (1 if item.neulbom_manager and item.neulbom_manager != '-' else 0) + (1 if item.neulbom_assistant and item.neulbom_assistant != '-' else 0) %}
+                        <tr class="contact-school-row">
+                            <td class="contact-name" title="{{ item.school_name }}">
+                                {{ item.school_name }}
+                                {% if staff_count %}
+                                <button type="button" class="contact-staff-toggle" aria-expanded="false"
+                                        title="늘봄실장·실무사 보기" onclick="toggleSchoolStaff(this)">
+                                    {{ staff_count }}명 <i class="fa-solid fa-chevron-down"></i>
                                 </button>
+                                {% endif %}
                             </td>
                             <td>{{ item.contract_subject }}</td>
+                            <td title="{{ item.address }}">{{ item.address }}</td>
+                            <td title="{{ item.office_location }}">{{ item.office_location }}</td>
                             <td>{{ item.office_phone }}</td>
-                            <td class="contact-name">
-                                {% if item.director_name and item.director_name != '-' %}
-                                <a href="#" class="business-card-link" data-card-name="{{ item.director_name }}" data-card-position="센터장" data-card-department="{{ item.school_name }}" data-card-phone="{{ item.director_phone }}" data-card-email="{{ item.director_email }}">{{ item.director_name }}</a>
-                                {% else %}
-                                -
-                                {% endif %}
-                            </td>
-                            <td>{{ item.director_phone }}</td>
-                            <td class="contact-name">
-                                {% if item.neulbom_manager and item.neulbom_manager != '-' %}
+                            <td>{{ item.school_phone }}</td>
+                            <td title="{{ item.email }}">{{ item.email }}</td>
+                        </tr>
+                        {% if item.neulbom_manager and item.neulbom_manager != '-' %}
+                        <tr class="contact-staff-row">
+                            <td colspan="7" class="contact-staff-cell">
+                                <span class="contact-staff-role">늘봄실장</span>
                                 <a href="#" class="business-card-link" data-card-name="{{ item.neulbom_manager }}" data-card-position="늘봄실장" data-card-department="{{ item.school_name }}" data-card-phone="{{ item.office_phone }}" data-card-email="{{ item.email }}">{{ item.neulbom_manager }}</a>
-                                {% else %}
-                                -
-                                {% endif %}
+                                <span class="contact-staff-phone">{{ item.office_phone }}</span>
                             </td>
-                            <td class="contact-name">
-                                {% if item.neulbom_assistant and item.neulbom_assistant != '-' %}
+                        </tr>
+                        {% endif %}
+                        {% if item.neulbom_assistant and item.neulbom_assistant != '-' %}
+                        <tr class="contact-staff-row">
+                            <td colspan="7" class="contact-staff-cell">
+                                <span class="contact-staff-role">늘봄실무사</span>
                                 <a href="#" class="business-card-link" data-card-name="{{ item.neulbom_assistant }}" data-card-position="늘봄실무사" data-card-department="{{ item.school_name }}" data-card-phone="{{ item.office_phone }}" data-card-email="{{ item.email }}">{{ item.neulbom_assistant }}</a>
-                                {% else %}
-                                -
-                                {% endif %}
+                                <span class="contact-staff-phone">{{ item.office_phone }}</span>
                             </td>
                         </tr>
-                        <tr class="contact-detail-row">
-                            <td colspan="8">
-                                <div class="contact-detail-panel school-detail-panel">
-                                    <div class="contact-detail-list school-detail-list">
-                                        <span class="contact-detail-item">
-                                            <span class="contact-detail-label">학교 주소</span>
-                                            <span class="contact-detail-value">{{ item.address }}</span>
-                                        </span>
-                                        <span class="contact-detail-item">
-                                            <span class="contact-detail-label">학교 대표 이메일</span>
-                                            <span class="contact-detail-value">{{ item.email }}</span>
-                                        </span>
-                                        <span class="contact-detail-item">
-                                            <span class="contact-detail-label">학교 전화</span>
-                                            <span class="contact-detail-value">{{ item.school_phone }}</span>
-                                        </span>
-                                        <span class="contact-detail-item">
-                                            <span class="contact-detail-label">지원실 위치</span>
-                                            <span class="contact-detail-value">{{ item.office_location }}</span>
-                                        </span>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
+                        {% endif %}
                         {% else %}
-                        <tr><td colspan="8"><div class="empty-row">학교업무공간에 등록된 학교 연락망 데이터가 없습니다.</div></td></tr>
+                        <tr><td colspan="7"><div class="empty-row">학교업무공간에 등록된 학교 연락망 데이터가 없습니다.</div></td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -1073,12 +1215,12 @@
                 <table class="contact-table">
                     <thead>
                         <tr>
-                            <th style="width:130px;">성명</th>
-                            <th style="width:160px;">항목</th>
-                            <th style="width:110px;">직책</th>
-                            <th style="width:140px;">연락처</th>
-                            <th>이메일</th>
-                            {% if can_edit_defaults %}<th class="contact-manage-col" style="width:88px;">관리</th>{% endif %}
+                            <th class="contact-col-name">성명</th>
+                            <th class="contact-col-role">직책</th>
+                            <th>소속·항목</th>
+                            <th class="contact-col-phone">연락처</th>
+                            <th class="contact-col-email">이메일</th>
+                            {% if can_edit_defaults %}<th class="contact-manage-col contact-col-manage">관리</th>{% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -1398,7 +1540,17 @@
                 if (detail?.classList.contains('contact-detail-row')) detail.hidden = !visible;
                 if (visible) visibleCount += 1;
             });
-            section.querySelectorAll('.contact-team-row').forEach(row => { row.hidden = Boolean(query); });
+            // 검색 중에는 접어 둔 늘봄 담당자 행도 함께 보이게 한다.
+            section.querySelectorAll('.contact-staff-row').forEach(row => { row.classList.toggle('is-open', Boolean(query)); });
+            section.querySelectorAll('.contact-staff-toggle').forEach(button => {
+                button.setAttribute('aria-expanded', query ? 'true' : 'false');
+                button.classList.toggle('is-open', Boolean(query));
+            });
+            section.querySelectorAll('.contact-team-row').forEach(row => {
+                row.hidden = Boolean(query);
+                const detail = row.nextElementSibling;
+                if (detail?.classList.contains('contact-detail-row')) detail.hidden = Boolean(query);
+            });
         });
         document.getElementById('contactNoResults').style.display = query && visibleCount === 0 ? 'block' : 'none';
     }
@@ -1410,7 +1562,8 @@
         const select = document.getElementById('savedDirectorySelect');
         select.innerHTML = '<option value="">새 연락망 만들기</option>' + savedContactDirectories.map(item => `<option value="${item.id}" ${String(item.id) === String(activeDirectoryId) ? 'selected' : ''}>${contactEscape(item.name)}</option>`).join('');
         document.getElementById('deleteSavedDirectoryBtn').disabled = !activeDirectoryId;
-        document.getElementById('savedDirectoryCount').textContent = savedContactDirectories.length;
+        const savedCountEl = document.getElementById('savedDirectoryCount');
+        if (savedCountEl) savedCountEl.textContent = savedContactDirectories.length;
     }
 
     function setBuilderSaveState(text, saved = false) {
@@ -1808,6 +1961,22 @@
             link.dataset.cardEmail
         );
     });
+
+    function toggleSchoolStaff(button) {
+        const groupRow = button.closest('tr');
+        if (!groupRow) return;
+        let row = groupRow.nextElementSibling;
+        let open = null;
+        while (row && !row.classList.contains('contact-school-row')) {
+            if (row.classList.contains('contact-staff-row')) {
+                if (open === null) open = !row.classList.contains('is-open');
+                row.classList.toggle('is-open', open);
+            }
+            row = row.nextElementSibling;
+        }
+        button.setAttribute('aria-expanded', open ? 'true' : 'false');
+        button.classList.toggle('is-open', Boolean(open));
+    }
 
     function toggleContactDetail(button) {
         const row = button.closest('tr');
