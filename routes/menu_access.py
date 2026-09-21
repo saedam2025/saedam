@@ -154,6 +154,7 @@ MENU_GROUPS = (
             ('admin_ai_settings', 'AI api설정', 'fa-robot', 2),
             ('admin_solapi_settings', '솔라피설정', 'fa-comment-dots', 2),
             ('admin_settings', 'Admin설정', 'fa-user-shield', 2),
+            ('exhibition_main', '3D전시장', 'fa-cube', 2),
             ('webtoon_main', 'Webtoon', 'fa-book-open', 2),
             ('photobook_main', '웹전자책', 'fa-images', 2),
         ),

@@ -409,7 +409,7 @@ def _load_center_contacts(conn, positions=None):
         for emp_no in {row['center_director_id'], row['center_director_id_2']} - {None, ''}:
             bucket = assignments.setdefault(emp_no, {'schools': [], 'locations': [], 'school_ids': []})
             bucket['schools'].append(school_name)
-            bucket['locations'].append(f"{school_name}: {office_location if office_location else '-'}")
+            bucket['locations'].append(office_location if office_location else '-')
             bucket['school_ids'].append(row['id'])
 
     for contact in contacts:
