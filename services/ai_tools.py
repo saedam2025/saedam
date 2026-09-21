@@ -52,9 +52,30 @@ def _clean(value: Any, maximum: int = 120) -> str:
     return text[:maximum]
 
 
+_SENSITIVE_PATTERNS = (
+    # 주민등록번호
+    (re.compile(r"\b\d{6}\s*-\s*\d{7}\b"), "******-*******"),
+    # 계좌·카드번호처럼 길게 이어진 숫자열
+    (re.compile(r"\b\d{12,19}\b"), "***"),
+)
+
+
+def _mask_sensitive(text: str) -> str:
+    """게시물 본문을 모델에 넘기기 전에 주민번호·계좌번호 형태를 가린다."""
+    for pattern, replacement in _SENSITIVE_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 def _plain_text(value: Any, maximum: int = 500) -> str:
     text = html.unescape(re.sub(r"<[^>]+>", " ", str(value or "")))
-    return re.sub(r"\s+", " ", text).strip()[:maximum]
+    return _mask_sensitive(re.sub(r"\s+", " ", text).strip())[:maximum]
+
+
+def _attachment_names(value: Any, maximum: int = 5) -> list[str]:
+    """school_posts.filename에 쉼표로 이어 붙인 첨부파일명을 목록으로 돌려준다."""
+    names = [name.strip() for name in str(value or "").split(",") if name.strip()]
+    return names[:maximum]
 
 
 def _limit(value: Any, default: int = 10) -> int:
@@ -168,10 +189,13 @@ def _table(title: str, message: str, columns: list[tuple[str, str] | tuple[str, 
            rows: list[dict[str, Any]], actions=None):
     def _column(spec):
         key, label = spec[0], spec[1]
-        align = spec[2] if len(spec) > 2 else None
+        style = spec[2] if len(spec) > 2 else None
         column = {"key": key, "label": label}
-        if align:
-            column["align"] = align
+        if style == "wrap":
+            # 본문 미리보기처럼 긴 문장은 한 줄로 늘리지 않고 셀 안에서 줄바꿈한다.
+            column["wrap"] = True
+        elif style:
+            column["align"] = style
         return column
 
     return {
@@ -1070,7 +1094,8 @@ def get_school_task_status(arguments: dict[str, Any], context: dict[str, Any]) -
         where_sql = " AND ".join(where) if where else "1=1"
         rows = conn.execute(
             f"""
-            SELECT s.school_name, p.category, p.title, p.status, p.processor, p.created_at
+            SELECT s.school_name, p.category, p.title, p.content, p.author, p.filename,
+                   p.status, p.processor, p.created_at
             FROM school_posts p JOIN schools s ON s.id=p.school_id
             WHERE {where_sql}
             ORDER BY p.created_at DESC LIMIT ?
@@ -1078,22 +1103,44 @@ def get_school_task_status(arguments: dict[str, Any], context: dict[str, Any]) -
         ).fetchall()
     finally:
         conn.close()
-    items = [{"school": row["school_name"], "category": SCHOOL_TASK_CATEGORY_LABELS.get(row["category"], row["category"]),
-              "title": row["title"], "status": row["status"] or "접수", "processor": row["processor"] or "",
-              "created_at": str(row["created_at"] or "")[:10]} for row in rows]
+    items: list[dict[str, Any]] = []
+    model_items: list[dict[str, Any]] = []
+    for row in rows:
+        # 본문은 에디터가 저장한 HTML이므로 태그를 걷어낸 평문으로 모델에 넘긴다.
+        # 요약을 만들려면 제목만으로는 부족해 본문 전문에 가까운 길이를 함께 전달한다.
+        body = _plain_text(row["content"], 1200)
+        attachments = _attachment_names(row["filename"])
+        base = {"school": row["school_name"],
+                "category": SCHOOL_TASK_CATEGORY_LABELS.get(row["category"], row["category"]),
+                "title": row["title"], "status": row["status"] or "접수",
+                "processor": row["processor"] or "", "created_at": str(row["created_at"] or "")[:10]}
+        items.append({**base, "preview": body[:100] + ("…" if len(body) > 100 else "")})
+        model_items.append({**base, "author": row["author"] or "",
+                            "content": body or "(본문 없음)",
+                            "attachments": attachments,
+                            "attachment_count": len(attachments)})
     counts: dict[str, int] = {}
     for item in items:
         counts[item["status"]] = counts.get(item["status"], 0) + 1
     summary = ", ".join(f"{key} {value}건" for key, value in counts.items()) or "해당 없음"
     period_label = _period_label(start, end) if start and end else "전체 기간"
+    empty_bodies = sum(1 for item in model_items if item["content"] == "(본문 없음)")
     display = _table(
         "학교업무 처리 현황", f"{period_label} 조건에 맞는 업무 {len(items)}건 ({summary}).",
-        [("school", "학교"), ("category", "분류"), ("title", "제목"), ("status", "상태"),
-         ("processor", "처리자"), ("created_at", "등록일")], items,
+        [("school", "학교"), ("category", "분류"), ("title", "제목"), ("preview", "내용", "wrap"),
+         ("status", "상태"), ("processor", "처리자"), ("created_at", "등록일")], items,
         [{"label": "학교업무처리로 이동", "url": "/school/tasks", "style": "primary"}],
     )
-    return ToolExecution({"period": period_label, "count": len(items), "tasks": items,
-                          "status_counts": counts}, display)
+    return ToolExecution({"period": period_label, "count": len(items), "tasks": model_items,
+                          "status_counts": counts,
+                          "content_included": True,
+                          "truncated": len(items) >= limit,
+                          "empty_content_count": empty_bodies,
+                          "note": "tasks[].content는 게시물 본문 평문(최대 1200자)이다. "
+                                  "요약 요청이면 이 본문을 근거로 요약한다. "
+                                  "truncated가 true면 조회 한도까지만 가져온 것이므로 최신 건 기준임을 밝힌다. "
+                                  "본문이 '(본문 없음)'이면 첨부파일로만 제출된 건이므로 "
+                                  "attachments 목록을 근거로 안내한다."}, display)
 
 
 _WEEKLY_TASK_CATEGORY_COLUMNS = {
@@ -1667,7 +1714,9 @@ TOOL_DEFINITIONS = [
            "certificate_type": _nullable_string("증명서종류 필터. 없으면 null"),
            "status": _nullable_string("상태 필터(대기/발급완료 등). 없으면 null"),
            **DATE_PROPERTIES, "limit": _nullable_integer("최대 20")}),
-    _tool("get_school_task_status", "학교업무처리와 센터장 게시판(비품신청·청구·설문 등)의 상태를 학교·분류·상태별로 조회한다. "
+    _tool("get_school_task_status", "학교업무처리와 센터장 게시판(비품신청·청구·설문 등)의 상태와 본문 내용을 학교·분류·상태별로 조회한다. "
+          "각 게시물의 본문 평문이 tasks[].content로 함께 반환되므로 '주간업무보고 내용 요약해줘'처럼 "
+          "본문 요약·분석을 요구하는 질문도 이 도구 하나로 처리한다(category='weekly_report'). 본문을 못 본다고 답하지 마라. "
           "특정 학교(그 학교 센터장이 올린 게시물 포함)의 전체 게시물을 볼 때는 keyword에 학교명을 넣어 이 도구를 쓴다. 첨부파일 유무는 무관하다. "
           "'주간일정'처럼 개인/전사 캘린더 일정을 물으면 이 도구가 아니라 get_weekly_schedule_overview를 사용한다.",
           {"category": _nullable_string(
