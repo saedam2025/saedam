@@ -193,9 +193,13 @@ function buildArtwork(slot) {
   group.position.set(slot.x, slot.y, slot.z);
   group.rotation.y = slot.rotationY;
 
-  const frame = createFrame(size.width, size.height, frameMaterial);
-  frame.userData.sharedMaterial = frameMaterial;
-  group.add(frame);
+  // 칠판처럼 액자 없이 전시물만 보여야 하는 자리가 있다.
+  let frame = null;
+  if (!slot.frameless) {
+    frame = createFrame(size.width, size.height, frameMaterial);
+    frame.userData.sharedMaterial = frameMaterial;
+    group.add(frame);
+  }
   const material = new THREE.MeshBasicMaterial({ color: 0x222222, toneMapped: false });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size.width, size.height), material);
   mesh.position.z = 0.005;
@@ -210,7 +214,7 @@ function buildArtwork(slot) {
     size,
     index: 0,
     video: null,
-    videoPlaying: false,
+    userPlaying: false,
     lastSlideAt: 0,
     textures: new Map(),
   };
@@ -226,17 +230,6 @@ function buildArtwork(slot) {
     placard.position.set(0, -(size.height / 2) - 0.43, 0.01);
     group.add(placard);
     artwork.placard = placard;
-  }
-
-  // 동영상 자리에는 재생 표시를 함께 띄운다.
-  if (first.kind === 'video') {
-    const badge = new THREE.Mesh(
-      new THREE.CircleGeometry(0.19, 32),
-      new THREE.MeshBasicMaterial({ color: 0x0f172a, transparent: true, opacity: 0.72 }),
-    );
-    badge.position.set(0, 0, 0.02);
-    group.add(badge);
-    artwork.badge = badge;
   }
 
   scene.add(group);
@@ -300,14 +293,12 @@ async function showMedia(artwork, index) {
     artwork.material.map = artwork.videoTexture;
     artwork.material.color.set(0xffffff);
     artwork.material.needsUpdate = true;
-    if (artwork.badge) artwork.badge.visible = true;
     if (artwork.video.videoWidth) {
       refit(artwork, artwork.video.videoWidth / artwork.video.videoHeight);
     }
     return;
   }
 
-  if (artwork.badge) artwork.badge.visible = false;
   let texture = artwork.textures.get(media.id);
   if (!texture) {
     try {
@@ -537,8 +528,38 @@ let modalIndex = 0;
 let modalTimer = null;
 let modalVideo = null;
 
+// 동영상은 액자 안에서 그대로 튼다. 누를 때마다 재생 <-> 멈춤.
+function toggleVideo(artwork) {
+  const video = artwork.video;
+  if (!video) return;
+  if (artwork.userPlaying) {
+    artwork.userPlaying = false;
+    video.pause();
+    video.muted = true;
+    duckBgm(false);
+    return;
+  }
+  // 소리가 겹치지 않도록 다른 자리에서 틀어 둔 동영상은 멈춘다.
+  artworks.forEach((other) => {
+    if (other === artwork || !other.userPlaying) return;
+    other.userPlaying = false;
+    other.video.pause();
+    other.video.muted = true;
+  });
+  artwork.userPlaying = true;
+  video.muted = false;
+  video.play().catch(() => {
+    // 브라우저가 소리 있는 재생을 막으면 소리 없이라도 이어서 튼다.
+    video.muted = true;
+    video.play().catch(() => {});
+  });
+  duckBgm(true);
+}
+
 function openArtwork(artwork) {
   if (!artwork) return;
+  const current = artwork.slot.media[artwork.index || 0];
+  if (current && current.kind === 'video') { toggleVideo(artwork); return; }
   modalArtwork = artwork;
   modalIndex = artwork.index || 0;
   modal.classList.add('open');
@@ -1121,7 +1142,7 @@ function updateVideos(delta) {
 
   camera.getWorldPosition(cameraWorld);
   const videos = artworks
-    .filter((artwork) => artwork.video)
+    .filter((artwork) => artwork.video && !artwork.userPlaying)
     .map((artwork) => ({
       artwork,
       distance: artwork.group.position.distanceTo(cameraWorld),
@@ -1164,7 +1185,9 @@ function updateReticle() {
   reticle.classList.toggle('active', Boolean(artwork));
   if (artwork) {
     const slot = artwork.slot;
-    const kind = slot.media[0].kind === 'video' ? '동영상 재생' : `사진 ${slot.media.length}장`;
+    const kind = slot.media[0].kind === 'video'
+      ? (artwork.userPlaying ? '동영상 멈춤' : '동영상 재생')
+      : `사진 ${slot.media.length}장`;
     focusLabel.textContent = `${slot.title || slot.name} · 클릭하면 ${kind}`;
   } else {
     focusLabel.textContent = '작품 가까이 다가가 클릭하면 크게 볼 수 있습니다';

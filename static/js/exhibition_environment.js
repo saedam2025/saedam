@@ -271,6 +271,58 @@ function buildIndoor(scene, renderer, hall, layout, lowPower) {
   return { blockers, frameMaterial: frameMaterialFor(frameKind, make) };
 }
 
+// Seen only through the classroom windows: sky, schoolyard, trees and the block opposite.
+function buildSchoolyard(scene, make, box, instanced, halfW, lowPower) {
+  const sky = new THREE.Mesh(
+    new THREE.SphereGeometry(150, 32, 20),
+    new THREE.MeshBasicMaterial({ map: skyTexture(), side: THREE.BackSide, fog: false, toneMapped: false }),
+  );
+  scene.add(sky);
+
+  // The room sits a little above the yard, the way a ground-floor classroom does.
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), make('concrete', 0x86a866, 220, 220));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.55;
+  scene.add(ground);
+  const yard = new THREE.Mesh(new THREE.CircleGeometry(15, 40), make('limestone', 0xdcc9a6, 12, 12));
+  yard.rotation.x = -Math.PI / 2;
+  yard.position.set(-halfW - 19, -0.54, 0);
+  scene.add(yard);
+
+  const hedge = new THREE.MeshStandardMaterial({ color: 0x4e7a42, roughness: 0.96 });
+  box(0.6, 1.0, 46, hedge, -halfW - 38, -0.05, 0);
+
+  // The building across the yard: four storeys of window bands under a flat roof.
+  const wall = make('plaster', 0xe4e0d4, 6, 3);
+  box(1.4, 13.0, 46, wall, -halfW - 40, 5.95, -2);
+  box(2.0, 0.5, 47, make('plain', 0xb9b4a8), -halfW - 40, 12.6, -2);
+  const windowBand = new THREE.MeshStandardMaterial({ color: 0x8fb6cf, roughness: 0.25, metalness: 0.3 });
+  for (let level = 0; level < 4; level += 1) {
+    box(0.25, 1.6, 42, windowBand, -halfW - 39.25, 1.7 + level * 3.0, -2);
+  }
+
+  const trees = [];
+  const count = lowPower ? 7 : 12;
+  for (let i = 0; i < count; i += 1) {
+    trees.push({
+      x: -halfW - 12 - (i % 4) * 7,
+      z: (i % 2 ? 1 : -1) * (7 + (i % 5) * 4.5),
+      scale: 0.95 + (i % 3) * 0.2,
+      rotY: i * 1.7,
+    });
+  }
+  instanced(new THREE.CylinderGeometry(0.22, 0.34, 3.2, 8), make('walnut', 0x6b4f35, 1, 2),
+    trees.map(tree => ({ ...tree, y: -0.55 + 1.6 * tree.scale })));
+  instanced(new THREE.IcosahedronGeometry(1.8, 0), new THREE.MeshStandardMaterial({ color: 0x4f7f43, roughness: 0.92 }),
+    trees.map(tree => ({ ...tree, y: -0.55 + 3.9 * tree.scale })));
+
+  // Flag pole beside the yard.
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 8, 10),
+    new THREE.MeshStandardMaterial({ color: 0xd8dade, roughness: 0.4, metalness: 0.4 }));
+  pole.position.set(-halfW - 9, 3.45, -9);
+  scene.add(pole);
+}
+
 // Classroom: window wall on the left, blackboard at the front, desks in rows.
 function buildClassroom(scene, renderer, hall, layout, lowPower) {
   const make = materialLibrary(renderer);
@@ -294,7 +346,8 @@ function buildClassroom(scene, renderer, hall, layout, lowPower) {
   const cork = make('plain', 0xd8b98c);
 
   scene.background = new THREE.Color(0xdfe9f5);
-  scene.fog = null;
+  // 창밖 풍경만 멀리서 흐려지게 한다(교실 안은 12m도 안 되므로 영향이 없다).
+  scene.fog = new THREE.Fog(0xdbe9f7, 60, 200);
 
   // Daylight comes through the window wall (-X), so the sun sits far out on that side.
   scene.add(new THREE.HemisphereLight(0xf4f8ff, 0xc9c2b2, 1.0 * power));
@@ -318,6 +371,10 @@ function buildClassroom(scene, renderer, hall, layout, lowPower) {
   scene.add(floor);
   box(w + 0.4, 0.22, d + 0.4, ceilingMat, 0, h + 0.11, 0);
 
+  buildSchoolyard(scene, make, box, instancedFactory(scene), halfW, lowPower);
+  // The yard sits lower than the floor, so close the gap under the room.
+  box(w + 0.6, 0.62, d + 0.6, wallMat, 0, -0.31, 0);
+
   // Three solid walls; the fourth is opened up for windows.
   box(w, h, 0.2, wallMat, 0, h / 2, -halfD - 0.1);
   box(w, h, 0.2, wallMat, 0, h / 2, halfD + 0.1);
@@ -331,8 +388,9 @@ function buildClassroom(scene, renderer, hall, layout, lowPower) {
   });
 
   // Window: glass, mullions, sill board and a curtain at each end.
+  // 창밖이 그대로 보여야 하므로 유리는 반사만 살짝 남기고 거의 투명하게 둔다.
   const glass = new THREE.MeshPhysicalMaterial({
-    color: 0xdff0ff, transparent: true, opacity: 0.17, roughness: 0.06, depthWrite: false,
+    color: 0xeaf6ff, transparent: true, opacity: 0.07, roughness: 0.04, depthWrite: false,
   });
   const pane = box(0.05, head - sill, bandHalf * 2, glass, -halfW + 0.02, (sill + head) / 2, 0);
   pane.castShadow = false;
@@ -351,7 +409,7 @@ function buildClassroom(scene, renderer, hall, layout, lowPower) {
   const glow = new THREE.Mesh(
     new THREE.PlaneGeometry(bandHalf * 2 - 0.1, head - sill - 0.1),
     new THREE.MeshBasicMaterial({
-      color: 0xfff6e0, transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending,
+      color: 0xfff6e0, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending,
       depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
     }),
   );
@@ -371,24 +429,25 @@ function buildClassroom(scene, renderer, hall, layout, lowPower) {
   }
 
   // Blackboard with its chalk ledge, plus the notices above it.
-  const boardW = 7.6, boardH = 1.75, boardY = 1.78;
+  const boardW = 8.0, boardH = 2.1, boardY = 1.72;
   box(boardW + 0.26, boardH + 0.26, 0.06, make('plain', 0xb6bfc7), 0, boardY, -halfD + 0.03);
   box(boardW, boardH, 0.1, new THREE.MeshStandardMaterial({ color: 0x1f3d30, roughness: 0.94 }),
     0, boardY, -halfD + 0.09);
   box(boardW + 0.3, 0.09, 0.2, timber, 0, boardY - boardH / 2 - 0.12, -halfD + 0.16);
-  box(1.86, 0.69, 0.05, timber, -2.4, 2.95, -halfD + 0.02);
+  // The notices sit beside the board, leaving its whole face for the exhibit.
+  box(1.86, 0.69, 0.05, timber, -5.0, 2.35, -halfD + 0.02);
   const motto = new THREE.Mesh(
     new THREE.PlaneGeometry(1.7, 0.53),
     new THREE.MeshBasicMaterial({ map: labelTexture('급훈', '오늘도 즐겁게') }),
   );
-  motto.position.set(-2.4, 2.95, -halfD + 0.06);
+  motto.position.set(-5.0, 2.35, -halfD + 0.06);
   scene.add(motto);
   const clock = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 24), make('plain', 0xfaf9f6));
   clock.rotation.x = Math.PI / 2;
-  clock.position.set(2.6, 2.95, -halfD + 0.06);
+  clock.position.set(5.0, 2.45, -halfD + 0.06);
   scene.add(clock);
-  box(0.025, 0.17, 0.02, metal, 2.6, 3.0, -halfD + 0.11);
-  box(0.12, 0.025, 0.02, metal, 2.66, 2.95, -halfD + 0.11);
+  box(0.025, 0.17, 0.02, metal, 5.0, 2.5, -halfD + 0.11);
+  box(0.12, 0.025, 0.02, metal, 5.06, 2.45, -halfD + 0.11);
 
   // A pinboard behind every wall slot (blackboard slots hang straight on the board).
   (layout.slots || []).forEach(slot => {
@@ -447,13 +506,21 @@ function buildClassroom(scene, renderer, hall, layout, lowPower) {
     new THREE.BoxGeometry(sx, sy, sz), material,
     seats.map(seat => ({ x: seat.x + ox, y: oy, z: seat.z + oz })),
   );
-  seatPart(1.15, 0.05, 0.56, deskTop, 0, 0.73, 0);
-  seatPart(1.0, 0.62, 0.05, metal, 0, 0.4, -0.24);
-  seatPart(0.06, 0.7, 0.5, metal, -0.5, 0.36, 0);
-  seatPart(0.06, 0.7, 0.5, metal, 0.5, 0.36, 0);
-  seatPart(0.44, 0.05, 0.42, deskTop, 0, 0.44, 0.66);
-  seatPart(0.44, 0.46, 0.05, deskTop, 0, 0.67, 0.85);
-  seatPart(0.34, 0.42, 0.3, metal, 0, 0.21, 0.66);
+  // Thin tubular legs instead of solid panels, so the rows stay light.
+  const legMat = new THREE.MeshStandardMaterial({ color: 0xb9bfc7, roughness: 0.36, metalness: 0.55 });
+  const legs = (offsets, sx, sy, sz, height) => instanced(
+    new THREE.BoxGeometry(sx, sy, sz), legMat,
+    seats.flatMap(seat => offsets.map(([dx, dz]) => ({ x: seat.x + dx, y: height, z: seat.z + dz }))),
+  );
+  seatPart(1.15, 0.04, 0.56, deskTop, 0, 0.735, 0);
+  seatPart(1.0, 0.018, 0.42, deskTop, 0, 0.55, 0.02);
+  legs([[-0.52, -0.22], [0.52, -0.22], [-0.52, 0.22], [0.52, 0.22]], 0.035, 0.715, 0.035, 0.358);
+  seatPart(1.0, 0.03, 0.03, legMat, 0, 0.2, -0.22);
+  seatPart(1.0, 0.03, 0.03, legMat, 0, 0.2, 0.22);
+  seatPart(0.42, 0.04, 0.4, deskTop, 0, 0.44, 0.7);
+  seatPart(0.42, 0.32, 0.04, deskTop, 0, 0.67, 0.87);
+  legs([[-0.17, 0.54], [0.17, 0.54]], 0.03, 0.42, 0.03, 0.21);
+  legs([[-0.17, 0.87], [0.17, 0.87]], 0.03, 0.85, 0.03, 0.425);
   seats.forEach(seat => blockers.push({
     minX: seat.x - 0.9, maxX: seat.x + 0.9, minZ: seat.z - 0.75, maxZ: seat.z + 1.25,
   }));
