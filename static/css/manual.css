@@ -988,3 +988,616 @@
 }
 
 .manual-btn{white-space:nowrap;}
+
+/* v7: 카드 하단 버튼 줄 → ⋯ 메뉴 / 카드 가로 간격 확대 ----------------- */
+.manual-grid{
+  column-gap:32px;   /* 기존 16px의 두 배 */
+  row-gap:16px;
+}
+
+.manual-card{
+  position:relative;
+  overflow:visible;          /* ⋯ 메뉴가 카드 밖으로 펼쳐질 수 있게 */
+}
+
+.manual-card:has(.manual-card-menu.open){z-index:30;}
+
+.manual-cover{border-radius:11px 11px 0 0;}
+.manual-card-body{border-radius:0 0 11px 11px;}
+
+/* 날짜와 ⋯ 버튼이 겹치지 않도록 여백 확보 */
+.manual-card-meta{padding-right:26px;}
+
+.manual-card-menu{
+  position:absolute;
+  right:8px;
+  bottom:7px;
+}
+
+.manual-card-menu-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:24px;
+  height:24px;
+  padding:0;
+  border:1px solid transparent;
+  border-radius:8px;
+  background:transparent;
+  color:var(--manual-soft);
+  font-size:15px;
+  line-height:1;
+  cursor:pointer;
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.manual-card-menu-btn:hover,
+.manual-card-menu.open .manual-card-menu-btn{
+  border-color:var(--manual-line);
+  background:var(--manual-accent-soft);
+  color:var(--manual-accent-dark);
+}
+
+.manual-card-menu-list{
+  position:absolute;
+  right:0;
+  bottom:calc(100% + 6px);
+  z-index:40;
+  min-width:124px;
+  padding:5px;
+  display:flex;
+  flex-direction:column;
+  border:1px solid var(--manual-line);
+  border-radius:10px;
+  background:#fff;
+  box-shadow:0 12px 28px rgba(34,58,55,.16);
+}
+
+.manual-card-menu-list[hidden]{display:none;}
+
+.manual-card-menu-list > *{
+  padding:7px 10px;
+  border:0;
+  border-radius:7px;
+  background:transparent;
+  color:var(--manual-soft);
+  font:inherit;
+  font-size:12px;
+  font-weight:700;
+  text-align:left;
+  text-decoration:none;
+  white-space:nowrap;
+  cursor:pointer;
+}
+
+.manual-card-menu-list > *:hover{
+  background:var(--manual-accent-soft);
+  color:var(--manual-accent-dark);
+}
+
+.manual-card-menu-list .manual-card-delete{color:var(--manual-danger);}
+.manual-card-menu-list .manual-card-delete:hover{
+  background:var(--manual-danger-soft);
+  color:var(--manual-danger);
+}
+.manual-card-menu-list .manual-card-delete[disabled]{opacity:.5;cursor:progress;}
+
+@media (max-width:520px){
+  .manual-grid{column-gap:24px;row-gap:12px;}
+}
+
+/* v8: 썸네일 제거 · 메뉴얼 아이콘 표지 · 꾸러미(책꽂이) 느낌 카드 --------- */
+.manual-grid{
+  grid-template-columns:repeat(auto-fill,minmax(212px,1fr));
+  column-gap:32px;
+  row-gap:30px;
+  align-items:stretch;
+}
+
+/* 카드 = 여러 장이 겹쳐진 한 권의 메뉴얼 */
+.manual-card{
+  position:relative;
+  overflow:visible;
+  border:1px solid var(--manual-line);
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 6px 18px rgba(34,58,55,.07);
+}
+
+/* 뒤에 살짝 비치는 두 겹 = 꾸러미 느낌 */
+.manual-card::before,
+.manual-card::after{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  left:6px;
+  right:6px;
+  top:5px;
+  bottom:-5px;
+  border:1px solid var(--manual-line);
+  border-radius:14px;
+  background:#fbfdfc;
+  transition:transform .18s ease;
+}
+
+.manual-card::after{
+  left:12px;
+  right:12px;
+  top:10px;
+  bottom:-10px;
+  background:#f4f8f6;
+  opacity:.85;
+}
+
+.manual-card:hover::before{transform:translateY(-2px);}
+.manual-card:hover::after{transform:translateY(-3px);}
+
+/* 표지: 썸네일 대신 메뉴얼 아이콘 */
+.manual-plate{
+  position:relative;
+  aspect-ratio:auto;
+  height:108px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:13px 13px 0 0;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 86% 14%,rgba(255,255,255,.18),transparent 34%),
+    linear-gradient(145deg,#123d38 0%,#1f6f63 72%,#5aa595 140%);
+}
+
+/* 책등 */
+.manual-plate::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:9px;
+  background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,.05));
+}
+
+/* 오른쪽 책장 단면 */
+.manual-plate::after{
+  content:"";
+  position:absolute;
+  right:0;
+  top:14px;
+  bottom:14px;
+  width:14px;
+  border-radius:3px 0 0 3px;
+  background:repeating-linear-gradient(
+    90deg,
+    rgba(255,255,255,.16) 0 1px,
+    transparent 1px 4px
+  );
+}
+
+/* 작성중은 같은 계열의 밝은 색 : 한 세트처럼 보이되 상태는 구분됩니다. */
+.manual-plate.draft{
+  background:
+    radial-gradient(circle at 86% 14%,rgba(255,255,255,.22),transparent 34%),
+    linear-gradient(145deg,#3f7266 0%,#6aa494 72%,#a9cfc2 145%);
+}
+
+.manual-plate-brand{
+  position:absolute;
+  top:11px;
+  left:18px;
+  color:rgba(255,255,255,.72);
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.18em;
+}
+
+.manual-plate-icon{
+  width:64px;
+  height:64px;
+  margin-top:8px;
+  filter:drop-shadow(0 4px 10px rgba(0,0,0,.22));
+}
+
+.manual-plate-icon .mi-page{fill:rgba(255,255,255,.95);}
+.manual-plate-icon .mi-spine{fill:rgba(255,255,255,.62);}
+.manual-plate-icon .mi-mark{fill:#e9b44c;}
+.manual-plate.draft .mi-mark{fill:#12463e;}
+.manual-plate-icon .mi-lines rect{fill:rgba(18,61,56,.3);}
+
+.manual-card:hover .manual-plate-icon{transform:translateY(-2px);}
+.manual-plate-icon{transition:transform .18s ease;}
+
+.manual-status{
+  top:10px;
+  right:10px;
+  padding:4px 8px;
+  font-size:10px;
+  background:rgba(255,255,255,.95);
+  box-shadow:0 2px 6px rgba(0,0,0,.14);
+}
+
+.manual-status.draft{color:#8a5a1d;}
+
+/* 본문: 제목은 한 번만 */
+.manual-card-body{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  padding:14px 14px 12px;
+  border-radius:0 0 13px 13px;
+}
+
+.manual-card-body h2{
+  margin:0 0 6px;
+  min-height:40px;   /* 제목 1줄·2줄 카드의 아래 줄 높이를 맞춥니다. */
+  font-size:14px;
+  font-weight:800;
+  line-height:1.45;
+  letter-spacing:-.01em;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+
+.manual-card-body p{
+  min-height:35px;
+  max-height:35px;
+  margin:0 0 12px;
+  font-size:11.5px;
+  line-height:1.5;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+
+.manual-card-meta{
+  margin-top:auto;
+  padding-top:9px;
+  border-top:1px dashed var(--manual-line);
+  font-size:10.5px;
+}
+
+.manual-card-menu{
+  right:9px;
+  bottom:9px;
+}
+
+@media (max-width:520px){
+  .manual-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));column-gap:22px;row-gap:24px;}
+  .manual-plate{height:92px;}
+  .manual-plate-icon{width:50px;height:50px;}
+}
+
+/* 겹침 레이어가 카드 안쪽으로 비쳐 보이지 않도록 본문에 바탕색을 둡니다. */
+.manual-card-body{background:#fff;}
+
+/* v9: 녹색 표지 → 흰색 책 아이콘 / 카드 가로폭 20% 축소 ----------------- */
+.manual-grid{
+  /* 212px → 170px (20% 축소) */
+  grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+}
+
+/* 표지 면의 녹색 배경 제거 : 카드 전체가 흰 종이처럼 보이게 합니다. */
+.manual-plate,
+.manual-plate.draft{
+  height:100px;
+  background:linear-gradient(180deg,#ffffff 0%,#f6faf8 100%);
+  border-bottom:1px solid var(--manual-line);
+  border-radius:13px 13px 0 0;
+}
+
+.manual-plate::before,
+.manual-plate::after{content:none;}
+
+.manual-plate-brand{
+  top:10px;
+  left:12px;
+  color:var(--manual-faint);
+  font-size:8.5px;
+  letter-spacing:.16em;
+}
+
+.manual-plate-icon{
+  width:56px;
+  height:56px;
+  margin-top:6px;
+  filter:drop-shadow(0 5px 12px rgba(34,58,55,.16));
+}
+
+/* 흰 종이 + 옅은 테두리로 책 모양을 만듭니다. */
+.manual-plate-icon .mi-page{
+  fill:#ffffff;
+  stroke:#c8d6d1;
+  stroke-width:1.5;
+}
+
+.manual-plate-icon .mi-spine{
+  fill:#eef4f1;
+  stroke:#c8d6d1;
+  stroke-width:1.5;
+}
+
+.manual-plate-icon .mi-lines rect{fill:#c3d2cd;}
+
+/* 책갈피만 색으로 상태를 구분합니다. */
+.manual-plate-icon .mi-mark{fill:var(--manual-accent);}
+.manual-plate.draft .mi-mark{fill:var(--manual-amber);}
+
+/* 흰 배경에 맞춘 상태 배지 */
+.manual-status{
+  top:9px;
+  right:9px;
+  padding:3px 8px;
+  background:var(--manual-accent-soft);
+  color:var(--manual-accent-dark);
+  box-shadow:none;
+  font-size:9.5px;
+}
+
+.manual-status.draft{
+  background:var(--manual-amber-soft);
+  color:#8a5a1d;
+}
+
+/* 아래쪽 제목 · 설명 */
+.manual-card-body{
+  padding:13px 13px 11px;
+}
+
+.manual-card-body h2{
+  min-height:38px;
+  font-size:13px;
+}
+
+.manual-card-body p{
+  min-height:33px;
+  max-height:none;          /* 줄 잘림은 line-clamp가 처리합니다. */
+  font-size:11px;
+  margin:0 0 10px;
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+  overflow:hidden;
+}
+
+@media (max-width:520px){
+  .manual-grid{grid-template-columns:repeat(auto-fill,minmax(128px,1fr));column-gap:18px;row-gap:20px;}
+  .manual-plate{height:88px;}
+  .manual-plate-icon{width:48px;height:48px;}
+}
+
+/* 뒤에 한 권이 더 겹친 '꾸러미' 느낌의 아이콘 */
+.manual-plate-icon .mi-back{
+  fill:#e6eeeb;
+  stroke:#bccbc5;
+  stroke-width:1.4;
+}
+
+/* v10: 책 아이콘을 카드의 주인공으로 크게 / 설명 문구 제거 -------------- */
+.manual-plate,
+.manual-plate.draft{
+  height:auto;
+  padding:26px 14px 20px;
+  border-bottom:0;
+  background:linear-gradient(180deg,#ffffff 0%,#f4f8f6 100%);
+}
+
+/* 아이콘 크기를 카드 폭에 맞춰 키웁니다. */
+.manual-plate-icon{
+  width:min(92px,62%);
+  height:auto;
+  margin-top:4px;
+  filter:drop-shadow(0 9px 18px rgba(34,58,55,.18));
+}
+
+/* 아이콘이 커진 만큼 선은 얇게 */
+.manual-plate-icon .mi-page,
+.manual-plate-icon .mi-spine{stroke-width:.9;}
+.manual-plate-icon .mi-back{stroke-width:.85;}
+
+.manual-plate-brand{
+  top:11px;
+  left:13px;
+}
+
+/* 아이콘 아래: 제목과 목차·날짜만 */
+.manual-card-body{
+  padding:0 13px 11px;
+  text-align:center;
+}
+
+.manual-card-body h2{
+  margin:0 0 9px;
+  min-height:37px;
+  font-size:13.5px;
+  line-height:1.4;
+}
+
+.manual-card-meta{
+  justify-content:center;
+  gap:8px;
+  padding-top:9px;
+}
+
+.manual-card-meta span + span::before{
+  content:"·";
+  margin-right:8px;
+  color:var(--manual-line);
+}
+
+@media (max-width:520px){
+  .manual-plate{padding:20px 10px 16px;}
+  .manual-plate-icon{width:min(74px,66%);}
+}
+
+/* v11: 아이콘을 감싸는 사각 테두리(카드 틀) 제거 - 아이콘 그리드 형태 ---- */
+.manual-card{
+  border:0;
+  background:transparent;
+  border-radius:16px;
+  box-shadow:none;
+  padding:6px 6px 10px;
+  transition:background .16s ease, transform .16s ease;
+}
+
+/* 뒤에 겹쳐 보이던 종이 레이어도 함께 제거 */
+.manual-card::before,
+.manual-card::after{content:none;}
+
+.manual-card:hover{
+  transform:translateY(-2px);
+  background:rgba(255,255,255,.72);
+  box-shadow:none;
+}
+
+.manual-plate,
+.manual-plate.draft{
+  padding:10px 8px 14px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+}
+
+.manual-card-body{
+  padding:0 6px 4px;
+  background:transparent;
+  border-radius:0;
+}
+
+.manual-plate-icon{
+  width:min(96px,66%);
+  filter:drop-shadow(0 10px 18px rgba(34,58,55,.16));
+}
+
+/* 상태 배지는 제목 아래로 */
+.manual-status{
+  position:static;
+  display:inline-block;
+  margin:0 0 8px;
+  padding:3px 9px;
+  border-radius:999px;
+  font-size:9.5px;
+  font-weight:800;
+}
+
+.manual-card-body h2{
+  margin:0 0 7px;
+  min-height:36px;
+}
+
+.manual-card-meta{
+  padding-top:0;
+  border-top:0;
+  color:var(--manual-faint);
+}
+
+/* 배지가 카드 폭만큼 늘어나지 않도록 */
+.manual-card-body .manual-status{
+  align-self:center;
+  width:max-content;
+}
+
+/* v12: 상시 배경 / 가벼운 제목 / 아이콘에 걸친 상태 배지 / 날짜만 표시 ---- */
+.manual-card{
+  background:rgba(255,255,255,.66);
+  box-shadow:0 2px 8px rgba(34,58,55,.04);
+  padding:12px 8px 12px;
+}
+
+.manual-card:hover{
+  background:#ffffff;
+  box-shadow:0 8px 20px rgba(34,58,55,.09);
+}
+
+/* 아이콘 + 배지 묶음 : 배지를 아이콘 오른쪽 위에 걸칩니다. */
+.manual-plate{padding:4px 8px 12px;}
+
+.manual-plate-figure{
+  position:relative;
+  width:min(96px,66%);
+  line-height:0;
+}
+
+.manual-plate-icon{
+  width:100%;
+  margin-top:0;
+}
+
+.manual-card-body .manual-status,
+.manual-plate-figure .manual-status{
+  position:absolute;
+  top:-7px;
+  right:-14px;
+  width:auto;
+  margin:0;
+  line-height:1.5;
+  box-shadow:0 2px 6px rgba(34,58,55,.12);
+}
+
+/* 제목 : 굵기 빼고 작게 */
+.manual-card-body h2{
+  min-height:32px;
+  margin:0 0 5px;
+  font-size:11.5px;
+  font-weight:500;
+  line-height:1.4;
+  color:var(--manual-ink);
+}
+
+/* 날짜만 */
+.manual-card-meta{
+  justify-content:center;
+  font-size:10px;
+}
+
+.manual-card-meta span + span::before{content:none;}
+
+/* v13: 제목 왼쪽 정렬 / 상태 배지를 날짜 앞으로 ------------------------ */
+.manual-card-body{
+  text-align:left;
+  padding:0 10px 4px;
+}
+
+.manual-card-body h2{
+  text-align:left;   /* 두 줄이 되어도 둘째 줄이 왼쪽에 맞습니다. */
+}
+
+/* 상태 · 날짜 한 줄 */
+.manual-card-meta{
+  justify-content:flex-start;
+  align-items:center;
+  gap:6px;
+}
+
+.manual-card-meta .manual-status{
+  position:static;
+  top:auto;
+  right:auto;
+  margin:0;
+  padding:2px 7px;
+  font-size:9px;
+  box-shadow:none;
+}
+
+/* v14: 아이콘 영역이 줄어들며 카드마다 높이가 어긋나던 문제 보정 -------- */
+.manual-plate{
+  flex:0 0 auto;      /* 제목 줄 수와 상관없이 아이콘 영역 높이를 고정합니다. */
+}
+
+.manual-plate-figure{flex:0 0 auto;}
+
+/* 제목은 항상 두 줄 높이를 확보해 아래 줄도 카드마다 같은 위치에 옵니다. */
+.manual-card-body h2{
+  min-height:calc(2 * 1.4 * 11.5px);
+}
+
+/* 앞선 .manual-plate.draft 규칙이 여백을 덮어써서 '작성중' 카드만
+   아이콘이 아래로 내려가던 문제를 바로잡습니다. (상태와 무관하게 동일) */
+.manual-plate,
+.manual-plate.draft,
+.manual-plate.published{
+  padding:8px 8px 12px;
+}

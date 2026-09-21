@@ -125,6 +125,12 @@
         if (wrap.childElementCount) container.appendChild(wrap);
     }
 
+    function columnClass(column) {
+        // 본문 미리보기처럼 긴 문장은 줄바꿈 컬럼으로 표시해 가로 스크롤을 줄인다.
+        if (column && column.wrap) return 'ai-col-wrap';
+        return column && column.align === 'right' ? 'ai-col-right' : '';
+    }
+
     function renderTable(payload) {
         const card = element('div', 'ai-result-card');
         card.appendChild(resultHead(payload));
@@ -138,7 +144,7 @@
             const thead = element('thead');
             const headerRow = element('tr');
             columns.forEach(function (column) {
-                const th = element('th', column.align === 'right' ? 'ai-col-right' : '', column.label || column.key || '');
+                const th = element('th', columnClass(column), column.label || column.key || '');
                 headerRow.appendChild(th);
             });
             thead.appendChild(headerRow);
@@ -147,7 +153,7 @@
                 const tr = element('tr');
                 columns.forEach(function (column) {
                     const value = row && Object.prototype.hasOwnProperty.call(row, column.key) ? row[column.key] : '';
-                    tr.appendChild(element('td', column.align === 'right' ? 'ai-col-right' : '', value));
+                    tr.appendChild(element('td', columnClass(column), value));
                 });
                 tbody.appendChild(tr);
             });

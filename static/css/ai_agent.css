@@ -629,6 +629,15 @@
 .ai-result-table th.ai-col-right,
 .ai-result-table td.ai-col-right { text-align: right; }
 
+.ai-result-table th.ai-col-wrap,
+.ai-result-table td.ai-col-wrap {
+    white-space: normal;
+    min-width: 180px;
+    max-width: 340px;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
 .ai-result-empty {
     padding: 24px;
     color: var(--text-gray, #7c8798);

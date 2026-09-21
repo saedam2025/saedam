@@ -590,6 +590,28 @@
                 effect2: '#e11d48',
                 effect3: '#f9a8d4'
             })
+        },
+        {
+            name: '[명절/추석] 한가위 보름달 두둥실',
+            type: 'chuseokHangawi',
+            vars: seasonalVars({
+                bg: 'linear-gradient(-45deg, #0b1026, #1a1b3c, #3a2749, #142041)',
+                app: '#0d1225',
+                main: '#0d1225',
+                primary: '#fcd34d',
+                light: 'rgba(252, 211, 77, 0.16)',
+                dark: '#f59e0b',
+                text: '#fdf6e3',
+                gray: '#c4bba6',
+                border: 'rgba(252, 211, 77, 0.3)',
+                card: 'rgba(23, 28, 58, 0.74)',
+                widget: 'rgba(30, 36, 70, 0.7)',
+                widgetHover: 'rgba(252, 211, 77, 0.18)',
+                shadow: '0 20px 52px rgba(5, 8, 20, 0.55)',
+                effect1: '#fcd34d',
+                effect2: '#f472b6',
+                effect3: '#7c3aed'
+            })
         }
     ];
 

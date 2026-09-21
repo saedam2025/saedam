@@ -16,10 +16,6 @@
   const saveState = document.getElementById("saveState");
   const toast = document.getElementById("manualToast");
 
-  const thumbnailInput = document.getElementById("thumbnailInput");
-  const thumbnailPreviewImage = document.getElementById("thumbnailPreviewImage");
-  const thumbnailEmpty = document.getElementById("thumbnailEmpty");
-  const thumbnailDeleteBtn = document.getElementById("thumbnailDeleteBtn");
 
   let dirty = false;
   let saving = false;
@@ -894,44 +890,6 @@
     }
   }
 
-  async function uploadThumbnail(file){
-    const form = new FormData();
-    form.append("manual_id", cfg.manualId);
-    form.append("file", file);
-
-    const res = await fetch(cfg.uploadThumbnailUrl, {method:"POST", body:form});
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok){
-      throw new Error(data.message || "썸네일 업로드에 실패했습니다.");
-    }
-
-    thumbnailPreviewImage.src = data.url;
-    thumbnailPreviewImage.hidden = false;
-    thumbnailEmpty.hidden = true;
-    thumbnailDeleteBtn.hidden = false;
-    showToast("썸네일을 등록했습니다.");
-  }
-
-  async function deleteThumbnail(){
-    if (!confirm("등록한 썸네일을 삭제할까요?\\n삭제 후 목록에는 텍스트 표지가 표시됩니다.")) return;
-
-    const res = await fetch(cfg.deleteThumbnailUrl, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({manual_id:cfg.manualId})
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok){
-      throw new Error(data.message || "썸네일을 삭제하지 못했습니다.");
-    }
-
-    thumbnailPreviewImage.src = "";
-    thumbnailPreviewImage.hidden = true;
-    thumbnailEmpty.hidden = false;
-    thumbnailDeleteBtn.hidden = true;
-    showToast("썸네일을 삭제했습니다. 텍스트 표지를 사용합니다.");
-  }
-
   async function deleteManual(){
     if (!confirm("이 메뉴얼을 완전히 삭제할까요?\\n작성 내용과 업로드 이미지도 함께 삭제됩니다.")) return;
     try{
@@ -967,27 +925,6 @@
   txtInput.addEventListener("change", () => {
     const file = txtInput.files?.[0];
     if (file) importFile(file);
-  });
-
-  thumbnailInput?.addEventListener("change", async () => {
-    const file = thumbnailInput.files?.[0];
-    if (!file) return;
-    try{
-      showToast("썸네일을 업로드하고 있습니다.");
-      await uploadThumbnail(file);
-    }catch(err){
-      showToast(err.message, true);
-    }finally{
-      thumbnailInput.value = "";
-    }
-  });
-
-  thumbnailDeleteBtn?.addEventListener("click", async () => {
-    try{
-      await deleteThumbnail();
-    }catch(err){
-      showToast(err.message, true);
-    }
   });
 
   window.addEventListener("beforeunload", e => {
