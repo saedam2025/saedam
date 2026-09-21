@@ -30,6 +30,11 @@ const loadingBar = document.getElementById('exLoadingBar');
 const enterBtn = document.getElementById('exEnterBtn');
 const bgmBtn = document.getElementById('exBgmBtn');
 const fullBtn = document.getElementById('exFullBtn');
+const eyeBtn = document.getElementById('exEyeBtn');
+const eyePanel = document.getElementById('exEyePanel');
+const eyeRange = document.getElementById('exEyeRange');
+const eyeValue = document.getElementById('exEyeValue');
+const exitLink = document.getElementById('exExitLink');
 
 const modal = document.getElementById('exModal');
 const modalStage = document.getElementById('exModalStage');
@@ -42,7 +47,12 @@ const HALL = SCENE.hall;
 const LAYOUT = SCENE.layout;
 const SLOTS = SCENE.slots.filter((slot) => slot.media && slot.media.length);
 
-const EYE_HEIGHT = 1.62;
+const EYE_HEIGHT = 1.62;         // 기본 눈높이(m) — 시점 높이 조절의 기준
+const EYE_MIN = 0.90;            // 앉은 키 정도
+const EYE_MAX = 2.40;            // 내려다보는 정도
+const EYE_STEP = 0.05;
+const EYE_STORE_KEY = 'exhibition:eyeHeight';
+const EYE_KEYS = { PageUp: 1, PageDown: -1, ']': 1, '[': -1 };
 const BASE_SPEED = 3.1;          // m/s
 const TURN_SPEED = 1.9;          // rad/s (방향키 회전)
 const WALL_MARGIN = 0.65;
@@ -80,8 +90,18 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b1220);
 scene.fog = new THREE.Fog(0x0b1220, 34, 74);
 
+// 시점 높이는 사람마다 편한 정도가 달라서 기기에 저장해 두고 다음에도 그대로 쓴다.
+function loadEyeHeight() {
+  try {
+    const saved = parseFloat(window.localStorage.getItem(EYE_STORE_KEY));
+    if (isFinite(saved)) return Math.max(EYE_MIN, Math.min(EYE_MAX, saved));
+  } catch (error) { /* 저장이 막힌 브라우저면 기본값으로 연다 */ }
+  return EYE_HEIGHT;
+}
+let eyeHeight = loadEyeHeight();
+
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 220);
-camera.position.set(0, EYE_HEIGHT, 0);
+camera.position.set(0, eyeHeight, 0);
 
 // 사람(이동 기준). VR에서는 이 그룹이 통째로 움직이고 머리 방향은 기기가 정한다.
 const player = new THREE.Group();
@@ -328,8 +348,15 @@ let pitch = 0;
 let running = false;
 const move = { x: 0, y: 0 };            // 조이스틱/스틱 입력 (-1 ~ 1)
 let turnInput = 0;
+let heightInput = 0;
 
 window.addEventListener('keydown', (event) => {
+  // 시점 높이: PageUp / PageDown 또는 ] / [ (누르고 있으면 계속 조절된다)
+  if (Object.prototype.hasOwnProperty.call(EYE_KEYS, event.key)) {
+    setEyeHeight(eyeHeight + EYE_KEYS[event.key] * EYE_STEP, { notice: false });
+    event.preventDefault();
+    return;
+  }
   if (event.repeat) return;
   if (event.key === 'Escape') { closeModal(); return; }
   keys.add(event.key.toLowerCase());
@@ -663,6 +690,128 @@ function duckBgm(quiet) {
 }
 
 /* ------------------------------------------------------------------ */
+/* 시점 높이(눈높이)                                                     */
+/* ------------------------------------------------------------------ */
+
+// VR 기기가 바닥 높이를 제대로 알려주지 못하면 시점이 바닥에 붙어 버린다.
+// 입장 직후 머리 높이를 한 번 재서 모자란 만큼을 자동으로 채워 준다.
+let vrFloorFix = 0;
+let vrFloorFrames = 0;
+let vrFloorChecked = false;
+let eyeSaveTimer = null;
+let eyeNotice = null;
+let eyeNoticeUntil = 0;
+
+function applyEyeHeight() {
+  if (renderer.xr.isPresenting) {
+    // VR에서는 머리 높이를 기기가 정하므로 사람(그룹)을 통째로 올리고 내린다.
+    player.position.y = vrFloorFix + (eyeHeight - EYE_HEIGHT);
+  } else {
+    player.position.y = 0;
+    camera.position.y = eyeHeight;
+  }
+}
+
+function saveEyeHeightLater() {
+  if (eyeSaveTimer) clearTimeout(eyeSaveTimer);
+  eyeSaveTimer = setTimeout(() => {
+    try { window.localStorage.setItem(EYE_STORE_KEY, eyeHeight.toFixed(2)); }
+    catch (error) { /* 저장이 막혀도 이번 관람에는 그대로 적용된다 */ }
+  }, 400);
+}
+
+function updateEyeUi() {
+  if (eyeValue) eyeValue.textContent = `${eyeHeight.toFixed(2)} m`;
+  if (eyeRange && Math.abs(parseFloat(eyeRange.value) - eyeHeight) > 0.005) {
+    eyeRange.value = eyeHeight.toFixed(2);
+  }
+  if (eyePanel) {
+    eyePanel.querySelectorAll('[data-eye-preset]').forEach((button) => {
+      const preset = parseFloat(button.dataset.eyePreset);
+      button.classList.toggle('on', Math.abs(preset - eyeHeight) < 0.02);
+    });
+  }
+}
+
+function setEyeHeight(value, options) {
+  const next = Math.max(EYE_MIN, Math.min(EYE_MAX, value));
+  if (!isFinite(next) || Math.abs(next - eyeHeight) < 0.0005) return;
+  eyeHeight = next;
+  applyEyeHeight();
+  updateEyeUi();
+  saveEyeHeightLater();
+  if (!options || options.notice !== false) showEyeNotice();
+}
+
+// VR 안에서는 화면 위 버튼이 보이지 않으므로 지금 높이를 눈앞에 잠깐 띄워 준다.
+function showEyeNotice() {
+  eyeNoticeUntil = performance.now() + 1500;
+  if (!renderer.xr.isPresenting) return;
+  if (!eyeNotice) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.44, 0.11),
+      new THREE.MeshBasicMaterial({
+        map: texture, transparent: true, toneMapped: false, depthTest: false,
+      }),
+    );
+    mesh.position.set(0, -0.22, -0.9);
+    mesh.renderOrder = 999;
+    camera.add(mesh);
+    eyeNotice = { mesh, canvas, texture };
+  }
+  const ctx = eyeNotice.canvas.getContext('2d');
+  ctx.clearRect(0, 0, 512, 128);
+  ctx.fillStyle = 'rgba(8, 15, 30, .82)';
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 46px "Malgun Gothic", "Noto Sans KR", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`시점 높이 ${eyeHeight.toFixed(2)} m`, 256, 66);
+  eyeNotice.texture.needsUpdate = true;
+  eyeNotice.mesh.visible = true;
+}
+
+function calibrateVrFloor() {
+  if (vrFloorChecked || !renderer.xr.isPresenting) return;
+  vrFloorFrames += 1;
+  if (vrFloorFrames < 20) return;          // 첫 몇 프레임은 머리 위치가 아직 들어오지 않는다.
+  vrFloorChecked = true;
+  const head = camera.position.y;          // VR에서는 기기가 알려준 머리 높이가 들어 있다.
+  // 1.1m도 되지 않으면 바닥을 못 잡은 것으로 보고 기본 눈높이만큼 올려 준다.
+  if (head < 1.1) vrFloorFix = EYE_HEIGHT - head;
+  applyEyeHeight();
+}
+
+function setupEyeControls() {
+  applyEyeHeight();
+  updateEyeUi();
+  if (!eyeBtn || !eyePanel) return;
+  eyeBtn.addEventListener('click', () => {
+    eyePanel.hidden = !eyePanel.hidden;
+    eyeBtn.classList.toggle('on', !eyePanel.hidden);
+  });
+  if (eyeRange) {
+    eyeRange.min = EYE_MIN.toFixed(2);
+    eyeRange.max = EYE_MAX.toFixed(2);
+    eyeRange.value = eyeHeight.toFixed(2);
+    eyeRange.addEventListener('input', () => {
+      setEyeHeight(parseFloat(eyeRange.value), { notice: false });
+    });
+  }
+  eyePanel.querySelectorAll('[data-eye-preset]').forEach((button) => {
+    button.addEventListener('click', () => {
+      setEyeHeight(parseFloat(button.dataset.eyePreset), { notice: false });
+    });
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* VR                                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -719,16 +868,39 @@ function setupVr() {
   renderer.xr.addEventListener('sessionstart', () => {
     closeModal();
     enterHall();
+    // 기기마다 바닥 기준이 달라서 들어올 때마다 다시 잰다.
+    vrFloorFix = 0;
+    vrFloorFrames = 0;
+    vrFloorChecked = false;
+    applyEyeHeight();
+    // 왼손 컨트롤러가 잡히기 전까지는 시야 쪽에 붙여 두고, 잡히면 손목으로 옮긴다.
+    const leftHand = controllers.find((item) => item.userData.handedness === 'left');
+    dockVrMenu(leftHand || null);
   });
   renderer.xr.addEventListener('sessionend', () => {
     setVrSlot('VR로 입장하기', 'fa-vr-cardboard', true);
+    if (eyeNotice) eyeNotice.mesh.visible = false;
+    if (vrMenu) vrMenu.visible = false;
+    applyEyeHeight();
   });
 
   for (let index = 0; index < 2; index += 1) {
     const controller = renderer.xr.getController(index);
     controller.addEventListener('selectstart', () => {
+      const menuButton = controllerMenuTarget(controller);
+      if (menuButton) { runVrMenu(menuButton.userData.vrMenu.action); return; }
       const artwork = controllerTarget(controller);
       if (artwork) openArtwork(artwork);
+    });
+    // 어느 쪽이 왼손인지는 기기가 연결될 때 알려 준다.
+    controller.addEventListener('connected', (event) => {
+      const handedness = event.data && event.data.handedness;
+      controller.userData.handedness = handedness;
+      if (handedness === 'left') dockVrMenu(controller);
+    });
+    controller.addEventListener('disconnected', () => {
+      controller.userData.handedness = null;
+      if (vrMenu && vrMenu.parent === controller) dockVrMenu(null);
     });
     const ray = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([
@@ -743,7 +915,122 @@ function setupVr() {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* VR 메뉴 (나가기)                                                      */
+/* ------------------------------------------------------------------ */
+
+// VR을 쓰는 동안에는 화면 위 HUD가 보이지 않아 [전시장 나가기] 버튼을 누를 수 없다.
+// 그래서 같은 기능을 컨트롤러에 붙은 작은 메뉴판으로 만들어 준다.
+// (왼손 컨트롤러 위에 뜨고, 반대쪽 컨트롤러로 겨눠 트리거를 누르면 실행된다.)
+let vrMenu = null;
+let vrMenuBusy = false;
+const vrMenuTargets = [];
+
+function drawVrMenuButton(mesh, hover) {
+  const info = mesh.userData.vrMenu;
+  const { canvas, texture } = info;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  if (hover) ctx.fillStyle = '#2563eb';
+  else ctx.fillStyle = info.primary ? 'rgba(37, 99, 235, .72)' : 'rgba(15, 23, 42, .84)';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = 'rgba(255, 255, 255, .38)';
+  ctx.lineWidth = 5;
+  ctx.strokeRect(3, 3, w - 6, h - 6);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 50px "Malgun Gothic", "Noto Sans KR", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(info.label, w / 2, h / 2 + 2);
+  texture.needsUpdate = true;
+  info.hover = hover;
+}
+
+function createVrMenuButton(label, action, primary) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 128;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.26, 0.065),
+    new THREE.MeshBasicMaterial({
+      map: texture, transparent: true, toneMapped: false, depthTest: false,
+    }),
+  );
+  mesh.renderOrder = 998;
+  mesh.userData.vrMenu = { action, label, canvas, texture, primary, hover: false };
+  drawVrMenuButton(mesh, false);
+  vrMenuTargets.push(mesh);
+  return mesh;
+}
+
+function buildVrMenu() {
+  if (vrMenu) return vrMenu;
+  vrMenu = new THREE.Group();
+  const exit = createVrMenuButton('목록으로 나가기', 'exit', true);
+  exit.position.y = 0.037;
+  const endVr = createVrMenuButton('VR 종료', 'endvr', false);
+  endVr.position.y = -0.037;
+  vrMenu.add(exit, endVr);
+  vrMenu.visible = false;
+  return vrMenu;
+}
+
+// 왼손 컨트롤러가 있으면 손목 위에, 없으면 시야 왼쪽 아래에 띄운다.
+function dockVrMenu(controller) {
+  const menu = buildVrMenu();
+  if (controller) {
+    menu.position.set(0, 0.07, -0.04);
+    menu.rotation.set(-Math.PI / 3, 0, 0);
+    controller.add(menu);
+  } else {
+    menu.position.set(-0.22, -0.26, -0.70);
+    menu.rotation.set(-0.34, 0.30, 0);
+    camera.add(menu);
+  }
+  menu.visible = renderer.xr.isPresenting;
+}
+
+function runVrMenu(action) {
+  if (vrMenuBusy) return;
+  vrMenuBusy = true;
+  const session = renderer.xr.getSession();
+  // 기기가 끝내기를 늦게 알려 줘도 나가기가 멈추지 않도록 잠깐만 기다린다.
+  const ended = session ? session.end().catch(() => {}) : Promise.resolve();
+  const done = Promise.race([ended, new Promise((resolve) => setTimeout(resolve, 1200))]);
+  done.then(() => {
+    // '목록으로'는 VR을 먼저 닫고 나가야 헤드셋이 빈 화면에 머물지 않는다.
+    if (action === 'exit' && exitLink && exitLink.href) window.location.href = exitLink.href;
+  }).finally(() => { vrMenuBusy = false; });
+}
+
 const controllerMatrix = new THREE.Matrix4();
+
+function controllerMenuTarget(controller) {
+  if (!vrMenu || !vrMenu.visible) return null;
+  if (vrMenu.parent === controller) return null;   // 메뉴가 달린 손으로는 겨눌 수 없다.
+  controllerMatrix.identity().extractRotation(controller.matrixWorld);
+  raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+  raycaster.ray.direction.set(0, 0, -1).applyMatrix4(controllerMatrix);
+  const hit = raycaster.intersectObjects(vrMenuTargets, false)[0];
+  return hit && hit.distance <= 5 ? hit.object : null;
+}
+
+function updateVrMenuHover() {
+  if (!vrMenu || !vrMenu.visible) return;
+  const hovered = new Set();
+  controllers.forEach((controller) => {
+    const hit = controllerMenuTarget(controller);
+    if (hit) hovered.add(hit);
+  });
+  vrMenuTargets.forEach((mesh) => {
+    const on = hovered.has(mesh);
+    if (mesh.userData.vrMenu.hover !== on) drawVrMenuButton(mesh, on);
+  });
+}
 
 function controllerTarget(controller) {
   controllerMatrix.identity().extractRotation(controller.matrixWorld);
@@ -765,6 +1052,8 @@ function readXrSticks() {
     const y = pad.axes[3] || pad.axes[1] || 0;
     if (source.handedness === 'right') {
       if (Math.abs(x) > 0.15) { turnInput = -x; used = true; }
+      // 위로 밀면 시점이 올라간다(스틱 y는 위가 음수).
+      if (Math.abs(y) > 0.6) { heightInput = -y; used = true; }
     } else {
       if (Math.abs(x) > 0.15 || Math.abs(y) > 0.15) {
         move.x = x;
@@ -794,7 +1083,9 @@ function updatePlayer(delta) {
     move.x = 0;
     move.y = 0;
     turnInput = 0;
+    heightInput = 0;
     readXrSticks();
+    if (heightInput) setEyeHeight(eyeHeight + heightInput * 0.6 * delta);
   }
 
   const turn = axis.turn + turnInput;
@@ -883,10 +1174,16 @@ function updateReticle() {
 renderer.setAnimationLoop(() => {
   const delta = Math.min(clock.getDelta(), 0.1);
   if (entered) {
+    calibrateVrFloor();
     updatePlayer(delta);
     updateVideos(delta);
     updateSlideshow(performance.now());
     updateReticle();
+    updateVrMenuHover();
+    // 눈앞 안내판은 VR 안에서만 쓴다(화면에서는 HUD 패널이 보여 준다).
+    if (eyeNotice) {
+      eyeNotice.mesh.visible = renderer.xr.isPresenting && performance.now() < eyeNoticeUntil;
+    }
   }
   renderer.render(scene, camera);
 });
@@ -927,6 +1224,7 @@ enterBtn.addEventListener('click', enterHall);
 
 (async function boot() {
   setupBgm();
+  setupEyeControls();
   setupVr();
   try {
     await prepareArtworks();
