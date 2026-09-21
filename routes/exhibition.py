@@ -342,11 +342,11 @@ def _hall4_layout():
             f"C{index + 1}", f"동쪽 산책로 {index + 1}번 자리",
             13.5, eye, z, FACE_LEFT, width=2.6, height=1.75,
         ))
-    # 입구 양옆
+    # 입구 양옆 — 공원 안쪽을 향하게 세운다(들어와서 돌아보는 자리)
     for index, x in enumerate((-7.0, 7.0)):
         slots.append(_slot(
             f"D{index + 1}", f"입구 {index + 1}번 자리",
-            x, eye, 9.5, FACE_FRONT, width=2.4, height=1.6,
+            x, eye, 9.5, FACE_BACK, width=2.4, height=1.6,
         ))
 
     return {
