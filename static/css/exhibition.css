@@ -110,6 +110,8 @@
 .ex-type-preview.hall2 { background: linear-gradient(180deg, #f4f4f5 0%, #e7e7e6 58%, #b8b8b4 100%); }
 .ex-type-preview.hall3 { background: linear-gradient(180deg, #eef5ff 0%, #f6efe0 56%, #c89b62 100%); }
 .ex-type-preview.hall4 { background: linear-gradient(180deg, #cfe4f5 0%, #9dc47a 58%, #7aa356 100%); }
+.ex-type-preview.hall5 { background: linear-gradient(180deg, #2e2833 0%, #3b3240 58%, #6d1f2e 100%); }
+.ex-type-preview.hall6 { background: linear-gradient(180deg, #1f2733 0%, #2a2b33 58%, #3b2f2b 100%); }
 .ex-type-preview span {
   position: absolute;
   background: rgba(255, 255, 255, .92);

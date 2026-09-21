@@ -121,7 +121,7 @@ const accent = new THREE.Color(HALL.accentColor || '#2563eb');
 
 // 전시공간(작품 자리) 목록은 서버가 layout 바깥(SCENE.slots)으로 내려주므로
 // 조명을 걸 때 쓸 수 있도록 layout에 합쳐서 넘긴다.
-const { blockers, frameMaterial } = buildEnvironment(
+const { blockers, frameMaterial, ready: environmentReady } = buildEnvironment(
   scene, renderer, HALL, { ...LAYOUT, slots: SCENE.slots }, isTouchDevice,
 );
 
@@ -1250,7 +1250,7 @@ enterBtn.addEventListener('click', enterHall);
   setupEyeControls();
   setupVr();
   try {
-    await prepareArtworks();
+    await Promise.all([prepareArtworks(), environmentReady]);
   } catch (error) {
     loadingText.textContent = '작품을 불러오는 중 문제가 발생했습니다.';
   }
