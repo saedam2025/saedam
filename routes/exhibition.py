@@ -283,23 +283,23 @@ def _hall3_layout():
         "A1", "칠판 전시 자리",
         0.0, 1.72, board_face, FACE_FRONT, width=6.0, height=1.8, frameless=True,
     ))
-    # 복도쪽(오른쪽) 벽 게시판
+    # 게시판은 액자 없이 사진만 붙이는 쪽이 교실답다.
     for index, z in enumerate((-2.8, -0.2, 2.4)):
         slots.append(_slot(
             f"B{index + 1}", f"오른쪽 게시판 {index + 1}번 자리",
-            half_w - surface, eye, z, FACE_LEFT, width=1.7, height=1.15,
+            half_w - surface, eye, z, FACE_LEFT, width=1.7, height=1.15, frameless=True,
         ))
     # 뒤쪽 게시판(양옆은 사물함이라 가운데만 쓴다)
     for index, x in enumerate((-1.8, 1.8)):
         slots.append(_slot(
             f"C{index + 1}", f"뒤쪽 게시판 {index + 1}번 자리",
-            x, 1.85, half_d - surface, FACE_BACK, width=1.8, height=1.2,
+            x, 1.85, half_d - surface, FACE_BACK, width=1.8, height=1.2, frameless=True,
         ))
     # 창문 사이 벽(창가 자리)
     for index, z in enumerate((-3.7, 3.7)):
         slots.append(_slot(
             f"D{index + 1}", f"창가 벽 {index + 1}번 자리",
-            -half_w + surface, eye, z, FACE_RIGHT, width=1.35, height=0.95,
+            -half_w + surface, eye, z, FACE_RIGHT, width=1.35, height=0.95, frameless=True,
         ))
 
     return {
@@ -378,25 +378,26 @@ def _hall5_layout():
         "A1", "예고편 스크린",
         0.0, 3.8, -half_d + 0.3, FACE_FRONT, width=7.2, height=3.4, frameless=True,
     ))
+    # 포스터는 액자 없이 조명 박스 안에 그대로 들어간다.
     for index, z in enumerate((-6.0, -2.0, 2.0, 6.0)):
         slots.append(_slot(
             f"B{index + 1}", f"왼쪽 포스터월 {index + 1}번 자리",
-            -half_w + surface, poster_y, z, FACE_RIGHT, width=pw, height=ph,
+            -half_w + surface, poster_y, z, FACE_RIGHT, width=pw, height=ph, frameless=True,
         ))
     for index, x in enumerate((-10.5, 10.5)):
         slots.append(_slot(
             f"C{index + 1}", f"상영관 입구 옆 {index + 1}번 자리",
-            x, poster_y, -half_d + surface, FACE_FRONT, width=pw, height=ph,
+            x, poster_y, -half_d + surface, FACE_FRONT, width=pw, height=ph, frameless=True,
         ))
     for index, z in enumerate((-6.0, -2.4)):
         slots.append(_slot(
             f"D{index + 1}", f"오른쪽 포스터월 {index + 1}번 자리",
-            half_w - surface, poster_y, z, FACE_LEFT, width=pw, height=ph,
+            half_w - surface, poster_y, z, FACE_LEFT, width=pw, height=ph, frameless=True,
         ))
     for index, x in enumerate((-9.5, 9.5)):
         slots.append(_slot(
             f"E{index + 1}", f"정문 옆 {index + 1}번 자리",
-            x, poster_y, half_d - surface, FACE_BACK, width=pw, height=ph,
+            x, poster_y, half_d - surface, FACE_BACK, width=pw, height=ph, frameless=True,
         ))
 
     return {
@@ -418,7 +419,7 @@ def _hall6_layout():
     """전시관6 · 홈씨어터룸: 대형 스크린 앞에 1인 관람석이 있는 고급 시청실."""
     width, depth, height = 8.6, 11.0, 3.25
     half_w, half_d = width / 2, depth / 2
-    surface = 0.07
+    surface = 0.24            # 벽의 흡음 패널·세로 배턴보다 앞으로 나와야 한다
     frame_y = 1.62
 
     slots = []
@@ -823,7 +824,7 @@ def _ranged_response(path: str, display_name: str, mimetype: str) -> Response:
 MATERIAL_CHOICES = {
     "wall_texture": {"auto", "plaster", "concrete", "limestone", "plain"},
     "floor_texture": {"auto", "oak", "walnut", "concrete", "limestone", "plain"},
-    "frame_style": {"auto", "oak", "walnut", "black", "brass"},
+    "frame_style": {"auto", "white", "oak", "walnut", "black", "brass"},
 }
 
 
