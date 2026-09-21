@@ -105,8 +105,11 @@ FACE_RIGHT = math.pi / 2         # +X 방향
 FACE_LEFT = -math.pi / 2         # -X 방향
 
 
-def _slot(code, name, x, y, z, rotation_y, width=3.2, height=2.1):
-    """전시공간 한 자리. (x, y, z)는 작품 한가운데, rotation_y는 바라보는 방향."""
+def _slot(code, name, x, y, z, rotation_y, width=3.2, height=2.1, frameless=False):
+    """전시공간 한 자리. (x, y, z)는 작품 한가운데, rotation_y는 바라보는 방향.
+
+    ``frameless``는 칠판처럼 액자 없이 전시물만 붙이는 자리에 쓴다.
+    """
     return {
         "code": code,
         "name": name,
@@ -116,6 +119,7 @@ def _slot(code, name, x, y, z, rotation_y, width=3.2, height=2.1):
         "rotationY": round(rotation_y, 5),
         "width": width,
         "height": height,
+        "frameless": frameless,
     }
 
 
@@ -274,12 +278,11 @@ def _hall3_layout():
     eye = 1.72                       # 천장이 낮은 교실이라 눈높이에 맞춰 건다
 
     slots = []
-    # 칠판에 바로 게시하는 자리
-    for index, x in enumerate((-2.5, 0.0, 2.5)):
-        slots.append(_slot(
-            f"A{index + 1}", f"칠판 {index + 1}번 자리",
-            x, 1.78, board_face, FACE_FRONT, width=1.9, height=1.25,
-        ))
+    # 칠판에는 액자 없이 전시물 하나만 크게 띄운다.
+    slots.append(_slot(
+        "A1", "칠판 전시 자리",
+        0.0, 1.72, board_face, FACE_FRONT, width=6.0, height=1.8, frameless=True,
+    ))
     # 복도쪽(오른쪽) 벽 게시판
     for index, z in enumerate((-2.8, -0.2, 2.4)):
         slots.append(_slot(
@@ -302,7 +305,7 @@ def _hall3_layout():
     return {
         "key": "hall3",
         "name": "전시관3 · 교실형",
-        "summary": "창으로 햇살이 쏟아지는 교실입니다. 칠판·게시판에 작은 액자로 전시합니다.",
+        "summary": "창밖 풍경과 햇살이 있는 교실입니다. 칠판에는 액자 없이, 게시판에는 작은 액자로 전시합니다.",
         "size": {"width": width, "depth": depth, "height": height},
         "spawn": {"x": 0.6, "z": half_d - 1.5, "heading": 0.0},
         "style": "classroom",
@@ -800,7 +803,8 @@ def _scene_payload(conn, hall) -> dict:
         ]
         slots.append({
             **{key: slot[key] for key in
-               ("code", "name", "x", "y", "z", "rotationY", "width", "height")},
+               ("code", "name", "x", "y", "z", "rotationY", "width", "height",
+                "frameless")},
             "title": row["title"] if row else "",
             "artist": row["artist"] if row else "",
             "description": row["description"] if row else "",
