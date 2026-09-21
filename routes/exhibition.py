@@ -1,8 +1,8 @@
 """[통합관리] > [3D전시장] 기능.
 
-- 전시관은 서로 다른 네 가지 모양(전시관1 라운지형 / 전시관2 갤러리형 /
-  전시관3 교실형 / 전시관4 공원형) 중 하나를 골라 만든다.
-  모양마다 벽·기둥 배치와 전시공간(작품 자리) 수가 다르다.
+- 전시관은 서로 다른 여섯 가지 모양(전시관1 라운지형 / 전시관2 갤러리형 /
+  전시관3 교실형 / 전시관4 공원형 / 전시관5 극장 로비형 / 전시관6 홈씨어터룸)
+  중 하나를 골라 만든다. 모양마다 벽·기둥 배치와 전시공간(작품 자리) 수가 다르다.
 - [전시관 셋팅]에서 이름·벽색·바닥색·조명·배경음악·이동속도 등을 정한다.
 - [전시파일 셋팅]에서 전시공간마다 사진 여러 장이나 동영상을 올리고,
   작품 아래 팻말에 들어갈 작품제목·작가명·설명을 적는다.
@@ -364,11 +364,102 @@ def _hall4_layout():
     }
 
 
+def _hall5_layout():
+    """전시관5 · 극장 로비형: 매표소·매점·대기석이 있는 넓은 극장 로비."""
+    width, depth, height = 28.0, 20.0, 6.0
+    half_w, half_d = width / 2, depth / 2
+    surface = 0.07
+    poster_y = 2.25
+    pw, ph = 1.6, 2.35          # 영화 포스터라 세로로 길다
+
+    slots = []
+    # 상영관 입구 위쪽의 예고편 스크린(액자 없이 화면만)
+    slots.append(_slot(
+        "A1", "예고편 스크린",
+        0.0, 3.8, -half_d + 0.3, FACE_FRONT, width=7.2, height=3.4, frameless=True,
+    ))
+    for index, z in enumerate((-6.0, -2.0, 2.0, 6.0)):
+        slots.append(_slot(
+            f"B{index + 1}", f"왼쪽 포스터월 {index + 1}번 자리",
+            -half_w + surface, poster_y, z, FACE_RIGHT, width=pw, height=ph,
+        ))
+    for index, x in enumerate((-10.5, 10.5)):
+        slots.append(_slot(
+            f"C{index + 1}", f"상영관 입구 옆 {index + 1}번 자리",
+            x, poster_y, -half_d + surface, FACE_FRONT, width=pw, height=ph,
+        ))
+    for index, z in enumerate((-6.0, -2.4)):
+        slots.append(_slot(
+            f"D{index + 1}", f"오른쪽 포스터월 {index + 1}번 자리",
+            half_w - surface, poster_y, z, FACE_LEFT, width=pw, height=ph,
+        ))
+    for index, x in enumerate((-9.5, 9.5)):
+        slots.append(_slot(
+            f"E{index + 1}", f"정문 옆 {index + 1}번 자리",
+            x, poster_y, half_d - surface, FACE_BACK, width=pw, height=ph,
+        ))
+
+    return {
+        "key": "hall5",
+        "name": "전시관5 · 극장 로비형",
+        "summary": "매점과 대기석이 있는 넓은 극장 로비입니다. 포스터월과 예고편 스크린에 전시합니다.",
+        "size": {"width": width, "depth": depth, "height": height},
+        "spawn": {"x": 0.0, "z": half_d - 2.5, "heading": 0.0},
+        "style": "lobby",
+        "walls": [],          # 매점·상영관 입구가 있어 로비 모양은 3D 쪽에서 직접 만든다
+        "partitions": [],
+        "skylight": None,
+        "balcony": None,
+        "slots": slots,
+    }
+
+
+def _hall6_layout():
+    """전시관6 · 홈씨어터룸: 대형 스크린 앞에 1인 관람석이 있는 고급 시청실."""
+    width, depth, height = 8.6, 11.0, 3.25
+    half_w, half_d = width / 2, depth / 2
+    surface = 0.07
+    frame_y = 1.62
+
+    slots = []
+    # 정면 대형 스크린(액자 없이 화면만)
+    slots.append(_slot(
+        "A1", "대형 스크린",
+        0.0, 1.78, -half_d + 0.26, FACE_FRONT, width=6.0, height=2.5, frameless=True,
+    ))
+    for index, z in enumerate((-2.4, 0.4, 3.2)):
+        slots.append(_slot(
+            f"B{index + 1}", f"왼쪽 벽 {index + 1}번 자리",
+            -half_w + surface, frame_y, z, FACE_RIGHT, width=1.35, height=1.0,
+        ))
+    for index, z in enumerate((-2.4, 0.4, 3.2)):
+        slots.append(_slot(
+            f"C{index + 1}", f"오른쪽 벽 {index + 1}번 자리",
+            half_w - surface, frame_y, z, FACE_LEFT, width=1.35, height=1.0,
+        ))
+
+    return {
+        "key": "hall6",
+        "name": "전시관6 · 홈씨어터룸",
+        "summary": "대형 스크린과 1인 관람석이 있는 고급 시청실입니다. 좌우 벽 액자에 함께 전시합니다.",
+        "size": {"width": width, "depth": depth, "height": height},
+        "spawn": {"x": 0.0, "z": half_d - 1.4, "heading": 0.0},
+        "style": "theater",
+        "walls": [],          # 스크린 벽·흡음 패널이 있어 방 모양은 3D 쪽에서 직접 만든다
+        "partitions": [],
+        "skylight": None,
+        "balcony": None,
+        "slots": slots,
+    }
+
+
 HALL_LAYOUTS = {
     "hall1": _hall1_layout(),
     "hall2": _hall2_layout(),
     "hall3": _hall3_layout(),
     "hall4": _hall4_layout(),
+    "hall5": _hall5_layout(),
+    "hall6": _hall6_layout(),
 }
 HALL_TYPES = tuple(HALL_LAYOUTS)
 DEFAULT_HALL_TYPE = "hall1"
@@ -378,6 +469,8 @@ DEFAULTS = {
     "hall2": {"wall_color": "#f2f2f2", "floor_color": "#b8b8b4", "accent_color": "#111827"},
     "hall3": {"wall_color": "#efe7d5", "floor_color": "#c89b62", "accent_color": "#15803d"},
     "hall4": {"wall_color": "#efe3cb", "floor_color": "#7aa356", "accent_color": "#0ea5e9"},
+    "hall5": {"wall_color": "#4a3f52", "floor_color": "#6d1f2e", "accent_color": "#e11d48"},
+    "hall6": {"wall_color": "#33405a", "floor_color": "#4a3b34", "accent_color": "#c9a227"},
 }
 
 HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
