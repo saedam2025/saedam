@@ -1,0 +1,80 @@
+[
+  {
+    "file": "wood_floor_Diffuse.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor/wood_floor_diff_1k.jpg",
+    "md5": "b7e927d2bf2f8f103820ff3890c8407c",
+    "asset": "https://polyhaven.com/a/wood_floor"
+  },
+  {
+    "file": "wood_floor_nor_gl.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor/wood_floor_nor_gl_1k.jpg",
+    "md5": "620f174d2c09b579c5d02d37b2106668",
+    "asset": "https://polyhaven.com/a/wood_floor"
+  },
+  {
+    "file": "wood_floor_Rough.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor/wood_floor_rough_1k.jpg",
+    "md5": "36146634f1dbd1bc30cd071857584c10",
+    "asset": "https://polyhaven.com/a/wood_floor"
+  },
+  {
+    "file": "plastered_wall_Diffuse.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/plastered_wall/plastered_wall_diff_1k.jpg",
+    "md5": "9f64cd14ded4938e64ab6c6bb3de3c19",
+    "asset": "https://polyhaven.com/a/plastered_wall"
+  },
+  {
+    "file": "plastered_wall_nor_gl.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/plastered_wall/plastered_wall_nor_gl_1k.jpg",
+    "md5": "e3e00c5d9a589621bf3cc541d9fb7d81",
+    "asset": "https://polyhaven.com/a/plastered_wall"
+  },
+  {
+    "file": "plastered_wall_Rough.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/plastered_wall/plastered_wall_rough_1k.jpg",
+    "md5": "5c5f8e9c43bf183b45274575a7eac318",
+    "asset": "https://polyhaven.com/a/plastered_wall"
+  },
+  {
+    "file": "concrete_floor_02_Diffuse.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_diff_1k.jpg",
+    "md5": "1cfee53d2f82fa59726ab7ae6a2e8c09",
+    "asset": "https://polyhaven.com/a/concrete_floor_02"
+  },
+  {
+    "file": "concrete_floor_02_nor_gl.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_nor_gl_1k.jpg",
+    "md5": "c2065fd81f571f4e39163ea5661128fb",
+    "asset": "https://polyhaven.com/a/concrete_floor_02"
+  },
+  {
+    "file": "concrete_floor_02_Rough.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_rough_1k.jpg",
+    "md5": "653d60d0db1872a49138455cf31c8326",
+    "asset": "https://polyhaven.com/a/concrete_floor_02"
+  },
+  {
+    "file": "stone_tiles_02_Diffuse.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/stone_tiles_02/stone_tiles_02_diff_1k.jpg",
+    "md5": "8d2ebfc3505efbb610aa5010d38d2df8",
+    "asset": "https://polyhaven.com/a/stone_tiles_02"
+  },
+  {
+    "file": "stone_tiles_02_nor_gl.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/stone_tiles_02/stone_tiles_02_nor_gl_1k.jpg",
+    "md5": "cca5bd87964b755cc85c01322e8d1a0e",
+    "asset": "https://polyhaven.com/a/stone_tiles_02"
+  },
+  {
+    "file": "stone_tiles_02_Rough.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/stone_tiles_02/stone_tiles_02_rough_1k.jpg",
+    "md5": "714fdf8447c0c1745d3c2957bb581af4",
+    "asset": "https://polyhaven.com/a/stone_tiles_02"
+  },
+  {
+    "file": "daylight_1k.hdr",
+    "source": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloofendal_48d_partly_cloudy_puresky_1k.hdr",
+    "md5": "c69498687e876bf68d2a8b8a62234eb9",
+    "asset": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky"
+  }
+]

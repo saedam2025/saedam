@@ -4,9 +4,9 @@ import { RGBELoader } from './vendor/three/RGBELoader.js';
 // Photographed CC0 assets are bundled locally. See textures/exhibition/lounge/sources.json.
 const ROOT = new URL('../textures/exhibition/lounge/', import.meta.url);
 const SURFACES = {
-  oak: { asset: 'wood_floor', size: 1.7, normal: 0.32, wood: true },
+  oak: { asset: 'wood_floor', size: 1.7, normal: 0.32, wood: true, gain: 1.22 },
   walnut: { asset: 'wood_floor', size: 1.7, normal: 0.32, wood: true },
-  plaster: { asset: 'plastered_wall', size: 2, normal: 0.18 },
+  plaster: { asset: 'plastered_wall', size: 2, normal: 0.18, gain: 1.95 },
   concrete: { asset: 'concrete_floor_02', size: 2, normal: 0.4 },
   limestone: { asset: 'stone_tiles_02', size: 2, normal: 0.28 },
 };
@@ -30,7 +30,7 @@ export function photographicMaterials(renderer, fallback) {
   const make = (kind, color, width = 1, height = 1) => {
     const spec = SURFACES[kind];
     if (!spec) return fallback(kind, color, width, height);
-    const material = new THREE.MeshStandardMaterial({ color, roughness: 0.85, envMapIntensity: 0.22 });
+    const material = new THREE.MeshStandardMaterial({ color, roughness: 0.85, envMapIntensity: 0.5 });
     const ready = source(spec.asset).then(textures => {
       [material.map, material.normalMap, material.roughnessMap] = textures.map(texture => {
         const map = texture.clone();
@@ -39,6 +39,9 @@ export function photographicMaterials(renderer, fallback) {
       });
       // The photograph already contains the wood's colour; keep the saved tint subtle.
       if (spec.wood) material.color.lerp(new THREE.Color(0xffffff), kind === 'walnut' ? 0.22 : 0.72);
+      // The plaster was shot mid-grey; lift it so painted walls read as white
+      // while the photograph's texture and the saved wall colour both survive.
+      if (spec.gain) material.color.multiplyScalar(spec.gain);
       material.normalScale.setScalar(spec.normal);
       material.roughness = spec.wood ? 0.76 : 0.95;
       material.needsUpdate = true;
@@ -54,7 +57,7 @@ export function photographicMaterials(renderer, fallback) {
 
 export async function photographicSky(scene, renderer) {
   try {
-    const texture = await new RGBELoader().loadAsync(new URL('daylight_2k.hdr', ROOT).href);
+    const texture = await new RGBELoader().loadAsync(new URL('daylight_1k.hdr', ROOT).href);
     texture.mapping = THREE.EquirectangularReflectionMapping;
     scene.background = texture;
     scene.backgroundIntensity = 0.8;

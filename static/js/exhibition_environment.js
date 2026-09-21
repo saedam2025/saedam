@@ -117,6 +117,18 @@ function resolveKind(value, fallback) {
 }
 
 function frameMaterialFor(kind, make) {
+  if (kind === 'white') {
+    // Moulded white plastic: no metal, and a thin clear coat for the sheen.
+    const plastic = new THREE.MeshPhysicalMaterial({
+      color: 0xf3f4f2, roughness: 0.38, metalness: 0,
+      clearcoat: 0.65, clearcoatRoughness: 0.28,
+    });
+    // The dark gallery lip would read as a smudge on a white frame.
+    plastic.userData.lip = new THREE.MeshPhysicalMaterial({
+      color: 0xe6e7e4, roughness: 0.45, metalness: 0, clearcoat: 0.5,
+    });
+    return plastic;
+  }
   return kind === 'black' || kind === 'brass'
     ? new THREE.MeshStandardMaterial({ color: kind === 'brass' ? 0xb99a59 : 0x292a28, roughness: 0.32, metalness: 0.75 })
     : make(kind, kind === 'walnut' ? 0x67472f : 0xb69263, 2, 0.2);
@@ -161,7 +173,7 @@ function buildIndoor(scene, renderer, hall, layout, lowPower) {
   const make = photos ? photos.make : materialLibrary(renderer);
   const wallKind = resolveKind(hall.wallTexture, 'plaster');
   const floorKind = resolveKind(hall.floorTexture, lounge ? 'oak' : 'concrete');
-  const frameKind = resolveKind(hall.frameStyle, lounge ? 'oak' : 'black');
+  const frameKind = resolveKind(hall.frameStyle, lounge ? 'white' : 'black');
   const blockers = [];
   const metal = new THREE.MeshStandardMaterial({ color: 0x282a28, roughness: 0.36, metalness: 0.75 });
   const trim = make('plain', 0xd6cfc2);
@@ -320,7 +332,7 @@ function buildIndoor(scene, renderer, hall, layout, lowPower) {
   if (lounge) {
     scene.traverse(object => {
       for (const material of (Array.isArray(object.material) ? object.material : [object.material])) {
-        if (material?.isMeshStandardMaterial && !material.isMeshPhysicalMaterial) material.envMapIntensity = 0.22 * power;
+        if (material?.isMeshStandardMaterial && !material.isMeshPhysicalMaterial) material.envMapIntensity = 0.5 * power;
       }
     });
   }
@@ -457,7 +469,7 @@ function buildClassroom(scene, renderer, hall, layout, lowPower) {
   for (let z = -bandHalf; z <= bandHalf + 0.01; z += 1.35) {
     box(0.1, head - sill, 0.08, trim, -halfW + 0.07, (sill + head) / 2, z);
   }
-  box(0.34, 0.07, bandHalf * 2, timber, -halfW + 0.18, sill + 0.035, 0);
+  box(0.34, 0.07, bandHalf * 2, timber, -halfW + 0.20, sill + 0.035, 0);
   const curtain = new THREE.MeshStandardMaterial({ color: 0xeae4f2, roughness: 0.92 });
   [-1, 1].forEach(sign => {
     box(0.12, head - sill + 0.25, 0.6, curtain, -halfW + 0.28, (sill + head) / 2 + 0.12, sign * (bandHalf - 0.32));
@@ -472,7 +484,9 @@ function buildClassroom(scene, renderer, hall, layout, lowPower) {
     }),
   );
   glow.rotation.y = Math.PI / 2;
-  glow.position.set(-halfW + 0.12, (sill + head) / 2, 0);
+  // Must not sit on the mullions' front plane (x = -halfW + 0.12) or the bars
+  // flicker; the haze belongs outside the glass anyway.
+  glow.position.set(-halfW - 0.03, (sill + head) / 2, 0);
   scene.add(glow);
   const poolMat = new THREE.MeshBasicMaterial({
     color: 0xffeec4, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending,
@@ -718,10 +732,10 @@ function buildPark(scene, renderer, hall, layout, lowPower) {
   const hedgeH = 1.15;
   box(0.7, hedgeH, d, hedge, -halfW + 0.35, hedgeH / 2, 0);
   box(0.7, hedgeH, d, hedge, halfW - 0.35, hedgeH / 2, 0);
-  box(w, hedgeH, 0.7, hedge, 0, hedgeH / 2, -halfD + 0.35);
+  box(w - 1.4, hedgeH, 0.7, hedge, 0, hedgeH / 2, -halfD + 0.35);
   [-1, 1].forEach(sign => {
-    const len = halfW - 2.5;
-    box(len, hedgeH, 0.7, hedge, sign * (halfW - len / 2), hedgeH / 2, halfD - 0.35);
+    const len = halfW - 3.2;
+    box(len, hedgeH, 0.7, hedge, sign * (halfW - 0.7 - len / 2), hedgeH / 2, halfD - 0.35);
     box(0.5, 2.2, 0.5, stone, sign * 2.5, 1.1, halfD - 0.35);
   });
 
@@ -846,7 +860,9 @@ function buildPark(scene, renderer, hall, layout, lowPower) {
 
 // A lit case behind a poster / picture, as cinemas and screening rooms use.
 function posterCase(box, group, slot, rim, shell) {
-  box(slot.width + 0.46, slot.height + 0.46, 0.05, rim, 0, slot.y, -0.02, group);
+  // The rim sits a little behind the inner panel: level with it the two faces
+  // share the same depth values and an empty case flickers.
+  box(slot.width + 0.46, slot.height + 0.46, 0.05, rim, 0, slot.y, -0.035, group);
   box(slot.width + 0.3, slot.height + 0.3, 0.09, shell, 0, slot.y, -0.04, group);
 }
 
@@ -1038,9 +1054,9 @@ function buildLobby(scene, renderer, hall, layout, lowPower) {
     }
   });
 
-  // Every poster hangs in a lit case.
+  // Every poster hangs in a lit case (the trailer screen has its own bezel).
   (layout.slots || []).forEach(slot => {
-    if (slot.frameless) return;
+    if (slot.code === 'A1') return;
     const dir = new THREE.Vector3(Math.sin(slot.rotationY), 0, Math.cos(slot.rotationY));
     const group = new THREE.Group();
     group.position.set(slot.x, 0, slot.z).addScaledVector(dir, -0.045);
@@ -1150,7 +1166,7 @@ function buildTheater(scene, renderer, hall, layout, lowPower) {
   box(7.0, 3.0, 0.16, blackout, 0, 1.78, -halfD + 0.12);
   box(6.4, 2.72, 0.06, make('plain', 0x101318), 0, 1.78, -halfD + 0.2);
   [-1, 1].forEach(sign => box(0.85, 2.95, 0.3, drape, sign * 3.6, 1.6, -halfD + 0.3));
-  box(w - 0.6, 0.34, 0.34, drape, 0, 3.12, -halfD + 0.3);
+  box(w - 0.6, 0.34, 0.34, drape, 0, 3.06, -halfD + 0.3);   // clear of the cove below
   // Tower speakers either side of the screen.
   [-1, 1].forEach(sign => {
     const x = sign * 3.8;
@@ -1169,18 +1185,20 @@ function buildTheater(scene, renderer, hall, layout, lowPower) {
   // The single recliner on its riser, with a side table.
   // The backrest stays below eye level so the screen is never hidden behind it.
   const seatZ = 1.6;
-  box(3.2, 0.12, 2.8, make('plain', 0x2f2622), 0, 0.06, seatZ + 0.25);
+  box(3.2, 0.12, 2.8, make('plain', 0x2f2622), 0, 0.06, seatZ + 0.35);
   const chair = new THREE.Group();
   chair.position.set(0, 0.12, seatZ);
   scene.add(chair);
+  // The screen is at -Z, so the backrest goes behind the sitter (+Z) and the
+  // footrest in front of them (-Z).
   box(1.02, 0.28, 0.92, leather, 0, 0.4, 0, chair);
-  const backRest = box(1.02, 0.72, 0.22, leather, 0, 0.78, -0.46, chair);
-  backRest.rotation.x = 0.18;
-  box(0.9, 0.2, 0.26, leather, 0, 0.58, 0.56, chair);
+  const backRest = box(1.02, 0.72, 0.22, leather, 0, 0.78, 0.46, chair);
+  backRest.rotation.x = -0.18;
+  box(0.9, 0.2, 0.26, leather, 0, 0.58, -0.56, chair);
   [-1, 1].forEach(sign => {
-    box(0.19, 0.3, 0.95, leather, sign * 0.61, 0.6, -0.02, chair);
+    box(0.19, 0.3, 0.95, leather, sign * 0.61, 0.6, 0.02, chair);
     const holder = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.05, 12), make('plain', 0x1d1a1a));
-    holder.position.set(sign * 0.61, 0.76, 0.16);
+    holder.position.set(sign * 0.61, 0.76, -0.16);
     chair.add(holder);
   });
   box(0.94, 0.26, 0.8, blackout, 0, 0.13, -0.02, chair);
@@ -1221,12 +1239,13 @@ function buildTheater(scene, renderer, hall, layout, lowPower) {
   // Picture light above every framed work.
   (layout.slots || []).forEach(slot => {
     if (slot.frameless) return;
-    const dir = new THREE.Vector3(Math.sin(slot.rotationY), 0, Math.cos(slot.rotationY));
     const group = new THREE.Group();
-    group.position.set(slot.x, 0, slot.z).addScaledVector(dir, -0.03);
+    group.position.set(slot.x, 0, slot.z);
     group.rotation.y = slot.rotationY;
     scene.add(group);
-    box(slot.width + 0.36, slot.height + 0.36, 0.04, make('plain', 0x2a3140), 0, slot.y, -0.02, group);
+    // A mounting panel deep enough to reach the wall, so the fabric panels and
+    // battens behind it can never poke through the picture.
+    box(slot.width + 0.4, slot.height + 0.4, 0.17, make('plain', 0x2a3140), 0, slot.y, -0.155, group);
     box(0.5, 0.09, 0.16, gold, 0, slot.y + slot.height / 2 + 0.34, 0.1, group);
     box(0.44, 0.03, 0.1, lit(0xffe2b0, 0.9), 0, slot.y + slot.height / 2 + 0.3, 0.12, group);
   });
@@ -1238,7 +1257,8 @@ function buildTheater(scene, renderer, hall, layout, lowPower) {
 export function createFrame(width, height, material) {
   const group = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: 0xf5f1e7, roughness: 0.95 });
-  const inner = new THREE.MeshStandardMaterial({ color: 0x37312a, roughness: 0.5, metalness: 0.35 });
+  const inner = material.userData.lip
+    || new THREE.MeshStandardMaterial({ color: 0x37312a, roughness: 0.5, metalness: 0.35 });
   function bar(w, h, depth, x, y, z, surface) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, depth), surface);
     mesh.position.set(x, y, z);
