@@ -41,6 +41,7 @@ from routes.school_billing import billing_bp, ensure_billing_schema, portal_bp
 from routes.admin_management import admin_bp, get_active_theme
 from routes.ebook import ebook_bp, init_ebook_schema
 from routes.photobook import init_photobook_schema, photobook_bp
+from routes.exhibition import exhibition_bp, init_exhibition_schema
 from routes.meeting import init_meeting_schema, meeting_bp
 from routes.webtoon import init_webtoon_schema, webtoon_bp
 from routes.manual import manual_bp, init_manual_schema
@@ -103,6 +104,7 @@ with app.app_context():
         init_ebook_schema()
         init_webtoon_schema()
         init_photobook_schema()
+        init_exhibition_schema()
         init_meeting_schema()
         init_manual_schema()
         ensure_parent_notification_schema()
@@ -340,6 +342,7 @@ def _classify_menu(path):
         ('/ebook/books', 'eBook'),
         ('/ebook', 'e리플렛'),
         ('/photobook', '웹전자책'),
+        ('/exhibition', '3D전시장'),
         ('/notifications', '알림'),
     ]
     if path == '/':
@@ -1119,6 +1122,7 @@ app.register_blueprint(admin_bp, url_prefix='/admin')
 app.register_blueprint(ebook_bp, url_prefix='/ebook')
 app.register_blueprint(webtoon_bp, url_prefix='/webtoon')
 app.register_blueprint(photobook_bp, url_prefix='/photobook')
+app.register_blueprint(exhibition_bp, url_prefix='/exhibition')
 app.register_blueprint(meeting_bp, url_prefix='/meeting')
 app.register_blueprint(manual_bp, url_prefix='/manual')
 app.register_blueprint(parent_notification_bp)
