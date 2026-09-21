@@ -52,7 +52,7 @@
           <span style="left:84%;top:30%;width:12%;height:22%"></span>
           <span style="left:30%;top:74%;width:16%;height:9%;background:rgba(226,198,158,.95)"></span>
           <span style="left:55%;top:74%;width:16%;height:9%;background:rgba(226,198,158,.95)"></span>
-        {% else %}
+        {% elif key == 'hall4' %}
           {# 하늘 · 잔디 · 공원에 세운 캔버스 #}
           <span style="left:0;top:0;width:100%;height:52%;background:linear-gradient(180deg,#7cb6e8,#cfe4f5);border:0;border-radius:0;box-shadow:none"></span>
           <span style="left:8%;top:30%;width:18%;height:26%"></span>
@@ -60,6 +60,22 @@
           <span style="left:74%;top:30%;width:18%;height:26%"></span>
           <span style="left:30%;top:58%;width:7%;height:26%;background:rgba(79,127,67,.92);border-radius:40% 40% 20% 20%"></span>
           <span style="left:62%;top:60%;width:6%;height:22%;background:rgba(102,154,82,.92);border-radius:40% 40% 20% 20%"></span>
+        {% elif key == 'hall5' %}
+          {# 예고편 스크린 · 세로 포스터 · 매점 카운터 #}
+          <span style="left:30%;top:12%;width:40%;height:22%;background:rgba(17,24,39,.92);border-color:rgba(255,209,140,.65)"></span>
+          <span style="left:6%;top:30%;width:11%;height:32%"></span>
+          <span style="left:20%;top:30%;width:11%;height:32%"></span>
+          <span style="left:69%;top:30%;width:11%;height:32%"></span>
+          <span style="left:83%;top:30%;width:11%;height:32%"></span>
+          <span style="left:34%;top:64%;width:32%;height:10%;background:rgba(201,147,73,.95)"></span>
+          <span style="left:8%;top:76%;width:20%;height:8%;background:rgba(60,47,56,.95)"></span>
+          <span style="left:72%;top:76%;width:20%;height:8%;background:rgba(60,47,56,.95)"></span>
+        {% else %}
+          {# 대형 스크린 · 좌우 액자 · 1인 관람석 #}
+          <span style="left:22%;top:16%;width:56%;height:36%;background:rgba(16,19,24,.95);border-color:rgba(201,162,39,.7)"></span>
+          <span style="left:4%;top:28%;width:12%;height:20%"></span>
+          <span style="left:84%;top:28%;width:12%;height:20%"></span>
+          <span style="left:38%;top:62%;width:24%;height:22%;background:rgba(74,47,40,.95);border-radius:8px 8px 3px 3px"></span>
         {% endif %}
       </div>
       <div class="ex-type-body">
@@ -124,7 +140,7 @@
   {% else %}
   <div class="ex-empty">
     <i class="fa-solid fa-cube" style="font-size:34px;color:#cbd5e1;"></i>
-    <p style="margin-top:12px;">아직 만든 전시관이 없습니다. 위에서 전시관 종류(라운지형 · 갤러리형 · 교실형 · 공원형)를 골라 만들어 주세요.</p>
+    <p style="margin-top:12px;">아직 만든 전시관이 없습니다. 위에서 전시관 종류(라운지형 · 갤러리형 · 교실형 · 공원형 · 극장 로비형 · 홈씨어터룸)를 골라 만들어 주세요.</p>
   </div>
   {% endif %}
 
