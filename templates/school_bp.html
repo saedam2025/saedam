@@ -1672,6 +1672,10 @@
 <footer class="school-page-copyright">Copyright © 2026 Saedam Youth Education &amp; Culture Center. All Rights Reserved.</footer>
 {% endif %}
 
+{% if view_type == 'detail' %}
+{% include 'components/chuseok_event.html' %}
+{% endif %}
+
 {% if view_type == 'detail' and center_event %}
 <style>
     /* === 센터장 전용 업무공간 · 오른쪽 이벤트 탭 === */

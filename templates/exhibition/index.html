@@ -4,6 +4,18 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/exhibition.css') }}">
 {% endblock %}
 {% block content %}
+{# 전시관 종류마다 쓰는 대표 아이콘. 만들기 카드와 등록된 전시관이 같은 아이콘을 쓴다. #}
+{% set hall_icons = {
+  'hall1': 'fa-couch',
+  'hall2': 'fa-building-columns',
+  'hall3': 'fa-chalkboard',
+  'hall4': 'fa-tree',
+  'hall5': 'fa-masks-theater',
+  'hall6': 'fa-tv',
+  'hall7': 'fa-bus-simple',
+  'hall8': 'fa-spray-can',
+  'hall9': 'fa-city'
+} %}
 <div class="ex-page">
 
   <section class="ex-hero">
@@ -21,128 +33,104 @@
     {% endfor %}
   {% endwith %}
 
-  <h2 class="ex-section-title">
-    <i class="fa-solid fa-plus"></i> 새 전시관 만들기
-    <small>전시관 모양을 고르면 전시공간이 자동으로 배치됩니다.</small>
-  </h2>
+  <!-- ─────────── 1구역 : 새 전시관 만들기 ─────────── -->
+  <section class="ex-zone create">
+    <h2 class="ex-section-title">
+      <span class="ex-zone-badge create"><i class="fa-solid fa-plus"></i></span>
+      새 전시관 만들기
+      <small>전시관 모양을 고르면 전시공간이 자동으로 배치됩니다.</small>
+    </h2>
 
-  <div class="ex-type-grid">
-    {% for key, layout in layouts.items() %}
-    <div class="ex-type-card">
-      <div class="ex-type-preview {{ key }}">
-        {% if key == 'hall1' %}
-          <span style="left:8%;top:30%;width:15%;height:26%"></span>
-          <span style="left:28%;top:26%;width:16%;height:30%"></span>
-          <span style="left:56%;top:26%;width:16%;height:30%"></span>
-          <span style="left:78%;top:30%;width:14%;height:26%"></span>
-          <span style="left:40%;top:8%;width:20%;height:10%;background:rgba(191,219,254,.9)"></span>
-        {% elif key == 'hall2' %}
-          <span style="left:6%;top:32%;width:13%;height:24%"></span>
-          <span style="left:23%;top:28%;width:14%;height:30%"></span>
-          <span style="left:42%;top:24%;width:16%;height:34%"></span>
-          <span style="left:63%;top:28%;width:14%;height:30%"></span>
-          <span style="left:81%;top:32%;width:13%;height:24%"></span>
-        {% elif key == 'hall3' %}
-          {# 왼쪽 창문 · 가운데 칠판 · 칠판에 걸린 작은 액자들 #}
-          <span style="left:3%;top:22%;width:12%;height:38%;background:rgba(219,238,255,.95)"></span>
-          <span style="left:22%;top:26%;width:56%;height:34%;background:rgba(31,61,48,.88);border-color:rgba(15,23,42,.3)"></span>
-          <span style="left:27%;top:32%;width:13%;height:20%"></span>
-          <span style="left:44%;top:32%;width:13%;height:20%"></span>
-          <span style="left:61%;top:32%;width:13%;height:20%"></span>
-          <span style="left:84%;top:30%;width:12%;height:22%"></span>
-          <span style="left:30%;top:74%;width:16%;height:9%;background:rgba(226,198,158,.95)"></span>
-          <span style="left:55%;top:74%;width:16%;height:9%;background:rgba(226,198,158,.95)"></span>
-        {% elif key == 'hall4' %}
-          {# 하늘 · 잔디 · 공원에 세운 캔버스 #}
-          <span style="left:0;top:0;width:100%;height:52%;background:linear-gradient(180deg,#7cb6e8,#cfe4f5);border:0;border-radius:0;box-shadow:none"></span>
-          <span style="left:8%;top:30%;width:18%;height:26%"></span>
-          <span style="left:41%;top:26%;width:18%;height:30%"></span>
-          <span style="left:74%;top:30%;width:18%;height:26%"></span>
-          <span style="left:30%;top:58%;width:7%;height:26%;background:rgba(79,127,67,.92);border-radius:40% 40% 20% 20%"></span>
-          <span style="left:62%;top:60%;width:6%;height:22%;background:rgba(102,154,82,.92);border-radius:40% 40% 20% 20%"></span>
-        {% elif key == 'hall5' %}
-          {# 예고편 스크린 · 세로 포스터 · 매점 카운터 #}
-          <span style="left:30%;top:12%;width:40%;height:22%;background:rgba(17,24,39,.92);border-color:rgba(255,209,140,.65)"></span>
-          <span style="left:6%;top:30%;width:11%;height:32%"></span>
-          <span style="left:20%;top:30%;width:11%;height:32%"></span>
-          <span style="left:69%;top:30%;width:11%;height:32%"></span>
-          <span style="left:83%;top:30%;width:11%;height:32%"></span>
-          <span style="left:34%;top:64%;width:32%;height:10%;background:rgba(201,147,73,.95)"></span>
-          <span style="left:8%;top:76%;width:20%;height:8%;background:rgba(60,47,56,.95)"></span>
-          <span style="left:72%;top:76%;width:20%;height:8%;background:rgba(60,47,56,.95)"></span>
-        {% else %}
-          {# 대형 스크린 · 좌우 액자 · 1인 관람석 #}
-          <span style="left:22%;top:16%;width:56%;height:36%;background:rgba(16,19,24,.95);border-color:rgba(201,162,39,.7)"></span>
-          <span style="left:4%;top:28%;width:12%;height:20%"></span>
-          <span style="left:84%;top:28%;width:12%;height:20%"></span>
-          <span style="left:38%;top:62%;width:24%;height:22%;background:rgba(74,47,40,.95);border-radius:8px 8px 3px 3px"></span>
-        {% endif %}
-      </div>
-      <div class="ex-type-body">
-        <h3>{{ layout.name }}</h3>
-        <p>{{ layout.summary }}<br>
-           전시공간 {{ slot_counts[key] }}곳 · 크기 {{ layout.size.width|int }}m × {{ layout.size.depth|int }}m</p>
-      </div>
-      <form class="ex-type-form" method="post" action="{{ url_for('exhibition.create_hall') }}">
-        <input type="hidden" name="hall_type" value="{{ key }}">
-        <input name="name" maxlength="80" placeholder="전시관 이름 (예: 2026 새담 미술전)">
-        <button class="ex-btn primary" type="submit"><i class="fa-solid fa-plus"></i> 만들기</button>
-      </form>
-    </div>
-    {% endfor %}
-  </div>
-
-  <h2 class="ex-section-title">
-    <i class="fa-solid fa-building-columns"></i> 등록된 전시관
-    <small>{{ halls|length }}개</small>
-  </h2>
-
-  {% if halls %}
-  <div class="ex-hall-grid">
-    {% for hall in halls %}
-    <article class="ex-hall-card">
-      <h3>{{ hall.name }}</h3>
-      <div class="ex-hall-meta">
-        <span class="ex-chip"><i class="fa-solid fa-cube"></i> {{ layouts[hall.hall_type].name if hall.hall_type in layouts else hall.hall_type }}</span>
-        <span class="ex-chip"><i class="fa-solid fa-photo-film"></i> 전시파일 {{ hall.media_count }}개</span>
-        <span class="ex-chip"><i class="fa-solid fa-eye"></i> {{ hall.view_count }}회</span>
-        {% if hall.is_published %}
-        <span class="ex-chip on"><i class="fa-solid fa-door-open"></i> 공개중</span>
-        {% else %}
-        <span class="ex-chip off"><i class="fa-solid fa-lock"></i> 준비중</span>
-        {% endif %}
-        {% if hall.bgm_filename %}<span class="ex-chip"><i class="fa-solid fa-music"></i> 배경음악</span>{% endif %}
-      </div>
-      <div class="ex-hall-meta">
-        <span>{{ hall.created_by or '-' }} · 최근 수정 {{ hall.updated_at[:16] if hall.updated_at else '' }}</span>
-      </div>
-      <div class="ex-hall-actions">
-        <a class="ex-btn primary sm" href="{{ url_for('exhibition.view', hall_id=hall.id) }}">
-          <i class="fa-solid fa-person-walking"></i> 관람하기
-        </a>
-        {% if can_manage_map.get(hall.id) %}
-        <a class="ex-btn sm" href="{{ url_for('exhibition.settings', hall_id=hall.id) }}">
-          <i class="fa-solid fa-sliders"></i> 전시관 셋팅
-        </a>
-        <a class="ex-btn sm" href="{{ url_for('exhibition.files', hall_id=hall.id) }}">
-          <i class="fa-solid fa-images"></i> 전시파일 셋팅
-        </a>
-        <form class="ex-inline-form" method="post"
-              action="{{ url_for('exhibition.delete_hall', hall_id=hall.id) }}"
-              onsubmit="return confirm('‘{{ hall.name }}’ 전시관과 올린 전시파일을 모두 삭제합니다. 진행할까요?');">
-          <button class="ex-btn danger sm" type="submit"><i class="fa-solid fa-trash"></i> 삭제</button>
+    <div class="ex-type-grid">
+      {% for key, layout in layouts.items() %}
+      <div class="ex-type-card">
+        <div class="ex-type-top">
+          <span class="ex-type-icon {{ key }}">
+            <i class="fa-solid {{ hall_icons.get(key, 'fa-cube') }}"></i>
+          </span>
+          <div class="ex-type-body">
+            <h3>{{ layout.name }}</h3>
+            <p>{{ layout.summary }}</p>
+            <span class="ex-type-spec">
+              전시공간 {{ slot_counts[key] }}곳 · {{ layout.size.width|int }}m × {{ layout.size.depth|int }}m
+            </span>
+          </div>
+        </div>
+        <form class="ex-type-form" method="post" action="{{ url_for('exhibition.create_hall') }}">
+          <input type="hidden" name="hall_type" value="{{ key }}">
+          <input name="name" maxlength="80" placeholder="전시관 이름 (예: 2026 새담 미술전)">
+          <button class="ex-btn primary sm" type="submit"><i class="fa-solid fa-plus"></i> 만들기</button>
         </form>
-        {% endif %}
       </div>
-    </article>
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="ex-empty">
-    <i class="fa-solid fa-cube" style="font-size:34px;color:#cbd5e1;"></i>
-    <p style="margin-top:12px;">아직 만든 전시관이 없습니다. 위에서 전시관 종류(라운지형 · 갤러리형 · 교실형 · 공원형 · 극장 로비형 · 홈씨어터룸)를 골라 만들어 주세요.</p>
-  </div>
-  {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="ex-zone-split"><span>등록된 전시관</span></div>
+
+  <!-- ─────────── 2구역 : 등록된 전시관 ─────────── -->
+  <section class="ex-zone list">
+    <h2 class="ex-section-title">
+      <span class="ex-zone-badge list"><i class="fa-solid fa-building-columns"></i></span>
+      등록된 전시관
+      <small>모두 {{ halls|length }}개</small>
+    </h2>
+
+    {% if halls %}
+    <div class="ex-hall-list">
+      {% for hall in halls %}
+      <article class="ex-hall-post">
+        <span class="ex-hall-icon {{ hall.hall_type }}">
+          <i class="fa-solid {{ hall_icons.get(hall.hall_type, 'fa-cube') }}"></i>
+        </span>
+        <div class="ex-hall-main">
+          <h3 class="ex-hall-title">
+            <a href="{{ url_for('exhibition.view', hall_id=hall.id) }}">{{ hall.name }}</a>
+            {% if hall.is_published %}
+            <span class="ex-chip on"><i class="fa-solid fa-door-open"></i> 공개중</span>
+            {% else %}
+            <span class="ex-chip off"><i class="fa-solid fa-lock"></i> 준비중</span>
+            {% endif %}
+          </h3>
+          <div class="ex-hall-meta">
+            <span class="ex-chip"><i class="fa-solid fa-cube"></i> {{ layouts[hall.hall_type].name if hall.hall_type in layouts else hall.hall_type }}</span>
+            <span class="ex-chip"><i class="fa-solid fa-photo-film"></i> 전시파일 {{ hall.media_count }}개</span>
+            <span class="ex-chip"><i class="fa-solid fa-eye"></i> {{ hall.view_count }}회</span>
+            {% if hall.bgm_filename %}<span class="ex-chip"><i class="fa-solid fa-music"></i> 배경음악</span>{% endif %}
+          </div>
+          <div class="ex-hall-byline">
+            <i class="fa-regular fa-user"></i> {{ hall.created_by or '-' }}
+            <i class="fa-regular fa-clock"></i> 최근 수정 {{ hall.updated_at[:16] if hall.updated_at else '' }}
+          </div>
+        </div>
+        <div class="ex-hall-actions">
+          <a class="ex-btn primary sm" href="{{ url_for('exhibition.view', hall_id=hall.id) }}">
+            <i class="fa-solid fa-person-walking"></i> 관람하기
+          </a>
+          {% if can_manage_map.get(hall.id) %}
+          <a class="ex-btn sm" href="{{ url_for('exhibition.settings', hall_id=hall.id) }}">
+            <i class="fa-solid fa-sliders"></i> 전시관 셋팅
+          </a>
+          <a class="ex-btn sm" href="{{ url_for('exhibition.files', hall_id=hall.id) }}">
+            <i class="fa-solid fa-images"></i> 전시파일 셋팅
+          </a>
+          <form class="ex-inline-form" method="post"
+                action="{{ url_for('exhibition.delete_hall', hall_id=hall.id) }}"
+                onsubmit="return confirm('‘{{ hall.name }}’ 전시관과 올린 전시파일을 모두 삭제합니다. 진행할까요?');">
+            <button class="ex-btn danger sm" type="submit"><i class="fa-solid fa-trash"></i> 삭제</button>
+          </form>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="ex-empty">
+      <i class="fa-solid fa-cube" style="font-size:34px;color:#cbd5e1;"></i>
+      <p style="margin-top:12px;">아직 만든 전시관이 없습니다. 위 ‘새 전시관 만들기’에서 전시관 종류(라운지형 · 갤러리형 · 교실형 · 공원형 · 극장 로비형 · 홈씨어터룸 · 버스정류장형 · 골목 담벼락형 · 건물 옥상형)를 골라 만들어 주세요.</p>
+    </div>
+    {% endif %}
+  </section>
 
 </div>
 {% endblock %}
