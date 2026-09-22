@@ -105,10 +105,12 @@ FACE_RIGHT = math.pi / 2         # +X 방향
 FACE_LEFT = -math.pi / 2         # -X 방향
 
 
-def _slot(code, name, x, y, z, rotation_y, width=3.2, height=2.1, frameless=False):
+def _slot(code, name, x, y, z, rotation_y, width=3.2, height=2.1, frameless=False,
+          tilt=0.0):
     """전시공간 한 자리. (x, y, z)는 작품 한가운데, rotation_y는 바라보는 방향.
 
     ``frameless``는 칠판처럼 액자 없이 전시물만 붙이는 자리에 쓴다.
+    ``tilt``는 앞뒤로 눕히는 각도(라디안). -pi/2 면 바닥에 눕혀 하늘을 보게 된다.
     """
     return {
         "code": code,
@@ -117,6 +119,7 @@ def _slot(code, name, x, y, z, rotation_y, width=3.2, height=2.1, frameless=Fals
         "y": round(y, 3),
         "z": round(z, 3),
         "rotationY": round(rotation_y, 5),
+        "tilt": round(tilt, 5),
         "width": width,
         "height": height,
         "frameless": frameless,
@@ -150,7 +153,9 @@ def _hall1_layout():
     width, depth, height = 24.0, 18.0, 7.0
     half_w, half_d = width / 2, depth / 2
     surface = 0.07            # 벽에서 살짝 띄워 거는 간격
-    eye = 2.35                # 작품 한가운데 높이
+    # 2층 난간 바닥(높이 3.6m, 두께 0.22m → 아랫면 3.49m)에 액자 윗부분과
+    # 그림 조명이 닿지 않도록 전체 액자를 낮춰 건다.
+    eye = 1.95                # 작품 한가운데 높이
     partition_z = 2.6
     partition_half = 0.45 / 2
 
@@ -173,13 +178,13 @@ def _hall1_layout():
     for index, x in enumerate((-2.6, 2.6)):
         slots.append(_slot(
             f"D{index + 1}", f"가운데 가림벽 앞 {index + 1}번 자리",
-            x, 2.05, partition_z + partition_half + surface, FACE_FRONT,
+            x, 1.9, partition_z + partition_half + surface, FACE_FRONT,
             width=2.8, height=1.9,
         ))
     for index, x in enumerate((-2.6, 2.6)):
         slots.append(_slot(
             f"D{index + 3}", f"가운데 가림벽 뒤 {index + 1}번 자리",
-            x, 2.05, partition_z - partition_half - surface, FACE_BACK,
+            x, 1.9, partition_z - partition_half - surface, FACE_BACK,
             width=2.8, height=1.9,
         ))
 
@@ -284,7 +289,8 @@ def _hall3_layout():
         0.0, 1.72, board_face, FACE_FRONT, width=6.0, height=1.8, frameless=True,
     ))
     # 게시판은 액자 없이 사진만 붙이는 쪽이 교실답다.
-    for index, z in enumerate((-2.8, -0.2, 2.4)):
+    # 출입문(뒤쪽 z=3.5)과 패널 사이에도 벽 여백을 남긴다.
+    for index, z in enumerate((-2.9, -0.6, 1.7)):
         slots.append(_slot(
             f"B{index + 1}", f"오른쪽 게시판 {index + 1}번 자리",
             half_w - surface, eye, z, FACE_LEFT, width=1.7, height=1.15, frameless=True,
@@ -305,9 +311,9 @@ def _hall3_layout():
     return {
         "key": "hall3",
         "name": "전시관3 · 교실형",
-        "summary": "창밖 풍경과 햇살이 있는 교실입니다. 칠판에는 액자 없이, 게시판에는 작은 액자로 전시합니다.",
+        "summary": "창밖 하늘과 햇살이 드는 교실입니다. 칠판과 벽에는 사진을 테두리 없는 얇은 패널로 전시합니다.",
         "size": {"width": width, "depth": depth, "height": height},
-        "spawn": {"x": 0.6, "z": half_d - 1.5, "heading": 0.0},
+        "spawn": {"x": 0.0, "z": half_d - 1.1, "heading": 0.0},
         "style": "classroom",
         "walls": [],          # 창문이 뚫린 벽이라 교실 모양은 3D 쪽에서 직접 만든다
         "partitions": [],
@@ -454,6 +460,161 @@ def _hall6_layout():
     }
 
 
+def _hall7_layout():
+    """전시관7 · 버스정류장형: 유리 부스 대기실이 있는 길가 버스정류장."""
+    width, depth, height = 30.0, 16.0, 9.0
+    half_w = width / 2
+    glass = 0.07              # 유리에서 살짝 띄워 붙이는 간격
+    back_z = 1.8              # 유리 부스 뒷유리(차도 반대쪽)
+    side_x = 5.5              # 유리 부스 양옆 유리
+
+    slots = []
+    # 뒷유리에 군데군데 붙은 포스터
+    for index, x in enumerate((-3.9, 0.0, 3.9)):
+        slots.append(_slot(
+            f"A{index + 1}", f"유리부스 뒷유리 {index + 1}번 자리",
+            x, 1.5, back_z - glass, FACE_BACK,
+            width=1.0, height=1.4, frameless=True,
+        ))
+    # 부스 양옆 유리는 정류장 광고판 자리(세로로 길다)
+    slots.append(_slot(
+        "B1", "유리부스 왼쪽 광고판",
+        -side_x + glass, 1.45, 0.3, FACE_RIGHT, width=1.25, height=1.85, frameless=True,
+    ))
+    slots.append(_slot(
+        "B2", "유리부스 오른쪽 광고판",
+        side_x - glass, 1.45, 0.3, FACE_LEFT, width=1.25, height=1.85, frameless=True,
+    ))
+    # 인도에 선 전시봉 · 차도 쪽 줄(인도 안쪽을 바라본다)
+    for index, x in enumerate((-11.0, -7.6, 7.6, 11.0)):
+        slots.append(_slot(
+            f"C{index + 1}", f"차도쪽 전시봉 {index + 1}번 자리",
+            x, 1.7, -3.2, FACE_FRONT, width=1.3, height=1.75,
+        ))
+    # 가게 쪽 줄(차도를 바라본다)
+    for index, x in enumerate((-9.2, -4.6, 4.6, 9.2)):
+        slots.append(_slot(
+            f"D{index + 1}", f"가게쪽 전시봉 {index + 1}번 자리",
+            x, 1.7, 5.2, FACE_BACK, width=1.3, height=1.75,
+        ))
+
+    return {
+        "key": "hall7",
+        "name": "전시관7 · 버스정류장형",
+        "summary": "유리 부스 대기실이 있는 길가 버스정류장입니다. 인도의 전시봉과 유리 포스터에 전시합니다.",
+        "size": {"width": width, "depth": depth, "height": height},
+        "spawn": {"x": -12.0, "z": 1.2, "heading": -math.pi / 2},
+        "style": "busstop",
+        "walls": [],          # 길가라 벽이 없다(차도·가게는 3D 쪽에서 만든다)
+        "partitions": [],
+        "skylight": None,
+        "balcony": None,
+        "slots": slots,
+    }
+
+
+def _hall8_layout():
+    """전시관8 · 골목 담벼락형: 포스터와 그라피티가 붙은 좁은 골목."""
+    width, depth, height = 9.0, 34.0, 14.0
+    half_w = width / 2
+    surface = 0.08
+    facade = 5.6              # 담벼락 뒤로 물러선 왼쪽 건물 외벽
+
+    slots = []
+    # 왼쪽 담벼락 — 세로 포스터
+    for index, z in enumerate((-11.5, -5.0, 1.5, 8.0)):
+        slots.append(_slot(
+            f"A{index + 1}", f"왼쪽 담벼락 {index + 1}번 자리",
+            -half_w + surface, 1.75, z, FACE_RIGHT,
+            width=1.35, height=1.85, frameless=True,
+        ))
+    # 오른쪽 담벼락 — 가로 사진
+    for index, z in enumerate((-13.0, -7.0, 0.0, 6.5, 12.0)):
+        slots.append(_slot(
+            f"B{index + 1}", f"오른쪽 담벼락 {index + 1}번 자리",
+            half_w - surface, 1.7, z, FACE_LEFT,
+            width=1.6, height=1.1, frameless=True,
+        ))
+    # 건물 외벽에 크게 거는 자리
+    slots.append(_slot(
+        "C1", "오른쪽 건물 외벽 대형 자리",
+        half_w - surface, 6.4, -4.0, FACE_LEFT, width=5.0, height=3.4, frameless=True,
+    ))
+    slots.append(_slot(
+        "C2", "왼쪽 건물 외벽 대형 자리",
+        -facade + surface, 6.8, 5.0, FACE_RIGHT, width=4.6, height=3.2, frameless=True,
+    ))
+    # 골목 바닥에 눕혀 두는 자리(tilt 로 바닥에 깔린다)
+    floor_spots = ((-1.3, -8.5, FACE_FRONT), (1.3, -1.5, FACE_FRONT), (-1.3, 5.5, FACE_BACK))
+    for index, (x, z, face) in enumerate(floor_spots):
+        slots.append(_slot(
+            f"D{index + 1}", f"골목 바닥 {index + 1}번 자리",
+            x, 0.06, z, face, width=2.0, height=1.4,
+            frameless=True, tilt=-math.pi / 2,
+        ))
+
+    return {
+        "key": "hall8",
+        "name": "전시관8 · 골목 담벼락형",
+        "summary": "그라피티가 그려진 좁은 골목입니다. 담벼락·건물 외벽·골목 바닥에 전시합니다.",
+        "size": {"width": width, "depth": depth, "height": height},
+        "spawn": {"x": 0.0, "z": depth / 2 - 2.0, "heading": 0.0},
+        "style": "alley",
+        "walls": [],          # 담벼락·건물은 3D 쪽에서 직접 만든다
+        "partitions": [],
+        "skylight": None,
+        "balcony": None,
+        "slots": slots,
+    }
+
+
+def _hall9_layout():
+    """전시관9 · 건물 옥상형: 대형 스크린과 야경이 있는 옥상."""
+    width, depth, height = 24.0, 18.0, 10.0
+    half_w, half_d = width / 2, depth / 2
+    across_x = 18.0           # 건너편 건물 외벽
+    penthouse_z = half_d - 2.6
+
+    slots = []
+    # 옥상 한쪽에 세운 대형 스크린(액자 없이 화면만)
+    slots.append(_slot(
+        "A1", "옥상 대형 스크린",
+        0.0, 3.9, -half_d + 0.45, FACE_FRONT, width=8.4, height=4.7, frameless=True,
+    ))
+    # 왼쪽 난간 위 배너 걸이
+    for index, z in enumerate((-4.6, 0.0, 4.6)):
+        slots.append(_slot(
+            f"B{index + 1}", f"왼쪽 난간 배너 {index + 1}번 자리",
+            -half_w + 0.34, 1.95, z, FACE_RIGHT, width=2.5, height=1.7, frameless=True,
+        ))
+    # 옥탑방 외벽
+    for index, x in enumerate((-2.6, 2.6)):
+        slots.append(_slot(
+            f"C{index + 1}", f"옥탑방 외벽 {index + 1}번 자리",
+            x, 1.85, penthouse_z - 0.12, FACE_BACK, width=2.3, height=1.55,
+        ))
+    # 건너편 건물 외벽(옥상에서 건너다보며 관람한다)
+    for index, (z, y) in enumerate(((-4.2, 5.2), (1.4, 6.2), (6.6, 4.8))):
+        slots.append(_slot(
+            f"D{index + 1}", f"건너편 건물 외벽 {index + 1}번 자리",
+            across_x - 0.12, y, z, FACE_LEFT, width=5.4, height=3.6, frameless=True,
+        ))
+
+    return {
+        "key": "hall9",
+        "name": "전시관9 · 건물 옥상형",
+        "summary": "도시 야경이 보이는 건물 옥상입니다. 난간·옥탑방·건너편 건물 외벽과 대형 스크린에 전시합니다.",
+        "size": {"width": width, "depth": depth, "height": height},
+        "spawn": {"x": 0.0, "z": half_d - 4.2, "heading": 0.0},
+        "style": "rooftop",
+        "walls": [],          # 옥상이라 벽 대신 난간과 옥탑방을 3D 쪽에서 만든다
+        "partitions": [],
+        "skylight": None,
+        "balcony": None,
+        "slots": slots,
+    }
+
+
 HALL_LAYOUTS = {
     "hall1": _hall1_layout(),
     "hall2": _hall2_layout(),
@@ -461,6 +622,9 @@ HALL_LAYOUTS = {
     "hall4": _hall4_layout(),
     "hall5": _hall5_layout(),
     "hall6": _hall6_layout(),
+    "hall7": _hall7_layout(),
+    "hall8": _hall8_layout(),
+    "hall9": _hall9_layout(),
 }
 HALL_TYPES = tuple(HALL_LAYOUTS)
 DEFAULT_HALL_TYPE = "hall1"
@@ -472,6 +636,9 @@ DEFAULTS = {
     "hall4": {"wall_color": "#efe3cb", "floor_color": "#7aa356", "accent_color": "#0ea5e9"},
     "hall5": {"wall_color": "#4a3f52", "floor_color": "#6d1f2e", "accent_color": "#e11d48"},
     "hall6": {"wall_color": "#33405a", "floor_color": "#4a3b34", "accent_color": "#c9a227"},
+    "hall7": {"wall_color": "#dfe6ee", "floor_color": "#b9bcc0", "accent_color": "#0ea5e9"},
+    "hall8": {"wall_color": "#cbc3b6", "floor_color": "#8d8a85", "accent_color": "#a855f7"},
+    "hall9": {"wall_color": "#3a4152", "floor_color": "#6f6a63", "accent_color": "#f97316"},
 }
 
 HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -897,8 +1064,8 @@ def _scene_payload(conn, hall) -> dict:
         ]
         slots.append({
             **{key: slot[key] for key in
-               ("code", "name", "x", "y", "z", "rotationY", "width", "height",
-                "frameless")},
+               ("code", "name", "x", "y", "z", "rotationY", "tilt", "width",
+                "height", "frameless")},
             "title": row["title"] if row else "",
             "artist": row["artist"] if row else "",
             "description": row["description"] if row else "",
