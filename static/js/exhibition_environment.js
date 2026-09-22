@@ -79,8 +79,16 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 // Every room builder places plain boxes; sharing one helper keeps them comparable.
 function boxFactory(scene) {
+  // 천장 보 · 창틀 · 난간 기둥처럼 똑같은 상자를 수십 개 놓는 자리가 많다.
+  // 크기가 같으면 기하 데이터를 함께 쓰게 해서 GPU 버퍼와 만드는 시간을 아낀다.
+  const shapes = new Map();
+  const shape = (width, height, depth) => {
+    const key = `${width.toFixed(4)}|${height.toFixed(4)}|${depth.toFixed(4)}`;
+    if (!shapes.has(key)) shapes.set(key, new THREE.BoxGeometry(width, height, depth));
+    return shapes.get(key);
+  };
   return (width, height, depth, material, x, y, z, parent = scene) => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+    const mesh = new THREE.Mesh(shape(width, height, depth), material);
     mesh.position.set(x, y, z);
     mesh.castShadow = mesh.receiveShadow = true;
     parent.add(mesh);
@@ -264,36 +272,39 @@ function buildIndoor(scene, renderer, hall, layout, lowPower) {
   [-1, 1].forEach(sign => box(0.06, 0.07, d - 2, metal, sign * (w / 2 - (lounge ? 1.3 : 2)), trackY, 0));
   if (lounge) box(w - 2, 0.07, 0.06, metal, 0, trackY, -d / 2 + 1.3);
   const wallSlots = (layout.slots || []).filter(s => s.code.startsWith('A') || s.code.startsWith('B') || s.code.startsWith('C'));
+  const fixtureShape = new THREE.CylinderGeometry(0.09, 0.11, 0.25, 12);
+  const lensShape = lounge ? new THREE.CircleGeometry(0.075, 16) : null;
+  const lensMaterial = lounge ? new THREE.MeshStandardMaterial({
+    color: 0xfff0d7, emissive: 0xffd49c, emissiveIntensity: 2.2 * power, roughness: 0.3,
+  }) : null;
+  const aims = [];                                  // 조명이 비출 자리(작품) 목록
+  const DOWN = new THREE.Vector3(0, -1, 0);
   wallSlots.forEach((s, i) => {
     const direction = new THREE.Vector3(Math.sin(s.rotationY), 0, Math.cos(s.rotationY));
     const pos = new THREE.Vector3(s.x, Math.min(h - 0.85, layout.balcony ? 3.35 : h - 0.85), s.z).addScaledVector(direction, 1.3);
-    const fixture = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.25, 12), metal);
-    fixture.position.copy(pos);
     const target = new THREE.Vector3(s.x, s.y, s.z);
-    fixture.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), target.clone().sub(pos).normalize());
+    const aim = target.clone().sub(pos).normalize();
+    const fixture = new THREE.Mesh(fixtureShape, metal);
+    fixture.position.copy(pos);
+    fixture.quaternion.setFromUnitVectors(DOWN, aim);
     scene.add(fixture);
     if (lounge) {
-      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.075, 16), new THREE.MeshStandardMaterial({
-        color: 0xfff0d7, emissive: 0xffd49c, emissiveIntensity: 2.2 * power, roughness: 0.3,
-      }));
-      lens.position.copy(pos).addScaledVector(target.clone().sub(pos).normalize(), 0.13);
+      // 갓(렌즈)은 자리마다 그대로 켜 둔다. 스스로 빛나 보이기만 해서 계산이 거의 없다.
+      const lens = new THREE.Mesh(lensShape, lensMaterial);
+      lens.position.copy(pos).addScaledVector(aim, 0.13);
       lens.lookAt(target);
       scene.add(lens);
+      aims.push({ position: pos, target });
+      return;
     }
-    const lit = lounge ? (!lowPower || i % 2 === 0) : (i % 2 === 0 && i < (lowPower ? 6 : 10));
-    if (lit) {
-      const light = new THREE.SpotLight(0xffedce, (lounge ? 32 : 48) * power, 11, Math.PI / (lounge ? 3.2 : 5), lounge ? 0.85 : 0.75, 2);
+    if (i % 2 === 0 && i < (lowPower ? 6 : 10)) {
+      const light = new THREE.SpotLight(0xffedce, 48 * power, 11, Math.PI / 5, 0.75, 2);
       light.position.copy(pos);
       light.target.position.copy(target);
       scene.add(light, light.target);
-      if (lounge && !lowPower && i === 0) {
-        light.castShadow = true;
-        light.shadow.mapSize.set(512, 512);
-        light.shadow.bias = -0.0002;
-        light.shadow.normalBias = 0.015;
-      }
     }
   });
+  const spotlights = lounge ? trackSpotlights(scene, aims, layout, power, lowPower) : null;
   if (lounge && layout.balcony) {
     // Recessed warm strips with actual bounced fill under the balcony.
     const diffuser = new THREE.MeshStandardMaterial({ color: 0xffefda, emissive: 0xffd6a1, emissiveIntensity: 2.4 * power });
@@ -306,28 +317,44 @@ function buildIndoor(scene, renderer, hall, layout, lowPower) {
     }
   }
   // Benches and greenery stay along the entry edge, away from artwork and spawn.
+  const potShape = new THREE.CylinderGeometry(0.38, 0.27, 0.65, 20);
+  const potMaterial = make('concrete', 0xc9bca5);
+  const foliage = new THREE.MeshStandardMaterial({ color: 0x476441, roughness: 0.82 });
+  const leaves = [];
   [-1, 1].forEach(sign => {
     const x = sign * w * 0.30, z = d / 2 - 2.0;
     box(2.6, 0.16, 0.7, timber, x, 0.48, z);
     [-0.95, 0.95].forEach(dx => box(0.1, 0.4, 0.56, metal, x + dx, 0.2, z));
     blockers.push({ minX: x - 1.65, maxX: x + 1.65, minZ: z - 0.7, maxZ: z + 0.7 });
     const px = sign * (w / 2 - 1.1), pz = d / 2 - 1.1;
-    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.27, 0.65, 20), make('concrete', 0xc9bca5));
+    const pot = new THREE.Mesh(potShape, potMaterial);
     pot.position.set(px, 0.325, pz);
     pot.castShadow = pot.receiveShadow = true;
     scene.add(pot);
-    const foliage = new THREE.MeshStandardMaterial({ color: 0x476441, roughness: 0.82 });
     for (let j = 0; j < 14; j++) {
       const angle = j * 2.4;
-      const leaf = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), foliage);
-      leaf.scale.set(0.13, 0.44, 0.065);
-      leaf.position.set(px + Math.sin(angle) * 0.25, 0.9 + (j % 4) * 0.19, pz + Math.cos(angle) * 0.25);
-      leaf.rotation.set(Math.sin(angle) * 0.65, angle, Math.cos(angle) * 0.7);
-      leaf.castShadow = true;
-      scene.add(leaf);
+      leaves.push({
+        x: px + Math.sin(angle) * 0.25, y: 0.9 + (j % 4) * 0.19, z: pz + Math.cos(angle) * 0.25,
+        rotation: new THREE.Euler(Math.sin(angle) * 0.65, angle, Math.cos(angle) * 0.7),
+      });
     }
     blockers.push({ minX: px - 0.7, maxX: px + 0.7, minZ: pz - 0.7, maxZ: pz + 0.7 });
   });
+  // 잎이 28장이라 낱개로 두면 매 프레임 28번을 따로 그린다. 한 덩어리로 묶어 한 번에 그린다.
+  if (leaves.length) {
+    const clump = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), foliage, leaves.length);
+    const matrix = new THREE.Matrix4();
+    const quaternion = new THREE.Quaternion();
+    const position = new THREE.Vector3();
+    const leafScale = new THREE.Vector3(0.13, 0.44, 0.065);
+    leaves.forEach((leaf, index) => {
+      matrix.compose(position.set(leaf.x, leaf.y, leaf.z), quaternion.setFromEuler(leaf.rotation), leafScale);
+      clump.setMatrixAt(index, matrix);
+    });
+    clump.instanceMatrix.needsUpdate = true;
+    clump.castShadow = true;
+    scene.add(clump);
+  }
   const frameMaterial = frameMaterialFor(frameKind, make);
   if (lounge) {
     scene.traverse(object => {
@@ -336,7 +363,46 @@ function buildIndoor(scene, renderer, hall, layout, lowPower) {
       }
     });
   }
-  return { blockers, frameMaterial, ready: lounge ? Promise.all([photos.ready(), skyReady]) : Promise.resolve() };
+  return {
+    blockers, frameMaterial,
+    ready: lounge ? Promise.all([photos.ready(), skyReady]) : Promise.resolve(),
+    update: spotlights ? spotlights.follow : null,
+  };
+}
+
+// 라운지 트랙 조명. 조명이 하나 늘면 화면의 모든 픽셀에서 계산이 한 번씩 늘어나므로
+// 자리 수만큼 켜면 넓은 바닥·벽을 볼 때 걸음이 끊긴다. 정해진 개수만 만들어 두고
+// 관람객이 다가간 작품으로 옮겨 쓴다. 갓은 자리마다 그대로 켜져 있어 옮겨 다니는 것이 보이지 않는다.
+function trackSpotlights(scene, aims, layout, power, lowPower) {
+  const count = Math.min(aims.length, lowPower ? 3 : 6);
+  if (!count) return null;
+  const lights = [];
+  for (let i = 0; i < count; i++) {
+    // 조명 개수가 바뀌면 three.js가 셰이더를 다시 엮어 화면이 한 번 멈춘다. 개수는 처음부터 고정한다.
+    const light = new THREE.SpotLight(0xffedce, 32 * power, 11, Math.PI / 3.2, 0.85, 2);
+    scene.add(light, light.target);
+    lights.push(light);
+  }
+  const held = new Array(count).fill(-1);          // 조명마다 지금 비추고 있는 자리
+  const ranked = aims.map((aim, index) => index);
+  function follow(viewer) {
+    // 이미 켜져 있는 자리에 가산점을 줘서 경계에 서 있어도 조명이 깜빡이지 않게 한다.
+    const score = index => aims[index].target.distanceToSquared(viewer)
+      * (held.indexOf(index) >= 0 ? 0.64 : 1);
+    ranked.sort((a, b) => score(a) - score(b));
+    const wanted = ranked.slice(0, count);
+    const spare = [];
+    for (let i = 0; i < count; i++) if (wanted.indexOf(held[i]) < 0) spare.push(i);
+    for (const index of wanted) {
+      if (held.indexOf(index) >= 0) continue;
+      const i = spare.pop();
+      held[i] = index;
+      lights[i].position.copy(aims[index].position);
+      lights[i].target.position.copy(aims[index].target);
+    }
+  }
+  follow(new THREE.Vector3(layout.spawn.x, 1.6, layout.spawn.z));
+  return { follow };
 }
 
 // Seen only through the classroom windows: sky, schoolyard, trees and the block opposite.

@@ -21,7 +21,9 @@ export function photographicMaterials(renderer, fallback) {
         const texture = await loader.loadAsync(new URL(`${asset}_${channel}.jpg`, ROOT).href);
         texture.colorSpace = channel === 'Diffuse' ? THREE.SRGBColorSpace : THREE.NoColorSpace;
         texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-        texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        // 8배 비등방 필터는 넓은 바닥을 비스듬히 볼 때 픽셀마다 표본을 8번 뽑는다.
+        // 4배로도 나뭇결이 살아 있고, 고해상도 화면에서 프레임이 훨씬 안정된다.
+        texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
         return texture;
       })));
     }
@@ -76,25 +78,26 @@ export async function photographicSky(scene, renderer) {
 }
 
 export function glazedSkylight(scene, box, metal, trim, width, depth, height, lowPower) {
+  // 유리를 '투과(transmission)' 재질로 두면 three.js가 유리 뒤를 보여 주기 위해
+  // 매 프레임 장면을 한 번 더 그린다(transmission pass). 천창은 하늘만 비치므로
+  // 옅은 투명 + 환경 반사로 바꿨다. 보이는 모습은 그대로이면서 장면을 두 번 그리는 일이 없어진다.
   const glass = new THREE.MeshPhysicalMaterial({
-    color: 0xf1faf9, metalness: 0, roughness: 0.045,
-    transmission: lowPower ? 0 : 0.96, thickness: 0.025, ior: 1.5,
-    transparent: true, opacity: lowPower ? 0.12 : 1,
-    side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 0.45,
+    color: 0xeaf7f6, metalness: 0, roughness: 0.055,
+    transparent: true, opacity: lowPower ? 0.1 : 0.16,
+    side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 0.5,
   });
   const columns = 3, rows = Math.ceil(depth / 2.7);
   const cellW = width / columns, cellD = depth / rows;
-  for (let x = 0; x < columns; x++) {
-    for (let z = 0; z < rows; z++) {
-      const pane = new THREE.Mesh(new THREE.PlaneGeometry(cellW - 0.07, cellD - 0.07), glass);
-      pane.name = 'lounge-skylight-glass';
-      pane.rotation.x = -Math.PI / 2;
-      pane.position.set(-width / 2 + (x + 0.5) * cellW, height + 0.32, -depth / 2 + (z + 0.5) * cellD);
-      // Transparent glazing must not cast an opaque rectangle over the room.
-      pane.castShadow = false;
-      scene.add(pane);
-    }
-  }
+  // 칸마다 유리판을 두면 유리 한 장에 draw call이 15번 든다.
+  // 칸을 나누는 창틀이 유리 아래에 따로 있으므로 유리는 한 장으로 덮는다.
+  const pane = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), glass);
+  pane.name = 'lounge-skylight-glass';
+  pane.rotation.x = -Math.PI / 2;
+  pane.position.set(0, height + 0.32, 0);
+  // Transparent glazing must not cast an opaque rectangle over the room.
+  pane.castShadow = false;
+  pane.receiveShadow = false;
+  scene.add(pane);
   for (let x = 0; x <= columns; x++) box(0.07, 0.16, depth + 0.12, metal, -width / 2 + x * cellW, height + 0.26, 0);
   for (let z = 0; z <= rows; z++) box(width, 0.16, 0.07, metal, 0, height + 0.26, -depth / 2 + z * cellD);
   for (const sign of [-1, 1]) {

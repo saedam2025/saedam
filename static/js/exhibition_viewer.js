@@ -76,13 +76,25 @@ try {
   loadingText.textContent = '이 브라우저에서는 3D 전시장을 열 수 없습니다.';
   throw error;
 }
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouchDevice ? 1.5 : 2));
+// 그리는 해상도는 기기 힘에 맞춰 조금씩 오르내린다(adaptResolution).
+const MAX_PIXEL_RATIO = Math.min(window.devicePixelRatio || 1, isTouchDevice ? 1.5 : 2);
+const MIN_PIXEL_RATIO = Math.min(MAX_PIXEL_RATIO, 1);
+let pixelRatio = MAX_PIXEL_RATIO;
+renderer.setPixelRatio(pixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// 전시장은 해도 건물도 작품도 움직이지 않는다. 그림자를 매 프레임 다시 그리는 것은
+// 장면을 한 번 더 그리는 일이라, 한 번 구워 두고 바뀔 때만 다시 굽는다.
+renderer.shadowMap.autoUpdate = false;
+renderer.shadowMap.needsUpdate = true;
+
+function bakeShadows() {
+  renderer.shadowMap.needsUpdate = true;
+}
 renderer.xr.enabled = true;
 stage.appendChild(renderer.domElement);
 
@@ -121,9 +133,10 @@ const accent = new THREE.Color(HALL.accentColor || '#2563eb');
 
 // 전시공간(작품 자리) 목록은 서버가 layout 바깥(SCENE.slots)으로 내려주므로
 // 조명을 걸 때 쓸 수 있도록 layout에 합쳐서 넘긴다.
-const { blockers, frameMaterial, ready: environmentReady } = buildEnvironment(
+const environment = buildEnvironment(
   scene, renderer, HALL, { ...LAYOUT, slots: SCENE.slots }, isTouchDevice,
 );
+const { blockers, frameMaterial, ready: environmentReady } = environment;
 
 const artworks = [];          // { slot, mesh, media, index, video, placard }
 const pickTargets = [];
@@ -269,6 +282,7 @@ function refit(artwork, aspect) {
   if (artwork.placard) {
     artwork.placard.position.set(0, -(size.height / 2) - 0.43, 0.01);
   }
+  bakeShadows();
 }
 
 
@@ -1096,6 +1110,8 @@ const rightVector = new THREE.Vector3();
 const cameraWorld = new THREE.Vector3();
 let entered = false;
 let sinceVideoCheck = 0;
+let sinceFocusCheck = 0;
+let sinceLightCheck = 0;
 
 function updatePlayer(delta) {
   const axis = keyAxis();
@@ -1194,14 +1210,57 @@ function updateReticle() {
   }
 }
 
+// 트랙 조명은 정해진 개수를 가까운 작품으로 옮겨 쓴다(exhibition_environment.js).
+// 걸음보다 훨씬 느리게 옮겨도 눈에 같아 보이므로 0.25초마다만 다시 배정한다.
+function updateTrackLights(delta) {
+  if (!environment.update) return;
+  sinceLightCheck += delta;
+  if (sinceLightCheck < 0.25) return;
+  sinceLightCheck = 0;
+  camera.getWorldPosition(cameraWorld);
+  environment.update(cameraWorld);
+}
+
+/*
+ * 기기마다 그릴 수 있는 픽셀 수가 달라서, 프레임이 밀리면 그리는 해상도를 한 단계 낮추고
+ * 여유가 생기면 되돌린다. 화면 크기는 그대로이므로 관람 중에는 선명함만 살짝 달라진다.
+ */
+const FRAME_SAMPLE = 45;
+let frameCount = 0;
+let frameTotal = 0;
+
+function adaptResolution(delta) {
+  if (renderer.xr.isPresenting) return;      // VR은 기기가 해상도를 스스로 정한다
+  frameCount += 1;
+  frameTotal += delta;
+  if (frameCount < FRAME_SAMPLE) return;
+  const average = frameTotal / frameCount;
+  frameCount = 0;
+  frameTotal = 0;
+  // 22ms(약 45fps)보다 느리면 낮추고, 13ms(약 75fps)보다 빠르면 되돌린다.
+  const wanted = average > 0.022 ? pixelRatio - 0.25
+    : (average < 0.013 ? pixelRatio + 0.25 : pixelRatio);
+  const next = Math.max(MIN_PIXEL_RATIO, Math.min(MAX_PIXEL_RATIO, wanted));
+  if (next === pixelRatio) return;
+  pixelRatio = next;
+  renderer.setPixelRatio(pixelRatio);
+}
+
 renderer.setAnimationLoop(() => {
   const delta = Math.min(clock.getDelta(), 0.1);
   if (entered) {
     calibrateVrFloor();
     updatePlayer(delta);
     updateVideos(delta);
-    updateSlideshow(performance.now());
-    updateReticle();
+    updateTrackLights(delta);
+    // 조준선은 화면 가운데로 광선을 쏘아 작품을 찾는 일이라 매 프레임 할 필요가 없다.
+    // 0.1초마다 확인해도 안내 글이 늦는 느낌은 들지 않는다.
+    sinceFocusCheck += delta;
+    if (sinceFocusCheck >= 0.1) {
+      sinceFocusCheck = 0;
+      updateSlideshow(performance.now());
+      updateReticle();
+    }
     updateVrMenuHover();
     // 눈앞 안내판은 VR 안에서만 쓴다(화면에서는 HUD 패널이 보여 준다).
     if (eyeNotice) {
@@ -1209,6 +1268,7 @@ renderer.setAnimationLoop(() => {
     }
   }
   renderer.render(scene, camera);
+  if (entered) adaptResolution(delta);
 });
 
 window.addEventListener('resize', () => {
@@ -1256,6 +1316,7 @@ enterBtn.addEventListener('click', enterHall);
   }
   loading.hidden = true;
   gate.hidden = false;
+  bakeShadows();
   if (!artworks.length) {
     focusLabel.textContent = '아직 올린 전시파일이 없습니다. [전시파일 셋팅]에서 작품을 올려 주세요.';
   }
