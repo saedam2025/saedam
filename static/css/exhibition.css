@@ -74,7 +74,48 @@
 .ex-flash.error { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
 .ex-flash.success { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
 
-/* --- 전시관 만들기 카드 --- */
+/* --- 구역 구분 : 새 전시관 만들기 / 등록된 전시관 --- */
+.ex-zone {
+  margin-top: 22px;
+  padding: 18px 20px 22px;
+  border-radius: 20px;
+}
+.ex-zone.create {
+  background: linear-gradient(180deg, #f3f7fd 0%, #eaf1fb 100%);
+  border: 2px dashed #b6cbee;
+}
+.ex-zone.list {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, .07);
+}
+
+/* 두 구역 사이를 확실하게 끊어 주는 가름선 */
+.ex-zone-split {
+  position: relative;
+  margin: 26px 0 0;
+  text-align: center;
+}
+.ex-zone-split::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid #e2e8f0;
+}
+.ex-zone-split span {
+  position: relative;
+  display: inline-block;
+  padding: 5px 16px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .06em;
+}
+
 .ex-section-title {
   margin: 30px 0 14px;
   font-size: 17px;
@@ -83,73 +124,158 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .ex-section-title small { font-weight: 500; color: #64748b; font-size: 13px; }
 
+.ex-zone .ex-section-title {
+  margin: 0 0 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, .09);
+}
+.ex-zone-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: #fff;
+}
+.ex-zone-badge.create { background: #2563eb; }
+.ex-zone-badge.list { background: #0f172a; }
+
+/* --- 새 전시관 만들기 : 작은 아이콘 카드 --- */
 .ex-type-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 12px;
 }
 
 .ex-type-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 18px;
+  border: 1px solid #dbe4f2;
+  border-radius: 14px;
   background: #fff;
-  padding: 0 0 18px;
-  overflow: hidden;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, .06);
-}
-
-.ex-type-preview {
-  height: 168px;
-  position: relative;
-  overflow: hidden;
-}
-.ex-type-preview.hall1 { background: linear-gradient(180deg, #eaf1fb 0%, #f8f3ea 55%, #d8b184 100%); }
-.ex-type-preview.hall2 { background: linear-gradient(180deg, #f4f4f5 0%, #e7e7e6 58%, #b8b8b4 100%); }
-.ex-type-preview.hall3 { background: linear-gradient(180deg, #eef5ff 0%, #f6efe0 56%, #c89b62 100%); }
-.ex-type-preview.hall4 { background: linear-gradient(180deg, #cfe4f5 0%, #9dc47a 58%, #7aa356 100%); }
-.ex-type-preview.hall5 { background: linear-gradient(180deg, #2e2833 0%, #3b3240 58%, #6d1f2e 100%); }
-.ex-type-preview.hall6 { background: linear-gradient(180deg, #1f2733 0%, #2a2b33 58%, #3b2f2b 100%); }
-.ex-type-preview span {
-  position: absolute;
-  background: rgba(255, 255, 255, .92);
-  border: 1px solid rgba(15, 23, 42, .12);
-  border-radius: 3px;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, .12);
-}
-.ex-type-body { padding: 16px 20px 0; }
-.ex-type-body h3 { margin: 0 0 6px; font-size: 17px; font-weight: 800; }
-.ex-type-body p { margin: 0 0 12px; font-size: 13px; color: #64748b; line-height: 1.6; }
-.ex-type-form { display: flex; gap: 8px; padding: 0 20px; }
-.ex-type-form input {
-  flex: 1;
-  padding: 9px 12px;
-  border: 1px solid #d5dae3;
-  border-radius: 9px;
-  font-size: 14px;
-}
-
-/* --- 전시관 목록 --- */
-.ex-hall-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
-}
-
-.ex-hall-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  background: #fff;
-  padding: 18px 20px;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, .05);
+  padding: 13px 14px 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 11px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, .05);
+  transition: .16s ease;
 }
-.ex-hall-card h3 { margin: 0; font-size: 17px; font-weight: 800; }
+.ex-type-card:hover { border-color: #93b4ee; transform: translateY(-1px); }
+
+.ex-type-top { display: flex; align-items: center; gap: 13px; }
+
+/* 예전 샘플 그림(168px) 대신 절반 크기(84px)의 아이콘 타일 */
+.ex-type-icon {
+  flex: 0 0 auto;
+  width: 84px;
+  height: 84px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(15, 23, 42, .3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35), 0 6px 14px rgba(15, 23, 42, .14);
+}
+.ex-type-icon.hall1 { background: linear-gradient(145deg, #c79a63 0%, #8c6136 100%); }
+.ex-type-icon.hall2 { background: linear-gradient(145deg, #a8adb5 0%, #6b7280 100%); }
+.ex-type-icon.hall3 { background: linear-gradient(145deg, #4e9d76 0%, #276749 100%); }
+.ex-type-icon.hall4 { background: linear-gradient(145deg, #86c25f 0%, #4f7f43 100%); }
+.ex-type-icon.hall5 { background: linear-gradient(145deg, #9c2f45 0%, #4b2230 100%); }
+.ex-type-icon.hall6 { background: linear-gradient(145deg, #4a5568 0%, #1f2733 100%); }
+.ex-type-icon.hall7 { background: linear-gradient(145deg, #6da3d8 0%, #2e4c6d 100%); }
+.ex-type-icon.hall8 { background: linear-gradient(145deg, #a06bd4 0%, #4b3a7a 100%); }
+.ex-type-icon.hall9 { background: linear-gradient(145deg, #f0894e 0%, #47365f 100%); }
+
+.ex-type-body { min-width: 0; }
+.ex-type-body h3 { margin: 0 0 4px; font-size: 15px; font-weight: 800; }
+.ex-type-body p {
+  margin: 0 0 5px;
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.5;
+}
+.ex-type-spec { font-size: 11.5px; font-weight: 700; color: #2563eb; }
+
+.ex-type-form { display: flex; gap: 7px; }
+.ex-type-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 11px;
+  border: 1px solid #d5dae3;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+/* --- 등록된 전시관 : 큰 아이콘 게시물 --- */
+.ex-hall-list { display: flex; flex-direction: column; gap: 12px; }
+
+.ex-hall-post {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #2563eb;
+  border-radius: 14px;
+  background: #fff;
+  padding: 16px 18px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .05);
+  transition: .16s ease;
+}
+.ex-hall-post:hover { border-color: #bfd3f4; border-left-color: #1d4ed8; box-shadow: 0 10px 24px rgba(15, 23, 42, .1); }
+
+.ex-hall-icon {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 96px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  color: #fff;
+  text-shadow: 0 3px 8px rgba(15, 23, 42, .35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .32), 0 8px 18px rgba(15, 23, 42, .18);
+}
+.ex-hall-icon.hall1 { background: linear-gradient(145deg, #c79a63 0%, #8c6136 100%); }
+.ex-hall-icon.hall2 { background: linear-gradient(145deg, #a8adb5 0%, #6b7280 100%); }
+.ex-hall-icon.hall3 { background: linear-gradient(145deg, #4e9d76 0%, #276749 100%); }
+.ex-hall-icon.hall4 { background: linear-gradient(145deg, #86c25f 0%, #4f7f43 100%); }
+.ex-hall-icon.hall5 { background: linear-gradient(145deg, #9c2f45 0%, #4b2230 100%); }
+.ex-hall-icon.hall6 { background: linear-gradient(145deg, #4a5568 0%, #1f2733 100%); }
+.ex-hall-icon.hall7 { background: linear-gradient(145deg, #6da3d8 0%, #2e4c6d 100%); }
+.ex-hall-icon.hall8 { background: linear-gradient(145deg, #a06bd4 0%, #4b3a7a 100%); }
+.ex-hall-icon.hall9 { background: linear-gradient(145deg, #f0894e 0%, #47365f 100%); }
+
+.ex-hall-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.ex-hall-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.ex-hall-title a { color: #0f172a; text-decoration: none; }
+.ex-hall-title a:hover { color: #1d4ed8; text-decoration: underline; }
 .ex-hall-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #64748b; }
+.ex-hall-byline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #94a3b8;
+}
+.ex-hall-byline i { margin-left: 4px; }
+.ex-hall-byline i:first-child { margin-left: 0; }
+
 .ex-chip {
   display: inline-flex;
   align-items: center;
@@ -158,11 +284,20 @@
   border-radius: 999px;
   background: #f1f5f9;
   color: #475569;
+  font-size: 12px;
   font-weight: 700;
 }
 .ex-chip.on { background: #dcfce7; color: #15803d; }
 .ex-chip.off { background: #fee2e2; color: #b91c1c; }
-.ex-hall-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+
+.ex-hall-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  max-width: 260px;
+}
 
 .ex-empty {
   padding: 48px 20px;
@@ -692,7 +827,13 @@ body.ex-viewing .content-container { padding: 0 !important; margin: 0 !important
 @media (max-width: 720px) {
   .ex-hero { padding: 20px; }
   .ex-hero h1 { font-size: 21px; }
-  .ex-slot-grid, .ex-hall-grid, .ex-type-grid { grid-template-columns: 1fr; }
+  .ex-slot-grid, .ex-type-grid { grid-template-columns: 1fr; }
+  .ex-zone { padding: 14px 13px 18px; }
+  .ex-hall-post { flex-direction: column; align-items: stretch; gap: 12px; }
+  .ex-hall-icon { width: 76px; height: 76px; font-size: 34px; border-radius: 15px; }
+  .ex-hall-title { font-size: 17px; }
+  .ex-hall-actions { max-width: none; justify-content: flex-start; }
+  .ex-type-icon { width: 72px; height: 72px; font-size: 28px; }
   .ex-hud-title { font-size: 12.5px; padding: 7px 11px; }
   .ex-hint { font-size: 11px; bottom: 14px; white-space: normal; max-width: 86vw; text-align: center; }
   .ex-eye { width: 208px; top: 58px; right: 10px; }

@@ -16,7 +16,8 @@ recorded in `sources.json`.
 PBR maps are the original 1K JPEGs: Diffuse uses sRGB, OpenGL normal and roughness
 use linear data. The sky is the 1K HDR, which is ample seen through a skylight and
 keeps the first load small. The existing `plain` option stays
-untextured. Only the lounge builder opts into these materials.
+untextured. The lounge and classroom builders use these materials. Classroom
+furniture crops a single wood plank to avoid displaying flooring seams on desks.
 
 `RGBELoader.js` comes from Three.js r161 (matching the bundled renderer), under
 MIT; its only change is the import path to the local `three.module.js`.

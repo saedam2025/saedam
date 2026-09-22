@@ -9,7 +9,7 @@
 // three.js는 인터넷이 막힌 망에서도 열리도록 프로젝트 안에 내려받아 쓴다.
 // (static/js/vendor/three, r161 · MIT)
 import * as THREE from './vendor/three/three.module.js';
-import { buildEnvironment, createFrame, disposeFrame } from './exhibition_environment.js';
+import { buildEnvironment, createFrame, disposeFrame, createPhotoPanel } from './exhibition_environment.js';
 
 const dataNode = document.getElementById('exSceneData');
 if (!dataNode) throw new Error('전시관 데이터가 없습니다.');
@@ -204,11 +204,15 @@ function buildArtwork(slot) {
 
   const group = new THREE.Group();
   group.position.set(slot.x, slot.y, slot.z);
-  group.rotation.y = slot.rotationY;
+  // 골목 바닥처럼 눕혀 두는 자리(tilt)는 방향을 먼저 돌린 뒤 앞으로 눕혀야
+  // 하므로 회전 순서를 YXZ 로 둔다.
+  group.rotation.set(slot.tilt || 0, slot.rotationY, 0, 'YXZ');
 
   // 칠판처럼 액자 없이 전시물만 보여야 하는 자리가 있다.
   let frame = null;
-  if (!slot.frameless) {
+  const panel = LAYOUT.style === 'classroom' ? createPhotoPanel(size.width, size.height) : null;
+  if (panel) group.add(panel);
+  if (!slot.frameless && !panel) {
     frame = createFrame(size.width, size.height, frameMaterial);
     frame.userData.sharedMaterial = frameMaterial;
     group.add(frame);
@@ -223,6 +227,7 @@ function buildArtwork(slot) {
     group,
     mesh,
     frame,
+    panel,
     material,
     size,
     index: 0,
@@ -272,6 +277,10 @@ function refit(artwork, aspect) {
   artwork.mesh.geometry.dispose();
   artwork.mesh.geometry = new THREE.PlaneGeometry(size.width, size.height);
   artwork.size = size;
+  if (artwork.panel) {
+    artwork.panel.geometry.dispose();
+    artwork.panel.geometry = new THREE.BoxGeometry(size.width, size.height, 0.04);
+  }
   if (artwork.frame) {
     artwork.group.remove(artwork.frame);
     disposeFrame(artwork.frame);

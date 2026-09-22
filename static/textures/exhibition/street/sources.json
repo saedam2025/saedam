@@ -1,0 +1,130 @@
+[
+  {
+    "file": "asphalt_Diffuse.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/asphalt_02/asphalt_02_diff_1k.jpg",
+    "source_md5": "fa19772d4817754c3efab708c651f5a8",
+    "derived": "1024px, JPEG q86",
+    "asset": "https://polyhaven.com/a/asphalt_02",
+    "license": "CC0"
+  },
+  {
+    "file": "asphalt_nor_gl.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/asphalt_02/asphalt_02_nor_gl_1k.jpg",
+    "source_md5": "338da8de636ea36133170578cac82e8e",
+    "derived": "512px, JPEG q92",
+    "asset": "https://polyhaven.com/a/asphalt_02",
+    "license": "CC0"
+  },
+  {
+    "file": "asphalt_Rough.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/asphalt_02/asphalt_02_rough_1k.jpg",
+    "source_md5": "ec80a2929797c1b3ffc121c4f665585a",
+    "derived": "512px greyscale, JPEG q84",
+    "asset": "https://polyhaven.com/a/asphalt_02",
+    "license": "CC0"
+  },
+  {
+    "file": "paving_Diffuse.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/patterned_concrete_pavers/patterned_concrete_pavers_diff_1k.jpg",
+    "source_md5": "4f3481c82dd3502fc1079b335de0a5a8",
+    "derived": "1024px, JPEG q86",
+    "asset": "https://polyhaven.com/a/patterned_concrete_pavers",
+    "license": "CC0"
+  },
+  {
+    "file": "paving_nor_gl.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/patterned_concrete_pavers/patterned_concrete_pavers_nor_gl_1k.jpg",
+    "source_md5": "1c4b88be76f27434d180201fd09461d1",
+    "derived": "512px, JPEG q92",
+    "asset": "https://polyhaven.com/a/patterned_concrete_pavers",
+    "license": "CC0"
+  },
+  {
+    "file": "paving_Rough.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/patterned_concrete_pavers/patterned_concrete_pavers_rough_1k.jpg",
+    "source_md5": "427e951f78eb7f02aa6a6a3aeaa01986",
+    "derived": "512px greyscale, JPEG q84",
+    "asset": "https://polyhaven.com/a/patterned_concrete_pavers",
+    "license": "CC0"
+  },
+  {
+    "file": "street_wall_Diffuse.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_worn_brick/painted_worn_brick_diff_1k.jpg",
+    "source_md5": "496d32a03be8d2ca45201c3316a2fe79",
+    "derived": "1024px, JPEG q86",
+    "asset": "https://polyhaven.com/a/painted_worn_brick",
+    "license": "CC0"
+  },
+  {
+    "file": "street_wall_nor_gl.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_worn_brick/painted_worn_brick_nor_gl_1k.jpg",
+    "source_md5": "b6aee2fd4b7a7d94acc7fef07362bb41",
+    "derived": "512px, JPEG q92",
+    "asset": "https://polyhaven.com/a/painted_worn_brick",
+    "license": "CC0"
+  },
+  {
+    "file": "street_wall_Rough.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_worn_brick/painted_worn_brick_rough_1k.jpg",
+    "source_md5": "c79a82a46a32256e6c32c2c7e091a84a",
+    "derived": "512px greyscale, JPEG q84",
+    "asset": "https://polyhaven.com/a/painted_worn_brick",
+    "license": "CC0"
+  },
+  {
+    "file": "metal_shutter_Diffuse.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_metal_shutter/painted_metal_shutter_diff_1k.jpg",
+    "source_md5": "b2b648a56ca737d51999525e857f499a",
+    "derived": "1024px, JPEG q86",
+    "asset": "https://polyhaven.com/a/painted_metal_shutter",
+    "license": "CC0"
+  },
+  {
+    "file": "metal_shutter_nor_gl.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_metal_shutter/painted_metal_shutter_nor_gl_1k.jpg",
+    "source_md5": "a18c51114f00627f9e48254e870ceb91",
+    "derived": "512px, JPEG q92",
+    "asset": "https://polyhaven.com/a/painted_metal_shutter",
+    "license": "CC0"
+  },
+  {
+    "file": "metal_shutter_Rough.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_metal_shutter/painted_metal_shutter_rough_1k.jpg",
+    "source_md5": "b593747ca3057c79815e485be57e5ff7",
+    "derived": "512px greyscale, JPEG q84",
+    "asset": "https://polyhaven.com/a/painted_metal_shutter",
+    "license": "CC0"
+  },
+  {
+    "file": "sky_4k.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/kloofendal_48d_partly_cloudy_puresky.jpg",
+    "source_md5": "3f2b19fa9c14943b34e5d4f480ba13ba",
+    "derived": "mirrored, rolled -0.4197 turn, 4096x2048, JPEG q88",
+    "asset": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky",
+    "license": "CC0"
+  },
+  {
+    "file": "sky_2k.jpg",
+    "source": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/kloofendal_48d_partly_cloudy_puresky.jpg",
+    "source_md5": "3f2b19fa9c14943b34e5d4f480ba13ba",
+    "derived": "mirrored, rolled -0.4197 turn, 2048x1024, JPEG q86",
+    "asset": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky",
+    "license": "CC0"
+  },
+  {
+    "file": "sky_env.hdr",
+    "source": "../lounge/daylight_1k.hdr",
+    "source_md5": "c69498687e876bf68d2a8b8a62234eb9",
+    "derived": "rolled +0.4197 turn, 512x256, flat RGBE",
+    "asset": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky",
+    "license": "CC0"
+  },
+  {
+    "file": "graffiti.webp",
+    "source": "https://ambientcg.com/get?file=GraffitiSet001_2K-PNG.zip",
+    "source_md5": "ca2fe0aaacca262900bacd966573986a",
+    "derived": "Color over Opacity as alpha, saturation x1.6, brightness x0.82, alpha gamma 0.55, 1536px, WebP q88",
+    "asset": "https://ambientcg.com/view?id=GraffitiSet001",
+    "license": "CC0"
+  }
+]
