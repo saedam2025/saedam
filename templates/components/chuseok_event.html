@@ -1,0 +1,313 @@
+{# === 추석 이벤트 · 한가위 인사 캐릭터가 화면을 날아다니는 연출 (공용 파티셜) ===
+   쓰는 곳: 인트라넷 메인(main.html · main_mobile.html), 센터장 전용 업무공간(school_bp.html)
+   기간이 지나면 아래 스크립트의 CHUSEOK_EVENT.start / end 날짜만 바꾸거나,
+   각 화면의 {% include %} 한 줄을 지우면 연출이 사라집니다. #}
+<style>
+    /* 캐릭터가 날아다니는 투명 레이어 · 클릭을 절대 가로막지 않는다 */
+    .chuseok-sky {
+        position: fixed; inset: 0; z-index: 930;
+        overflow: hidden; pointer-events: none;
+    }
+    .chuseok-flyer {
+        position: absolute; top: 0; left: 0;
+        width: 200px; height: 200px;   /* c_girl.png 원본 크기 */
+        opacity: 0; transition: opacity .9s ease;
+        will-change: transform;
+    }
+    .chuseok-sky.on .chuseok-flyer { opacity: .96; pointer-events: auto; cursor: pointer; touch-action: manipulation; }
+    .chuseok-flyer img {
+        display: block; width: 100%; height: 100%; object-fit: contain;
+        transform-origin: 50% 58%;
+    }
+
+    /* 클릭하면 '뽕' 하고 사라졌다가 다른 자리에서 '뽕' 하고 나타난다 */
+    @keyframes chuseokPopOut {
+        0%   { transform: scale(1) rotate(0); opacity: 1; }
+        38%  { transform: scale(1.2) rotate(-7deg); opacity: 1; }
+        100% { transform: scale(.1) rotate(24deg); opacity: 0; }
+    }
+    @keyframes chuseokPopIn {
+        0%   { transform: scale(.1) rotate(-20deg); opacity: 0; }
+        55%  { transform: scale(1.18) rotate(6deg); opacity: 1; }
+        78%  { transform: scale(.93) rotate(-3deg); }
+        100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+    .chuseok-flyer img.is-out { animation: chuseokPopOut .26s ease-in forwards; }
+    .chuseok-flyer img.is-in  { animation: chuseokPopIn .46s cubic-bezier(.2, 1.5, .4, 1) both; }
+
+    /* 사라진 자리 / 나타난 자리에 퍼지는 링 */
+    .chuseok-puff {
+        position: absolute; width: 0; height: 0; pointer-events: none;
+        border-radius: 50%; border: 3px solid rgba(255, 164, 96, .75);
+        transform: translate(-50%, -50%);
+        animation: chuseokPuff .5s ease-out forwards;
+    }
+    @keyframes chuseokPuff {
+        0%   { width: 26px; height: 26px; opacity: .9; }
+        100% { width: 200px; height: 200px; opacity: 0; border-width: 1px; }
+    }
+
+    .chuseok-sky.is-hidden { display: none; }
+
+    /* base.html의 .navbar는 position:static이라 거기 적힌 z-index:1000이 먹지 않는다.
+       이 화면에서만 relative로 올려 주메뉴와 드롭다운이 캐릭터 위에 오게 한다. */
+    .navbar { position: relative; z-index: 1000; }
+
+    /* 켜기/끄기 토글 칩 · 이 요소만 클릭을 받는다 */
+    .chuseok-off {
+        position: fixed; left: 16px; bottom: 18px; z-index: 931;
+        display: none; align-items: center; gap: 6px;
+        padding: 7px 13px; border: 0; border-radius: 999px; cursor: pointer;
+        font-family: inherit; font-size: .72rem; font-weight: 800; letter-spacing: -.02em;
+        color: #8e5a2f; background: rgba(255, 248, 238, .92);
+        box-shadow: 0 6px 16px rgba(170, 120, 60, .24);
+        opacity: .55; transition: opacity .18s, transform .18s;
+    }
+    .chuseok-off.ready { display: inline-flex; }
+    .chuseok-off:hover { opacity: 1; transform: translateY(-1px); }
+    .chuseok-off.is-paused { opacity: .75; color: #8a6b3d; background: rgba(255, 252, 245, .95); }
+
+    @media (max-width: 760px) {
+        .chuseok-off { left: 10px; bottom: 84px; font-size: .68rem; padding: 6px 11px; }
+    }
+    @media print { .chuseok-sky, .chuseok-off { display: none !important; } }
+</style>
+
+<div class="chuseok-sky" id="chuseokSky" aria-hidden="true"
+     data-src="{{ url_for('static', filename='c_girl.png') }}"></div>
+<button type="button" class="chuseok-off" id="chuseokOff" title="한가위 인사 연출 끄기" aria-pressed="true">
+    <i class="fa-solid fa-xmark" id="chuseokOffIcon"></i><span id="chuseokOffLabel">한가위 인사 끄기</span>
+</button>
+<span class="sr-only-chuseok" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">
+    새담 가족 여러분 즐거운 한가위 되세요!
+</span>
+
+<script>
+(function () {
+    /* 이벤트 노출 기간(포함). 날짜만 바꾸면 노출 기간이 조정된다. */
+    var CHUSEOK_EVENT = { id: '2026', start: '2026-09-21', end: '2026-09-30' };
+    var STORE_KEY = 'saedamChuseokHidden';
+
+    var sky = document.getElementById('chuseokSky');
+    var offBtn = document.getElementById('chuseokOff');
+    if (!sky || !offBtn) return;
+
+    function bail() { sky.remove(); offBtn.remove(); }
+
+    var now0 = new Date();
+    var pad = function (n) { return String(n).padStart(2, '0'); };
+    var today = now0.getFullYear() + '-' + pad(now0.getMonth() + 1) + '-' + pad(now0.getDate());
+    if (today < CHUSEOK_EVENT.start || today > CHUSEOK_EVENT.end) { bail(); return; }
+
+    /* 지난번에 꺼 뒀으면 꺼진 상태로 시작하되, 칩은 '켜기'로 남겨 둔다 */
+    var startVisible = true;
+    try {
+        startVisible = localStorage.getItem(STORE_KEY) !== CHUSEOK_EVENT.id;
+    } catch (e) { /* 저장소 차단 환경에서는 그냥 보여준다 */ }
+    var visible = false;
+
+    var offIcon = document.getElementById('chuseokOffIcon');
+    var offLabel = document.getElementById('chuseokOffLabel');
+
+    var src = sky.dataset.src;
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var count = 1;              /* 캐릭터는 한 개만 떠다닌다 */
+    var flyers = [];
+
+    for (var i = 0; i < count; i++) {
+        var el = document.createElement('div');
+        el.className = 'chuseok-flyer';
+        var img = document.createElement('img');
+        img.src = src;
+        img.alt = '';
+        img.decoding = 'async';
+        el.appendChild(img);
+        sky.appendChild(el);
+
+        flyers.push({
+            el: el,
+            img: img,
+            out: false, hopping: false,
+            size: el.offsetWidth || 200,   /* 원본 크기 그대로 */
+            x: 0, y: 0,
+            vx: (Math.random() < 0.5 ? -1 : 1) * (32 + Math.random() * 14),
+            vy: (Math.random() < 0.5 ? -1 : 1) * (21 + Math.random() * 12),
+            phase: Math.random() * Math.PI * 2,
+            spin: 0.55 + Math.random() * 0.4
+        });
+    }
+
+    /* 시작 위치는 화면 안쪽 임의 지점 (상단 주메뉴 아래) */
+    flyers.forEach(function (f) {
+        relocate(f);
+        draw(f, 0);
+    });
+
+    function draw(f, t) {
+        var tilt = Math.sin(t * f.spin + f.phase) * 9;
+        var bob = Math.sin(t * f.spin * 1.7 + f.phase) * 5;
+        f.el.style.transform =
+            'translate3d(' + f.x.toFixed(1) + 'px,' + (f.y + bob).toFixed(1) + 'px,0)' +
+            ' rotate(' + tilt.toFixed(2) + 'deg)';
+    }
+
+    /* '뽕' 퍼지는 링을 한 번 그린다 */
+    function puffAt(cx, cy) {
+        var puff = document.createElement('span');
+        puff.className = 'chuseok-puff';
+        puff.style.left = cx + 'px';
+        puff.style.top = cy + 'px';
+        sky.appendChild(puff);
+        setTimeout(function () { puff.remove(); }, 520);
+    }
+
+    /* 상단 주메뉴 아래까지만 날아다니게 하는 위쪽 한계선.
+       주메뉴는 고정이 아니라 같이 스크롤되므로 매번 현재 위치를 재 본다. */
+    function topGuard(f) {
+        var nav = document.querySelector('.navbar');
+        var limit = 0;
+        if (nav) {
+            var bottom = nav.getBoundingClientRect().bottom;
+            if (bottom > 0) limit = bottom + 12;   /* 기울어질 때 모서리가 삐져나오는 여유 */
+        }
+        return Math.min(limit, Math.max(0, window.innerHeight - f.size));
+    }
+
+    /* 지금 자리에서 멀리 떨어진 새 자리를 고른다 */
+    function relocate(f) {
+        var maxX = Math.max(0, window.innerWidth - f.size);
+        var minY = topGuard(f);
+        var maxY = Math.max(minY, window.innerHeight - f.size);
+        var far = Math.min(window.innerWidth, window.innerHeight) * 0.45;
+        var nx = f.x, ny = f.y;
+        for (var t = 0; t < 24; t++) {
+            nx = Math.random() * maxX;
+            ny = minY + Math.random() * (maxY - minY);
+            if (Math.hypot(nx - f.x, ny - f.y) >= far) break;
+        }
+        f.x = nx;
+        f.y = ny;
+        var ang = Math.random() * Math.PI * 2;
+        var sp = 32 + Math.random() * 14;
+        f.vx = Math.cos(ang) * sp;
+        f.vy = Math.sin(ang) * sp * 0.7;
+    }
+
+    /* 클릭 → 뽕 사라짐 → 다른 자리에서 뽕 나타남 */
+    function hop(f) {
+        if (f.hopping) return;
+        f.hopping = true;
+
+        if (reduceMotion) {       /* 모션 최소화 설정이면 자리만 옮긴다 */
+            relocate(f);
+            draw(f, performance.now() / 1000);
+            f.hopping = false;
+            return;
+        }
+
+        puffAt(f.x + f.size / 2, f.y + f.size / 2);
+        f.out = true;
+        f.img.classList.remove('is-in');
+        void f.img.offsetWidth;
+        f.img.classList.add('is-out');
+
+        setTimeout(function () {
+            relocate(f);
+            draw(f, performance.now() / 1000);
+            f.out = false;
+            puffAt(f.x + f.size / 2, f.y + f.size / 2);
+            f.img.classList.remove('is-out');
+            void f.img.offsetWidth;
+            f.img.classList.add('is-in');
+            setTimeout(function () {
+                f.img.classList.remove('is-in');
+                f.hopping = false;
+            }, 470);
+        }, 260);
+    }
+
+    flyers.forEach(function (f) {
+        f.el.addEventListener('click', function () { hop(f); });
+    });
+
+    var raf = 0, last = performance.now();
+
+    function frame(nowMs) {
+        var dt = Math.min(0.05, (nowMs - last) / 1000);
+        last = nowMs;
+        var t = nowMs / 1000;
+        var W = window.innerWidth, H = window.innerHeight;
+
+        for (var i = 0; i < flyers.length; i++) {
+            var f = flyers[i];
+            if (f.out) continue;        /* 뽕 하고 사라져 있는 동안은 정지 */
+            var maxX = Math.max(0, W - f.size);
+            var minY = topGuard(f);                 /* 주메뉴 아래가 천장 */
+            var maxY = Math.max(minY, H - f.size);
+
+            f.x += f.vx * dt;
+            f.y += f.vy * dt;
+
+            if (f.x <= 0) { f.x = 0; f.vx = Math.abs(f.vx); }
+            else if (f.x >= maxX) { f.x = maxX; f.vx = -Math.abs(f.vx); }
+            if (f.y <= minY) { f.y = minY; f.vy = Math.abs(f.vy); }
+            else if (f.y >= maxY) { f.y = maxY; f.vy = -Math.abs(f.vy); }
+
+            draw(f, t);
+        }
+        raf = requestAnimationFrame(frame);
+    }
+
+    function startMotion() {
+        if (reduceMotion || raf || !visible) return;   /* 모션 최소화 설정이면 가만히 떠 있기만 한다 */
+        last = performance.now();
+        raf = requestAnimationFrame(frame);
+    }
+    function stopMotion() {
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
+    }
+
+    /* 칩 하나로 끄기 ↔ 켜기를 오간다 */
+    function setVisible(on, remember) {
+        visible = on;
+        offBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+
+        if (on) {
+            sky.classList.remove('is-hidden');
+            flyers.forEach(function (f) {     /* 켤 때는 새 자리에서 다시 시작 */
+                relocate(f);
+                draw(f, performance.now() / 1000);
+            });
+            void sky.offsetWidth;
+            sky.classList.add('on');
+            startMotion();
+            offIcon.className = 'fa-solid fa-xmark';
+            offLabel.textContent = '한가위 인사 끄기';
+            offBtn.title = '한가위 인사 연출 끄기';
+            offBtn.classList.remove('is-paused');
+            if (remember) { try { localStorage.removeItem(STORE_KEY); } catch (e) {} }
+        } else {
+            stopMotion();
+            sky.classList.remove('on');
+            setTimeout(function () { if (!visible) sky.classList.add('is-hidden'); }, 900);
+            offIcon.className = 'fa-solid fa-moon';
+            offLabel.textContent = '한가위 인사 켜기';
+            offBtn.title = '한가위 인사 연출 켜기';
+            offBtn.classList.add('is-paused');
+            if (remember) { try { localStorage.setItem(STORE_KEY, CHUSEOK_EVENT.id); } catch (e) {} }
+        }
+    }
+
+    offBtn.addEventListener('click', function () { setVisible(!visible, true); });
+    offBtn.classList.add('ready');
+
+    /* 탭이 가려지면 멈춘다. */
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) stopMotion(); else startMotion();
+    });
+
+    /* 첫 상태는 바로 적용한다. (rAF에 맡기면 창이 안 그려지는 동안 적용이 밀린다) */
+    setVisible(startVisible, false);
+})();
+</script>
