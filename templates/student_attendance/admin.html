@@ -1,0 +1,830 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .sa-page{max-width:1280px;margin:0 auto;padding:28px 18px 80px;color:#1f2937}
+    .sa-hero{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+    .sa-hero h1{margin:0;font-size:1.5rem;font-weight:800;display:flex;align-items:center;gap:10px;color:#1e293b}
+    .sa-hero h1 i{color:#0d9488}
+    .sa-hero p{margin:6px 0 0;font-size:.86rem;color:#64748b}
+    .sa-school{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:6px 8px 6px 14px}
+    .sa-school label{font-size:.8rem;font-weight:700;color:#475569;white-space:nowrap}
+    .sa-select,.sa-input{border:1px solid #d7dee8;border-radius:9px;padding:9px 12px;font:inherit;font-size:.88rem;color:#1f2937;background:#fff;outline:none}
+    .sa-select:focus,.sa-input:focus{border-color:#0d9488;box-shadow:0 0 0 3px rgba(13,148,136,.12)}
+    .sa-school .sa-select{border:0;min-width:220px;font-weight:700}
+    .sa-warn{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:.84rem;line-height:1.6;margin-bottom:16px}
+
+    .sa-tabs{display:flex;gap:6px;border-bottom:2px solid #e2e8f0;margin-bottom:18px;overflow-x:auto;overflow-y:hidden}
+    .sa-tab{border:0;background:none;padding:12px 16px;font:inherit;font-size:.92rem;font-weight:700;color:#64748b;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
+    .sa-tab.active{color:#0d9488;border-bottom-color:#0d9488}
+    .sa-panel{display:none}
+    .sa-page [hidden],.sa-modal [hidden]{display:none!important}
+    .sa-panel.active{display:block}
+
+    .sa-card{background:#fff;border:1px solid #e8edf3;border-radius:14px;padding:20px;box-shadow:0 4px 14px rgba(15,23,42,.04);margin-bottom:16px}
+    .sa-card h3{margin:0 0 14px;font-size:1rem;font-weight:800;color:#1e293b;display:flex;align-items:center;gap:8px}
+    .sa-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+    .sa-toolbar .sa-spacer{flex:1}
+    .sa-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid #d7dee8;background:#fff;color:#334155;border-radius:9px;padding:9px 14px;font:inherit;font-size:.84rem;font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap}
+    .sa-btn:hover{border-color:#0d9488;color:#0d9488}
+    .sa-btn.primary{background:#0d9488;border-color:#0d9488;color:#fff}
+    .sa-btn.primary:hover{background:#0f766e;color:#fff}
+    .sa-btn.danger{color:#dc2626;border-color:#fecaca}
+    .sa-btn.danger:hover{background:#fef2f2}
+    .sa-btn.sm{padding:5px 10px;font-size:.76rem;border-radius:7px}
+    .sa-btn[disabled]{opacity:.5;cursor:not-allowed}
+    .sa-muted{color:#94a3b8;font-size:.78rem}
+    .sa-empty{text-align:center;padding:40px 10px;color:#94a3b8}
+    .sa-live-dot{display:inline-flex;align-items:center;gap:6px;font-size:.76rem;font-weight:700;color:#64748b}
+    .sa-live-dot::before{content:"";width:8px;height:8px;border-radius:50%;background:#cbd5e1}
+    .sa-live-dot.on{color:#15803d}.sa-live-dot.on::before{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.2);animation:saPulse 1.6s infinite}
+    @keyframes saPulse{50%{box-shadow:0 0 0 6px rgba(34,197,94,0)}}
+
+    .sa-class-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:16px}
+    .sa-class-card{border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;background:#fff;cursor:pointer;text-align:left;font:inherit;transition:.15s}
+    .sa-class-card:hover{border-color:#0d9488;box-shadow:0 6px 18px rgba(13,148,136,.1)}
+    .sa-class-card.active{border-color:#0d9488;box-shadow:0 0 0 2px #0d9488 inset}
+    .sa-class-card .t{font-weight:800;font-size:.98rem;color:#0f172a;display:flex;justify-content:space-between;gap:6px}
+    .sa-class-card .s{font-size:.76rem;color:#64748b;margin:4px 0 10px;min-height:1em}
+    .sa-class-card .n{font-size:1.4rem;font-weight:900;color:#0d9488}
+    .sa-class-card .n small{font-size:.8rem;color:#94a3b8;font-weight:700}
+    .sa-bar{height:6px;border-radius:99px;background:#f1f5f9;overflow:hidden;margin-top:8px}
+    .sa-bar i{display:block;height:100%;background:#14b8a6;border-radius:99px;transition:width .3s}
+
+    .sa-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px}
+    .sa-stat{border-radius:12px;padding:12px 14px;background:#f8fafc;border:1px solid #edf1f6}
+    .sa-stat span{display:block;font-size:.74rem;font-weight:700;color:#64748b}
+    .sa-stat strong{display:block;margin-top:3px;font-size:1.5rem;font-weight:800;color:#0f172a}
+    .sa-stat.ok{background:#f0fdf4;border-color:#dcfce7}.sa-stat.ok strong{color:#15803d}
+    .sa-stat.late{background:#fffbeb;border-color:#fef3c7}.sa-stat.late strong{color:#b45309}
+    .sa-stat.no{background:#fef2f2;border-color:#fee2e2}.sa-stat.no strong{color:#dc2626}
+    .sa-stat.wait strong{color:#64748b}
+
+    .sa-table-wrap{overflow-x:auto}
+    .sa-table{width:100%;border-collapse:collapse;font-size:.86rem}
+    .sa-table th{background:#f8fafc;color:#475569;font-weight:700;padding:11px 10px;border-bottom:2px solid #e8edf3;text-align:left;white-space:nowrap}
+    .sa-table td{padding:10px;border-bottom:1px solid #f0f3f7;vertical-align:middle}
+    .sa-table tr.flash td{animation:saFlash 2s}
+    @keyframes saFlash{0%{background:#ccfbf1}100%{background:transparent}}
+    .sa-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:.75rem;font-weight:800;white-space:nowrap}
+    .sa-badge.ok{background:#dcfce7;color:#15803d}
+    .sa-badge.late{background:#fef3c7;color:#b45309}
+    .sa-badge.no{background:#fee2e2;color:#b91c1c}
+    .sa-badge.gray{background:#f1f5f9;color:#64748b}
+    .sa-badge.blue{background:#dbeafe;color:#1d4ed8}
+    .sa-badge.teal{background:#ccfbf1;color:#0f766e}
+    .sa-time{font-weight:800;font-variant-numeric:tabular-nums}
+    .sa-seg{display:inline-flex;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}
+    .sa-seg button{border:0;background:#fff;padding:5px 9px;font:inherit;font-size:.74rem;font-weight:700;color:#475569;cursor:pointer;border-right:1px solid #e2e8f0}
+    .sa-seg button:last-child{border-right:0}
+    .sa-seg button:hover{background:#f8fafc}
+    .sa-seg button.on-출석{background:#dcfce7;color:#15803d}
+    .sa-seg button.on-지각{background:#fef3c7;color:#b45309}
+    .sa-seg button.on-결석{background:#fee2e2;color:#b91c1c}
+
+    .sa-grid2{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+    .sa-form label{display:block;font-size:.78rem;font-weight:700;color:#475569;margin:0 0 5px}
+    .sa-form .sa-input{width:100%;box-sizing:border-box;margin-bottom:12px}
+    .sa-form textarea.sa-input{min-height:150px;resize:vertical;line-height:1.6}
+    .sa-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .sa-days{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
+    .sa-days label{margin:0;cursor:pointer}
+    .sa-days input{display:none}
+    .sa-days span{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:9px;border:1px solid #d7dee8;font-size:.84rem;font-weight:800;color:#64748b}
+    .sa-days input:checked+span{background:#0d9488;border-color:#0d9488;color:#fff}
+    .sa-radio{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+    .sa-radio label{display:flex;gap:8px;align-items:flex-start;font-weight:600;color:#334155;margin:0;padding:9px 10px;border:1px solid #e2e8f0;border-radius:9px;cursor:pointer;font-size:.82rem;line-height:1.45}
+    .sa-radio label:has(input:checked){border-color:#0d9488;background:#f0fdfa}
+    .sa-radio small{display:block;color:#64748b;font-weight:500;font-size:.74rem}
+    .sa-check{display:flex;gap:8px;align-items:center;font-size:.84rem;font-weight:700;color:#334155;margin-bottom:12px}
+    .sa-help{font-size:.76rem;color:#64748b;line-height:1.6;margin:-4px 0 12px}
+    .sa-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;flex-wrap:wrap}
+
+    .sa-month td,.sa-month th{padding:6px 3px;text-align:center;font-size:.74rem;border:1px solid #eef2f6}
+    .sa-month th{background:#f8fafc;line-height:1.25}
+    .sa-month th.we,.sa-month td.we{background:#f8fafc;color:#94a3b8}
+    .sa-month th.cd{background:#ccfbf1;color:#0f766e}
+    .sa-month th.sun{color:#dc2626}.sa-month th.sat{color:#2563eb}
+    .sa-month td.name{text-align:left;font-weight:700;white-space:nowrap;position:sticky;left:0;background:#fff;z-index:1;min-width:90px}
+    .sa-month th.name{text-align:left;position:sticky;left:0;z-index:2}
+    .sa-month td.m-출석{background:#dcfce7;color:#15803d;font-weight:800}
+    .sa-month td.m-지각{background:#fef3c7;color:#b45309;font-weight:800}
+    .sa-month td.m-결석{background:#fee2e2;color:#b91c1c;font-weight:800}
+    .sa-month td.sum{font-weight:800;background:#f0fdfa}
+    .sa-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.76rem;color:#64748b;margin-top:10px}
+    .sa-legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+
+    .sa-modal{position:fixed;inset:0;z-index:3000;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.45);padding:16px}
+    .sa-modal.open{display:flex}
+    .sa-modal-box{background:#fff;border-radius:16px;padding:22px;width:min(760px,100%);max-height:92vh;overflow:auto}
+    .sa-modal-box h3{margin:0 0 14px;display:flex;align-items:center;gap:8px}
+    .sa-links{display:grid;grid-template-columns:260px minmax(0,1fr);gap:18px}
+    .sa-qr{text-align:center}
+    .sa-qr img{width:240px;height:240px;border:1px solid #e2e8f0;border-radius:12px;padding:6px;background:#fff}
+    .sa-qr-note{margin-top:8px;padding:10px;border-radius:10px;background:#f0fdfa;color:#0f766e;font-size:.8rem;line-height:1.55;text-align:left}
+    .sa-qr-warn{margin-top:8px;padding:10px;border-radius:10px;background:#fef2f2;color:#b91c1c;font-size:.8rem;line-height:1.55;text-align:left}
+    .sa-link-block{margin-bottom:16px}
+    .sa-link-block b{display:flex;align-items:center;gap:6px;font-size:.88rem;margin-bottom:4px}
+    .sa-link-block p{margin:0 0 6px;font-size:.76rem;color:#64748b;line-height:1.55}
+    .sa-link{display:flex;gap:6px;flex-wrap:wrap}
+    .sa-link .sa-input{flex:1;min-width:180px;font-size:.76rem;background:#f8fafc}
+    .sa-toast{position:fixed;left:50%;bottom:30px;transform:translate(-50%,20px);opacity:0;background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:.86rem;font-weight:700;z-index:3100;transition:.2s;pointer-events:none;max-width:90vw}
+    .sa-toast.show{opacity:1;transform:translate(-50%,0)}
+    .sa-toast.bad{background:#b91c1c}
+    .sa-steps{margin:0;padding-left:18px;font-size:.84rem;line-height:1.9;color:#334155}
+
+    @media(max-width:900px){
+        .sa-grid2,.sa-links{grid-template-columns:1fr}
+        .sa-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+        .sa-school{width:100%}.sa-school .sa-select{min-width:0;flex:1}
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sa-page">
+    <div class="sa-hero">
+        <div>
+            <h1><i class="fa-solid fa-user-check"></i> 학생출석관리</h1>
+            <p>학생이 교실의 QR을 자기 휴대폰으로 찍으면 출석이 기록되고, 보호자에게 무료 알림이 전송됩니다.</p>
+        </div>
+        <div class="sa-school">
+            <label for="saSchool"><i class="fa-solid fa-school"></i> 학교</label>
+            <select id="saSchool" class="sa-select">
+                {% for school in schools %}<option value="{{ school.id }}">{{ school.label }}</option>{% else %}<option value="">등록된 학교가 없습니다</option>{% endfor %}
+            </select>
+        </div>
+    </div>
+
+    {% if not push_configured %}
+    <div class="sa-warn"><i class="fa-solid fa-triangle-exclamation" style="margin-top:3px"></i>
+        <div><b>지금 접속한 서버에서는 학부모 휴대폰 알림이 꺼져 있습니다.</b> 출석 기록과 학부모의 알림 내역 화면은 정상적으로 저장·표시됩니다.<br>
+        사내 메신저의 휴대폰 알림과 같은 설정을 쓰므로, 메신저 알림이 오는 운영 서버에서는 이 안내가 보이지 않습니다.
+        운영 서버에서도 이 안내가 보이면 서버 관리자에게 <b>“Render 환경변수에 메신저 알림용 VAPID 키 3개를 설정해 달라”</b>고 요청해 주세요.</div>
+    </div>
+    {% endif %}
+
+    <div class="sa-tabs" role="tablist">
+        <button class="sa-tab active" data-tab="live"><i class="fa-solid fa-signal"></i> 실시간 출석현황</button>
+        <button class="sa-tab" data-tab="classes"><i class="fa-solid fa-book"></i> 과목 관리</button>
+        <button class="sa-tab" data-tab="students"><i class="fa-solid fa-children"></i> 수강생 관리</button>
+        <button class="sa-tab" data-tab="monthly"><i class="fa-solid fa-table-cells"></i> 월별 출석부</button>
+    </div>
+
+    <!-- 실시간 -->
+    <section class="sa-panel active" id="panel-live">
+        <div class="sa-toolbar">
+            <b id="liveTitle">오늘 과목별 출석</b>
+            <span class="sa-live-dot" id="liveDot">연결 중</span>
+            <span class="sa-spacer"></span>
+            <button class="sa-btn" id="liveRefresh"><i class="fa-solid fa-rotate"></i> 새로고침</button>
+        </div>
+        <div class="sa-class-grid" id="classCards"><div class="sa-empty">불러오는 중...</div></div>
+
+        <div class="sa-card" id="dayCard" hidden>
+            <div class="sa-toolbar">
+                <h3 style="margin:0"><i class="fa-solid fa-clipboard-user"></i> <span id="dayTitle"></span></h3>
+                <input type="date" id="dayDate" class="sa-input" value="{{ today }}">
+                <button class="sa-btn" id="dayToday">오늘</button>
+                <span class="sa-spacer"></span>
+                <a class="sa-btn" id="dayLiveOpen" target="_blank" rel="noopener"><i class="fa-solid fa-display"></i> 강사 화면 열기</a>
+                <button class="sa-btn" id="dayAbsent"><i class="fa-solid fa-user-xmark"></i> 미확인 학생 결석 처리</button>
+                <button class="sa-btn primary" id="dayDismiss"><i class="fa-solid fa-person-walking-arrow-right"></i> 수업 종료 · 하원 알림</button>
+            </div>
+            <div class="sa-stats">
+                <div class="sa-stat"><span>수강생</span><strong id="stTotal">0</strong></div>
+                <div class="sa-stat ok"><span>출석</span><strong id="stPresent">0</strong></div>
+                <div class="sa-stat late"><span>지각</span><strong id="stLate">0</strong></div>
+                <div class="sa-stat no"><span>결석</span><strong id="stAbsent">0</strong></div>
+                <div class="sa-stat wait"><span>미확인</span><strong id="stWait">0</strong></div>
+            </div>
+            <div class="sa-table-wrap">
+                <table class="sa-table">
+                    <thead><tr><th>#</th><th>학생</th><th>상태</th><th>시각</th><th>방식</th><th>하원</th><th>보호자 알림</th><th>상태 변경</th></tr></thead>
+                    <tbody id="dayBody"></tbody>
+                </table>
+            </div>
+            <p class="sa-muted" style="margin:10px 0 0">상태를 바꾸면 오늘 날짜에 한해 보호자에게 알림이 전송됩니다. 지난 날짜 수정은 알림 없이 기록만 바뀝니다.</p>
+        </div>
+    </section>
+
+    <!-- 과목 관리 -->
+    <section class="sa-panel" id="panel-classes">
+        <div class="sa-grid2">
+            <div>
+                <div class="sa-card">
+                    <div class="sa-toolbar"><h3 style="margin:0"><i class="fa-solid fa-book"></i> <span id="clsTitle">과목 목록</span></h3></div>
+                    <div class="sa-table-wrap">
+                        <table class="sa-table">
+                            <thead><tr><th>과목명</th><th>강사</th><th>수업일정</th><th>QR 방식</th><th>수강생</th><th>관리</th></tr></thead>
+                            <tbody id="clsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="sa-card">
+                    <h3><i class="fa-solid fa-circle-info"></i> 사용 방법</h3>
+                    <ol class="sa-steps">
+                        <li>학교를 고르고 오른쪽에서 <b>과목</b>을 만듭니다. 한 학교에 과목을 여러 개 만들 수 있습니다.</li>
+                        <li>[수강생 관리]에서 학생과 <b>보호자 휴대폰번호</b>를 등록합니다. (엑셀에서 복사해 붙여넣기 가능)</li>
+                        <li>[QR·링크]의 <b>학부모 등록 안내문</b>을 인쇄하거나 링크를 학교 알림장·밴드에 올립니다. 보호자가 한 번 ‘알림 받기’를 누르면 끝입니다. 앱 설치·문자 비용이 없습니다.</li>
+                        <li><b>강사용 실시간 화면</b> 링크는 강사에게만 전달합니다(출석 수정·결석·하원 알림 가능).<br>교실 TV·태블릿에는 <b>교실 QR 화면</b>을 띄웁니다. 학생이 화면을 눌러도 출석이 바뀌지 않습니다.</li>
+                        <li>학생이 QR을 찍으면 <b>처음 한 번만</b> 이름과 보호자 휴대폰 뒷 4자리를 입력하고, 다음부터는 찍기만 하면 출석됩니다.</li>
+                    </ol>
+                </div>
+            </div>
+            <div class="sa-card sa-form">
+                <h3><i class="fa-solid fa-square-plus"></i> <span id="cFormTitle">새 과목 만들기</span></h3>
+                <label for="cName">과목명 *</label><input id="cName" class="sa-input" maxlength="60" placeholder="예: 로봇과학 A반">
+                <div class="sa-row">
+                    <div><label for="cDept">분야</label><input id="cDept" class="sa-input" maxlength="40" placeholder="예: 과학"></div>
+                    <div><label for="cInstructor">강사명</label><input id="cInstructor" class="sa-input" maxlength="40"></div>
+                </div>
+                <label>수업 요일</label>
+                <div class="sa-days" id="cDays">
+                    {% for label in ['월','화','수','목','금','토','일'] %}<label><input type="checkbox" value="{{ loop.index0 }}"><span>{{ label }}</span></label>{% endfor %}
+                </div>
+                <div class="sa-row">
+                    <div><label for="cStart">시작 시각</label><input id="cStart" type="time" class="sa-input"></div>
+                    <div><label for="cEnd">종료 시각</label><input id="cEnd" type="time" class="sa-input"></div>
+                </div>
+                <label for="cLate">지각 기준 (시작 후 몇 분)</label><input id="cLate" type="number" min="0" max="120" value="10" class="sa-input">
+                <p class="sa-help">시작 시각을 비워두면 언제 찍어도 ‘출석’으로 기록됩니다.</p>
+                <label>출석 QR 방식</label>
+                <div class="sa-radio">
+                    <label><input type="radio" name="cQr" value="daily" checked><span>매일 바뀌는 QR (인쇄 가능)<small>하루 동안 같은 QR. 인쇄해 교실에 붙여둘 수 있습니다.</small></span></label>
+                    <label><input type="radio" name="cQr" value="live"><span>30초마다 바뀌는 QR (대리출석 방지)<small>강사 화면에 띄운 QR만 인정합니다. 사진을 친구에게 보내 찍는 것을 막습니다.</small></span></label>
+                </div>
+                <label class="sa-check"><input type="checkbox" id="cNotify" checked> 보호자에게 출결 알림 보내기</label>
+                <div class="sa-actions">
+                    <button class="sa-btn" id="cCancel" hidden>취소</button>
+                    <button class="sa-btn primary" id="cSave"><i class="fa-solid fa-check"></i> 저장</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 수강생 관리 -->
+    <section class="sa-panel" id="panel-students">
+        <div class="sa-grid2">
+            <div class="sa-card">
+                <div class="sa-toolbar">
+                    <select class="sa-select class-picker" aria-label="과목 선택"></select>
+                    <span class="sa-spacer"></span>
+                    <span class="sa-muted" id="stuCount"></span>
+                </div>
+                <div class="sa-table-wrap">
+                    <table class="sa-table">
+                        <thead><tr><th>#</th><th>학생</th><th>보호자</th><th>알림 등록</th><th>휴대폰</th><th>관리</th></tr></thead>
+                        <tbody id="stuBody"></tbody>
+                    </table>
+                </div>
+                <p class="sa-muted" style="margin:10px 0 0"><i class="fa-regular fa-bell"></i> ‘알림 등록’은 보호자가 알림 받기를 누른 상태, ‘최근 수신’은 보호자 휴대폰에 알림이 실제로 뜬 마지막 시각입니다. 미등록이거나 ‘수신 안 됨’인 보호자에게는 [링크 복사] 후 다시 등록을 안내해 주세요.</p>
+            </div>
+            <div>
+                <div class="sa-card sa-form">
+                    <h3><i class="fa-solid fa-user-plus"></i> <span id="sFormTitle">학생 개별 등록</span></h3>
+                    <label for="sName">학생 이름 *</label><input id="sName" class="sa-input" maxlength="40">
+                    <div class="sa-row">
+                        <div><label for="sGrade">학년</label><input id="sGrade" class="sa-input" maxlength="10" placeholder="3"></div>
+                        <div><label for="sClass">반</label><input id="sClass" class="sa-input" maxlength="10" placeholder="2"></div>
+                    </div>
+                    <div class="sa-row">
+                        <div><label for="sGName">보호자명</label><input id="sGName" class="sa-input" maxlength="40" placeholder="예: 김민준 어머니"></div>
+                        <div><label for="sGPhone">보호자 휴대폰 *</label><input id="sGPhone" class="sa-input" inputmode="tel" maxlength="13" placeholder="010-0000-0000"></div>
+                    </div>
+                    <p class="sa-help">학생이 처음 QR을 찍을 때 이 번호의 <b>뒷 4자리</b>로 본인 확인을 합니다.</p>
+                    <div class="sa-actions">
+                        <button class="sa-btn" id="sCancel" hidden>취소</button>
+                        <button class="sa-btn primary" id="sSave"><i class="fa-solid fa-check"></i> 저장</button>
+                    </div>
+                </div>
+                <div class="sa-card sa-form">
+                    <h3><i class="fa-solid fa-list"></i> 명단 일괄 등록</h3>
+                    <p class="sa-help">한 줄에 한 명씩 <b>학생명, 학년, 반, 보호자명, 보호자연락처</b> 순서로 입력하세요.<br>엑셀에서 다섯 칸을 복사해 붙여넣어도 됩니다.</p>
+                    <textarea id="bulkText" class="sa-input" placeholder="김민준, 3, 2, 김민준 어머니, 010-1234-5678&#10;이서연, 1, 4, 이서연 아버지, 01098765432"></textarea>
+                    <div class="sa-actions"><button class="sa-btn primary" id="bulkSave"><i class="fa-solid fa-upload"></i> 일괄 등록</button></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 월별 -->
+    <section class="sa-panel" id="panel-monthly">
+        <div class="sa-card">
+            <div class="sa-toolbar">
+                <select class="sa-select class-picker" aria-label="과목 선택"></select>
+                <button class="sa-btn" id="monPrev"><i class="fa-solid fa-chevron-left"></i></button>
+                <input type="month" id="monMonth" class="sa-input" value="{{ today[:7] }}">
+                <button class="sa-btn" id="monNext"><i class="fa-solid fa-chevron-right"></i></button>
+                <span class="sa-spacer"></span>
+                <a class="sa-btn" id="monExcel" href="#"><i class="fa-solid fa-file-excel"></i> 엑셀 다운로드</a>
+            </div>
+            <div class="sa-table-wrap" id="monthlyWrap"></div>
+            <div class="sa-legend">
+                <span><i style="background:#dcfce7"></i>출석</span>
+                <span><i style="background:#fef3c7"></i>지각</span>
+                <span><i style="background:#fee2e2"></i>결석</span>
+                <span><i style="background:#ccfbf1"></i>수업 요일</span>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="sa-modal" id="linkModal">
+    <div class="sa-modal-box">
+        <h3><i class="fa-solid fa-qrcode"></i> <span id="linkTitle"></span></h3>
+        <div class="sa-links">
+            <div class="sa-qr" id="linkQr"></div>
+            <div>
+                <div class="sa-link-block">
+                    <b><i class="fa-solid fa-tv"></i> 교실 QR 화면 (학생용 · 조작 불가)</b>
+                    <p>교실 TV·태블릿에 띄워 두는 화면입니다. 출석 QR과 출석 인원만 보이고, 학생이 찍으면 이름이 크게 뜹니다. 화면을 눌러도 출석이 바뀌지 않습니다.</p>
+                    <div class="sa-link"><input class="sa-input" id="lDisplay" readonly>
+                        <button class="sa-btn sm" data-copy="lDisplay"><i class="fa-regular fa-copy"></i> 복사</button>
+                        <a class="sa-btn sm" id="lDisplayOpen" target="_blank" rel="noopener">열기</a>
+                        <button class="sa-btn sm danger" data-reissue="display">새로 만들기</button></div>
+                </div>
+                <div class="sa-link-block">
+                    <b><i class="fa-solid fa-display"></i> 강사용 실시간 출석 화면</b>
+                    <p>강사 휴대폰·PC에서만 여는 링크입니다(로그인 없음). 출석 명단 확인, 출석·결석 수정, 하원 알림, 학생 휴대폰 다시 등록을 할 수 있습니다. 외부에 유출되면 새로 만들어 주세요.</p>
+                    <div class="sa-link"><input class="sa-input" id="lLive" readonly>
+                        <button class="sa-btn sm" data-copy="lLive"><i class="fa-regular fa-copy"></i> 복사</button>
+                        <a class="sa-btn sm" id="lLiveOpen" target="_blank" rel="noopener">열기</a>
+                        <button class="sa-btn sm danger" data-reissue="live">새로 만들기</button></div>
+                </div>
+                <div class="sa-link-block">
+                    <b><i class="fa-solid fa-bell"></i> 학부모 알림 등록 링크</b>
+                    <p>보호자가 자녀 이름과 휴대폰번호를 입력하면, 수강생 명단과 일치할 때만 알림 등록 페이지로 연결됩니다. 알림장·밴드·가정통신문에 올려주세요.</p>
+                    <div class="sa-link"><input class="sa-input" id="lParent" readonly>
+                        <button class="sa-btn sm" data-copy="lParent"><i class="fa-regular fa-copy"></i> 복사</button>
+                        <button class="sa-btn sm" id="lParentPrint"><i class="fa-solid fa-print"></i> 안내문 인쇄</button>
+                        <button class="sa-btn sm danger" data-reissue="parent">새로 만들기</button></div>
+                </div>
+                <div class="sa-link-block">
+                    <b><i class="fa-solid fa-arrows-rotate"></i> 오늘 출석 QR 재발급</b>
+                    <p>QR 사진이 외부에 돌았을 때만 사용하세요. 인쇄해 둔 QR은 다시 인쇄해야 합니다.</p>
+                    <button class="sa-btn sm danger" data-reissue="qr">오늘 QR 재발급</button>
+                </div>
+            </div>
+        </div>
+        <div class="sa-actions"><button class="sa-btn" data-close-modal>닫기</button></div>
+    </div>
+</div>
+<div class="sa-toast" id="saToast"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+(function(){
+    const $ = id => document.getElementById(id);
+    // 본문 영역(z-index 10) 안에 두면 상단 메뉴(z-index 1000)에 가려지므로 창과 알림은 body로 옮긴다.
+    ['linkModal', 'saToast'].forEach(id => document.body.appendChild($(id)));
+    const TODAY = {{ today|tojson }};
+    const WEEKDAYS = ['월','화','수','목','금','토','일'];
+    const schoolSelect = $('saSchool');
+    let activeTab = 'live';
+    let classes = [];
+    let selectedClassId = null;
+    let editingClassId = null;
+    let editingStudent = null;
+    let studentCache = [];
+    let linkClass = null;
+    let socket = null;
+
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function toast(msg, bad){
+        const el = $('saToast');
+        el.textContent = msg; el.className = 'sa-toast show' + (bad ? ' bad' : '');
+        clearTimeout(el._t); el._t = setTimeout(() => el.className = 'sa-toast', 3500);
+    }
+    async function api(url, body){
+        const opts = body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)};
+        const res = await fetch(url, opts);
+        const data = await res.json().catch(() => ({}));
+        if(!res.ok || data.status === 'error'){
+            const err = new Error(data.message || '요청 처리에 실패했습니다.');
+            err.data = data; throw err;
+        }
+        return data;
+    }
+    const schoolId = () => schoolSelect.value;
+    const selectedClass = () => classes.find(c => c.id === selectedClassId) || null;
+    // 보호자 알림: '발송'은 알림 서버가 받았다는 뜻이고, '수신'은 보호자 휴대폰에 실제로 알림이 뜬 것이다.
+    function noticeCell(it){
+        if(it.notice_kind && it.notice_received)
+            return `<span class="sa-badge ok" title="보호자 ${it.notice_received}/${it.notice_sent}명 휴대폰에 알림이 떴습니다">✓ ${esc(it.notice_kind)} 수신 ${esc(it.notice_received_time)}</span>`;
+        if(it.notice_kind && it.notice_sent)
+            return `<span class="sa-badge gray" title="알림 서버에 전달됨 · 휴대폰 수신 확인 전">${esc(it.notice_kind)} 발송 · 수신 대기</span>`;
+        if(it.notify_result) return `<span class="sa-muted">${esc(it.notify_result)}</span>`;
+        if(it.receipt_warn) return '<span class="sa-badge no" title="최근 알림이 연달아 보호자 휴대폰에 도착하지 않았습니다">수신 확인 안 됨</span>';
+        return it.push_ready ? '<span class="sa-badge ok">등록</span>' : '<span class="sa-badge gray">미등록</span>';
+    }
+    function receiptLine(g){
+        if(g.receipt_warn) return `<div class="sa-badge no" style="margin-top:4px" title="알림 권한이 꺼졌거나 앱·기록이 지워졌을 수 있습니다">최근 알림 3건 수신 안 됨</div>
+            ${g.invite_url ? `<button class="sa-btn sm" data-copy-url="${esc(g.invite_url)}">링크 복사</button>` : ''}`;
+        return `<div class="sa-muted">${g.last_received_at ? '최근 수신 ' + esc(g.last_received_at.slice(5, 16)) : '수신 기록 없음'}</div>`;
+    }
+    const statusBadge = s => ({'출석':'<span class="sa-badge ok">출석</span>','지각':'<span class="sa-badge late">지각</span>','결석':'<span class="sa-badge no">결석</span>'})[s] || '<span class="sa-badge gray">미확인</span>';
+    function debounce(fn, ms){ let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+    // ---------- 탭·학교 ----------
+    document.querySelectorAll('.sa-tab').forEach(btn => btn.addEventListener('click', () => {
+        activeTab = btn.dataset.tab;
+        document.querySelectorAll('.sa-tab').forEach(b => b.classList.toggle('active', b === btn));
+        document.querySelectorAll('.sa-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + activeTab));
+        renderTab();
+    }));
+    schoolSelect.addEventListener('change', () => {
+        try{ localStorage.setItem('sa_school', schoolId()); }catch(e){}
+        selectedClassId = null;
+        connectSocket();
+        loadClasses();
+    });
+    try{
+        const saved = localStorage.getItem('sa_school');
+        if(saved && [...schoolSelect.options].some(o => o.value === saved)) schoolSelect.value = saved;
+    }catch(e){}
+
+    async function loadClasses(){
+        if(!schoolId()){ classes = []; renderTab(); return; }
+        try{
+            const d = await api(`/student-attendance/api/classes?school_id=${schoolId()}`);
+            classes = d.classes;
+            if(!selectedClass()){
+                const todayClass = classes.find(c => c.today_is_class_day);
+                selectedClassId = (todayClass || classes[0] || {}).id || null;
+            }
+        }catch(e){ classes = []; toast(e.message, true); }
+        renderPickers();
+        renderTab();
+    }
+    function renderPickers(){
+        document.querySelectorAll('.class-picker').forEach(sel => {
+            sel.innerHTML = classes.length
+                ? classes.map(c => `<option value="${c.id}">${esc(c.class_name)}${c.instructor_name ? ' · ' + esc(c.instructor_name) : ''}</option>`).join('')
+                : '<option value="">과목을 먼저 만들어주세요</option>';
+            if(selectedClassId) sel.value = selectedClassId;
+        });
+    }
+    document.querySelectorAll('.class-picker').forEach(sel => sel.addEventListener('change', () => {
+        selectedClassId = Number(sel.value) || null;
+        renderPickers(); renderTab();
+    }));
+    function renderTab(){
+        ({live: renderLive, classes: renderClasses, students: loadStudents, monthly: loadMonthly})[activeTab]();
+    }
+
+    // ---------- 실시간 ----------
+    function connectSocket(){
+        if(socket){ socket.disconnect(); socket = null; }
+        if(!window.io || !schoolId()) return;
+        socket = io('/student-attendance', {transports:['polling'], auth:{school_id: Number(schoolId())}});
+        socket.on('connect', () => { $('liveDot').className = 'sa-live-dot on'; $('liveDot').textContent = '실시간 연결됨'; });
+        socket.on('disconnect', () => { $('liveDot').className = 'sa-live-dot'; $('liveDot').textContent = '재연결 중'; });
+        socket.on('connect_error', () => { $('liveDot').className = 'sa-live-dot'; $('liveDot').textContent = '자동 새로고침(20초)'; });
+        socket.on('attendance_changed', ev => {
+            if(ev && ev.name && ev.status && ev.status !== '하원') toast(`${ev.name} 학생 ${ev.status}`);
+            flashStudent = ev && ev.student_id;
+            refreshLive();
+        });
+    }
+    let flashStudent = null;
+    const refreshLive = debounce(async () => {
+        if(activeTab === 'live'){ await loadClasses(); }
+    }, 400);
+
+    function renderLive(){
+        const wrap = $('classCards');
+        if(!classes.length){
+            wrap.innerHTML = `<div class="sa-empty" style="grid-column:1/-1">이 학교에 만든 과목이 없습니다. [과목 관리] 탭에서 과목을 만들어주세요.</div>`;
+            $('dayCard').hidden = true; return;
+        }
+        const ordered = [...classes].sort((a, b) => (b.today_is_class_day - a.today_is_class_day) || a.class_name.localeCompare(b.class_name, 'ko'));
+        wrap.innerHTML = ordered.map(c => {
+            const total = c.counts.students, present = c.counts.present;
+            const waiting = Math.max(0, total - present - c.counts.absent);
+            const pct = total ? Math.round(present / total * 100) : 0;
+            return `<button class="sa-class-card ${c.id === selectedClassId ? 'active' : ''}" data-class="${c.id}">
+                <div class="t"><span>${esc(c.class_name)}</span>${c.today_is_class_day ? '<span class="sa-badge teal">오늘 수업</span>' : ''}</div>
+                <div class="s">${esc(c.instructor_name || '강사 미지정')}${c.schedule_label ? ' · ' + esc(c.schedule_label) : ''}</div>
+                <div class="n">${present}<small> / ${total}명 출석</small></div>
+                <div class="sa-muted">지각 ${c.counts.late} · 결석 ${c.counts.absent} · 미확인 ${waiting}</div>
+                <div class="sa-bar"><i style="width:${pct}%"></i></div>
+            </button>`;
+        }).join('');
+        loadDay();
+    }
+    $('classCards').addEventListener('click', ev => {
+        const card = ev.target.closest('[data-class]');
+        if(!card) return;
+        selectedClassId = Number(card.dataset.class);
+        renderPickers(); renderLive();
+    });
+
+    async function loadDay(){
+        const c = selectedClass();
+        if(!c){ $('dayCard').hidden = true; return; }
+        $('dayCard').hidden = false;
+        const date = $('dayDate').value || TODAY;
+        $('dayLiveOpen').href = c.live_url;
+        $('dayDismiss').disabled = date !== TODAY;
+        $('dayAbsent').disabled = date !== TODAY;
+        try{
+            const d = await api(`/student-attendance/api/classes/${c.id}/day?date=${date}`);
+            $('dayTitle').textContent = `${d.class_name} · ${d.date} (${d.weekday})${d.is_today ? ' 오늘' : ''}`;
+            const s = d.summary;
+            $('stTotal').textContent = s.total; $('stPresent').textContent = s.present; $('stLate').textContent = s.late;
+            $('stAbsent').textContent = s.absent; $('stWait').textContent = s.unchecked;
+            $('dayBody').innerHTML = d.items.length ? d.items.map((it, i) => `<tr class="${it.student_id === flashStudent ? 'flash' : ''}">
+                <td>${i + 1}</td>
+                <td><b>${esc(it.name)}</b> <span class="sa-muted">${it.grade ? esc(it.grade) + '-' + esc(it.classroom) : ''}</span>${it.removed ? ' <span class="sa-badge gray">명단제외</span>' : ''}</td>
+                <td>${statusBadge(it.status)}</td>
+                <td class="sa-time">${it.check_in_time || '-'}</td>
+                <td>${it.method ? (it.method === 'QR' ? '<span class="sa-badge blue">QR</span>' : `<span class="sa-badge gray" title="${esc(it.note)}">수동</span>`) : '-'}</td>
+                <td>${it.dismissed_time ? `<span class="sa-badge teal">${it.dismissed_time}</span>` : '-'}</td>
+                <td>${noticeCell(it)}</td>
+                <td style="white-space:nowrap"><span class="sa-seg">
+                    ${['출석','지각','결석'].map(st => `<button data-mark="${st}" data-sid="${it.student_id}" class="${it.status === st ? 'on-' + st : ''}">${st}</button>`).join('')}
+                    ${(it.status === '출석' || it.status === '지각') && !it.dismissed_time && d.is_today ? `<button data-mark="하원" data-sid="${it.student_id}">하원</button>` : ''}
+                    ${it.status ? `<button data-mark="cancel" data-sid="${it.student_id}" title="기록 지우기">✕</button>` : ''}
+                </span></td>
+            </tr>`).join('') : '<tr><td colspan="8" class="sa-empty">수강생이 없습니다. [수강생 관리] 탭에서 등록해주세요.</td></tr>';
+            flashStudent = null;
+        }catch(e){ $('dayBody').innerHTML = `<tr><td colspan="8" class="sa-empty">${esc(e.message)}</td></tr>`; }
+    }
+    $('dayDate').addEventListener('change', loadDay);
+    $('dayToday').onclick = () => { $('dayDate').value = TODAY; loadDay(); };
+    $('liveRefresh').onclick = loadClasses;
+    $('dayBody').addEventListener('click', async ev => {
+        const btn = ev.target.closest('[data-mark]');
+        const c = selectedClass();
+        if(!btn || !c) return;
+        const status = btn.dataset.mark;
+        if(status === 'cancel' && !confirm('이 학생의 출석 기록을 지울까요?')) return;
+        try{
+            const r = await api(`/student-attendance/api/classes/${c.id}/mark`, {student_id: Number(btn.dataset.sid), status, date: $('dayDate').value || TODAY});
+            toast(r.message); loadClasses();
+        }catch(e){ toast(e.message, true); }
+    });
+    $('dayDismiss').onclick = async () => {
+        const c = selectedClass();
+        if(!c || !confirm('수업을 마칠까요?\n출석한 학생 전원을 하원 처리하고 보호자에게 하원 알림을 보냅니다.')) return;
+        try{ toast((await api(`/student-attendance/api/classes/${c.id}/dismiss`, {})).message); loadClasses(); }
+        catch(e){ toast(e.message, true); }
+    };
+    $('dayAbsent').onclick = async () => {
+        const c = selectedClass(); if(!c) return;
+        const waiting = Number($('stWait').textContent) || 0;
+        if(!waiting) return toast('아직 확인되지 않은 학생이 없습니다.');
+        if(!confirm(`아직 출석하지 않은 ${waiting}명을 결석 처리할까요?\n보호자에게 결석 알림이 전송됩니다.`)) return;
+        try{ toast((await api(`/student-attendance/api/classes/${c.id}/absent-rest`, {})).message); loadClasses(); }
+        catch(e){ toast(e.message, true); }
+    };
+    setInterval(() => { if(activeTab === 'live' && !(socket && socket.connected) && document.visibilityState === 'visible') loadClasses(); }, 20000);
+
+    // ---------- 과목 관리 ----------
+    function renderClasses(){
+        const label = schoolSelect.options[schoolSelect.selectedIndex]?.text || '';
+        $('clsTitle').textContent = `${label} 과목 목록`;
+        $('clsBody').innerHTML = classes.length ? classes.map(c => `<tr>
+            <td><b>${esc(c.class_name)}</b>${c.department ? `<div class="sa-muted">${esc(c.department)}</div>` : ''}${c.notify_parents ? '' : '<div><span class="sa-badge gray">알림 끔</span></div>'}</td>
+            <td>${esc(c.instructor_name) || '<span class="sa-muted">-</span>'}</td>
+            <td>${esc(c.schedule_label) || '<span class="sa-muted">-</span>'}${c.start_time ? `<div class="sa-muted">지각 ${c.late_minutes}분 후</div>` : ''}</td>
+            <td>${c.qr_mode === 'live' ? '<span class="sa-badge teal">30초 변경</span>' : '<span class="sa-badge blue">매일 변경</span>'}</td>
+            <td>${c.counts.students}명</td>
+            <td style="white-space:nowrap">
+                <button class="sa-btn sm primary" data-links="${c.id}"><i class="fa-solid fa-qrcode"></i> QR·링크</button>
+                <button class="sa-btn sm" data-edit="${c.id}">수정</button>
+                <button class="sa-btn sm danger" data-del="${c.id}">삭제</button>
+            </td></tr>`).join('')
+            : '<tr><td colspan="6" class="sa-empty">아직 과목이 없습니다. 오른쪽에서 과목을 만들어주세요.</td></tr>';
+    }
+    function resetClassForm(){
+        editingClassId = null;
+        ['cName','cDept','cInstructor','cStart','cEnd'].forEach(id => $(id).value = '');
+        $('cLate').value = 10; $('cNotify').checked = true;
+        document.querySelectorAll('#cDays input').forEach(i => i.checked = false);
+        document.querySelector('input[name=cQr][value=daily]').checked = true;
+        $('cFormTitle').textContent = '새 과목 만들기'; $('cCancel').hidden = true;
+    }
+    $('cCancel').onclick = resetClassForm;
+    $('cSave').onclick = async () => {
+        if(!schoolId()) return toast('학교를 먼저 선택해주세요.', true);
+        try{
+            const r = await api('/student-attendance/api/classes', {
+                id: editingClassId, school_id: schoolId(), class_name: $('cName').value, department: $('cDept').value,
+                instructor_name: $('cInstructor').value, start_time: $('cStart').value, end_time: $('cEnd').value,
+                late_minutes: $('cLate').value, notify_parents: $('cNotify').checked,
+                qr_mode: document.querySelector('input[name=cQr]:checked').value,
+                weekdays: [...document.querySelectorAll('#cDays input:checked')].map(i => Number(i.value)),
+            });
+            toast(r.message); selectedClassId = r.id; resetClassForm(); loadClasses();
+        }catch(e){ toast(e.message, true); }
+    };
+    $('clsBody').addEventListener('click', async ev => {
+        const edit = ev.target.closest('[data-edit]'), del = ev.target.closest('[data-del]'), links = ev.target.closest('[data-links]');
+        if(edit){
+            const c = classes.find(x => x.id === Number(edit.dataset.edit)); if(!c) return;
+            editingClassId = c.id;
+            $('cName').value = c.class_name; $('cDept').value = c.department; $('cInstructor').value = c.instructor_name;
+            $('cStart').value = c.start_time; $('cEnd').value = c.end_time; $('cLate').value = c.late_minutes; $('cNotify').checked = c.notify_parents;
+            document.querySelectorAll('#cDays input').forEach(i => i.checked = c.weekdays.includes(Number(i.value)));
+            document.querySelector(`input[name=cQr][value=${c.qr_mode}]`).checked = true;
+            $('cFormTitle').textContent = `${c.class_name} 수정`; $('cCancel').hidden = false; $('cName').focus();
+        }
+        if(del){
+            const c = classes.find(x => x.id === Number(del.dataset.del)); if(!c) return;
+            if(!confirm(`${c.class_name} 과목을 삭제할까요?\n지난 출석 기록은 보존됩니다.`)) return;
+            try{ toast((await api(`/student-attendance/api/classes/${c.id}/delete`, {})).message); selectedClassId = null; loadClasses(); }
+            catch(e){ toast(e.message, true); }
+        }
+        if(links) openLinks(Number(links.dataset.links));
+    });
+
+    // ---------- QR·링크 ----------
+    async function openLinks(classId){
+        try{
+            const d = await api(`/student-attendance/api/classes/${classId}/qr`);
+            linkClass = {id: classId, ...d};
+            $('linkTitle').textContent = `${d.school_name} · ${d.class_name}`;
+            $('lLive').value = d.live_url; $('lLiveOpen').href = d.live_url; $('lParent').value = d.parent_url;
+            $('lDisplay').value = d.display_url; $('lDisplayOpen').href = d.display_url;
+            $('linkQr').innerHTML = d.qr_mode === 'live'
+                ? `<img src="${esc(d.parent_qr_svg_url)}" alt="학부모 등록 QR"><div class="sa-muted" style="margin-top:6px">학부모 알림 등록 QR</div>
+                   <div class="sa-qr-note"><i class="fa-solid fa-shield-halved"></i> 이 과목은 <b>30초마다 바뀌는 QR</b>을 씁니다. 출석 QR은 강사용 실시간 화면에서만 보이며 인쇄할 수 없습니다.</div>`
+                : `<img src="${esc(d.qr_svg_url)}" alt="오늘의 출석 QR"><div style="font-weight:800;margin-top:6px">${esc(d.date)} (${esc(d.weekday)}) 출석 QR</div>
+                   <div class="sa-muted">오늘 하루만 유효합니다</div>
+                   <div class="sa-actions" style="justify-content:center"><button class="sa-btn sm primary" id="lQrPrint"><i class="fa-solid fa-print"></i> 출석 QR 인쇄</button></div>`;
+            if(d.scan_url_warning) $('linkQr').innerHTML += `<div class="sa-qr-warn"><i class="fa-solid fa-triangle-exclamation"></i> ${esc(d.scan_url_warning)}</div>`;
+            const printBtn = $('lQrPrint');
+            if(printBtn) printBtn.onclick = () => printSheet(`${d.date} (${d.weekday}) 방과후 출석`, d.qr_svg_url,
+                `휴대폰 카메라로 QR을 찍으면 출석이 기록됩니다.<br><b>이 QR은 ${esc(d.date)} 하루만 사용할 수 있습니다.</b>`);
+            $('linkModal').classList.add('open');
+        }catch(e){ toast(e.message, true); }
+    }
+    function printSheet(subtitle, svgUrl, guide){
+        const d = linkClass; if(!d) return;
+        const w = window.open('', '_blank', 'width=720,height=900');
+        w.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${esc(d.class_name)}</title>
+            <style>body{font-family:Pretendard,'Malgun Gothic',sans-serif;text-align:center;padding:36px}
+            h1{font-size:32px;margin:0 0 6px}h2{font-size:22px;color:#0d9488;margin:0 0 22px}
+            img{width:420px;height:420px}p{font-size:18px;color:#475569;line-height:1.75}</style></head>
+            <body><h1>${esc(d.school_name)} ${esc(d.class_name)}</h1><h2>${subtitle}</h2>
+            <img src="${location.origin}${svgUrl}" onload="setTimeout(()=>window.print(),200)"><p>${guide}</p></body></html>`);
+        w.document.close();
+    }
+    $('lParentPrint').onclick = () => {
+        if(!linkClass) return;
+        printSheet('학부모님 출결 알림 무료 등록 안내', linkClass.parent_qr_svg_url,
+            `휴대폰 카메라로 QR을 찍고 <b>자녀 이름과 보호자 휴대폰번호</b>를 입력한 뒤<br>‘출결 알림 받기’를 눌러주세요. 앱 설치나 회원가입이 필요 없습니다.<br>
+             자녀가 수업에 출석·지각·하원하면 휴대폰으로 바로 알려드립니다.<br>
+             <small>아이폰은 Safari 공유 버튼 → ‘홈 화면에 추가’ 후 추가된 아이콘으로 열어 등록해주세요.</small>`);
+    };
+    document.querySelectorAll('[data-reissue]').forEach(btn => btn.onclick = async () => {
+        if(!linkClass) return;
+        const msg = {live:'강사용 화면 링크를 새로 만들까요?\n강사에게 새 링크를 다시 전달해야 합니다.',
+                     display:'교실 QR 화면 링크를 새로 만들까요?\n교실에 띄워 둔 화면은 새 링크로 다시 열어야 합니다.',
+                     parent:'학부모 등록 링크를 새로 만들까요?\n이미 배포한 안내문 QR은 더 이상 열리지 않습니다. (이미 알림을 등록한 보호자는 영향 없음)',
+                     qr:'오늘 출석 QR을 재발급할까요?'}[btn.dataset.reissue];
+        if(!confirm(msg)) return;
+        try{ toast((await api(`/student-attendance/api/classes/${linkClass.id}/reissue`, {target: btn.dataset.reissue})).message); openLinks(linkClass.id); loadClasses(); }
+        catch(e){ toast(e.message, true); }
+    });
+    document.querySelectorAll('[data-copy]').forEach(btn => btn.onclick = () => copyText($(btn.dataset.copy).value));
+    async function copyText(text){
+        try{ await navigator.clipboard.writeText(text); }
+        catch(e){ const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+        toast('링크를 복사했습니다.');
+    }
+    document.querySelectorAll('[data-close-modal]').forEach(b => b.onclick = () => b.closest('.sa-modal').classList.remove('open'));
+
+    // ---------- 수강생 ----------
+    async function loadStudents(){
+        const body = $('stuBody');
+        const c = selectedClass();
+        if(!c){ body.innerHTML = '<tr><td colspan="6" class="sa-empty">과목을 먼저 만들어주세요.</td></tr>'; $('stuCount').textContent = ''; return; }
+        try{
+            const d = await api(`/student-attendance/api/classes/${c.id}/students`);
+            studentCache = d.students;
+            const pushReady = d.students.filter(s => s.guardians.some(g => g.push)).length;
+            const receiptWarn = d.students.filter(s => s.guardians.some(g => g.receipt_warn)).length;
+            $('stuCount').textContent = `총 ${d.students.length}명 · 알림 등록 ${pushReady}명 · 휴대폰 연결 ${d.students.filter(s => s.device_bound_at).length}명`
+                + (receiptWarn ? ` · 수신 확인 필요 ${receiptWarn}명` : '');
+            body.innerHTML = d.students.length ? d.students.map((s, i) => `<tr>
+                <td>${i + 1}</td>
+                <td><b>${esc(s.name)}</b><div class="sa-muted">${s.grade ? esc(s.grade) + '학년 ' : ''}${s.classroom ? esc(s.classroom) + '반' : ''}</div></td>
+                <td>${s.guardians.map(g => `<div>${esc(g.name)} <span class="sa-muted">${esc(g.phone)}</span></div>`).join('') || '<span class="sa-badge no">보호자 없음</span>'}</td>
+                <td>${s.guardians.map(g => g.push ? `<div><span class="sa-badge ok"><i class="fa-solid fa-bell"></i> 등록</span>${receiptLine(g)}</div>`
+                    : `<div><span class="sa-badge gray">미등록</span> ${g.invite_url ? `<button class="sa-btn sm" data-copy-url="${esc(g.invite_url)}">링크 복사</button>` : ''}</div>`).join('')}</td>
+                <td>${s.device_bound_at ? `<span class="sa-badge ok" title="최근 사용 ${esc(s.device_last_seen_at)}">연결됨</span>` : '<span class="sa-badge gray">미연결</span>'}</td>
+                <td style="white-space:nowrap">
+                    <button class="sa-btn sm" data-sedit="${s.id}">수정</button>
+                    ${s.device_bound_at ? `<button class="sa-btn sm" data-sreset="${s.id}" data-name="${esc(s.name)}">휴대폰 다시 등록</button>` : ''}
+                    <button class="sa-btn sm danger" data-sdel="${s.id}" data-name="${esc(s.name)}">제외</button>
+                </td></tr>`).join('')
+                : '<tr><td colspan="6" class="sa-empty">등록된 수강생이 없습니다. 오른쪽에서 등록해주세요.</td></tr>';
+        }catch(e){ body.innerHTML = `<tr><td colspan="6" class="sa-empty">${esc(e.message)}</td></tr>`; }
+    }
+    function resetStudentForm(){
+        editingStudent = null;
+        ['sName','sGrade','sClass','sGName','sGPhone'].forEach(id => $(id).value = '');
+        $('sFormTitle').textContent = '학생 개별 등록'; $('sCancel').hidden = true;
+    }
+    $('sCancel').onclick = resetStudentForm;
+    $('sSave').onclick = async () => {
+        const c = selectedClass(); if(!c) return toast('과목을 먼저 선택해주세요.', true);
+        const guardian = editingStudent && editingStudent.guardians[0];
+        try{
+            const r = await api(`/student-attendance/api/classes/${c.id}/students`, {
+                id: editingStudent && editingStudent.id, guardian_id: guardian && guardian.id,
+                name: $('sName').value, grade: $('sGrade').value, classroom: $('sClass').value,
+                guardian_name: $('sGName').value, guardian_phone: $('sGPhone').value,
+            });
+            toast(r.message); resetStudentForm(); loadStudents(); loadClassesQuiet();
+        }catch(e){ toast(e.message, true); }
+    };
+    $('bulkSave').onclick = async () => {
+        const c = selectedClass(); if(!c) return toast('과목을 먼저 선택해주세요.', true);
+        try{
+            const r = await api(`/student-attendance/api/classes/${c.id}/students/bulk`, {text: $('bulkText').value});
+            toast(r.message); $('bulkText').value = ''; loadStudents(); loadClassesQuiet();
+        }catch(e){
+            const errors = e.data && e.data.errors;
+            if(errors && errors.length) alert(e.message + '\n\n' + errors.join('\n'));
+            else toast(e.message, true);
+        }
+    };
+    $('stuBody').addEventListener('click', async ev => {
+        const c = selectedClass();
+        const edit = ev.target.closest('[data-sedit]'), reset = ev.target.closest('[data-sreset]'),
+              del = ev.target.closest('[data-sdel]'), copy = ev.target.closest('[data-copy-url]');
+        if(copy) return copyText(copy.dataset.copyUrl);
+        if(edit){
+            const s = studentCache.find(x => x.id === Number(edit.dataset.sedit)); if(!s) return;
+            editingStudent = s;
+            const g = s.guardians[0] || {};
+            $('sName').value = s.name; $('sGrade').value = s.grade; $('sClass').value = s.classroom;
+            $('sGName').value = g.name || ''; $('sGPhone').value = g.phone || '';
+            $('sFormTitle').textContent = `${s.name} 학생 수정`; $('sCancel').hidden = false; $('sName').focus();
+        }
+        if(reset){
+            if(!confirm(`${reset.dataset.name} 학생의 휴대폰 등록을 풀까요?\n휴대폰이나 QR 찍는 앱을 바꿔 출석이 안 될 때 사용합니다.\n학생이 QR을 다시 찍고 이름과 부모님 휴대폰 뒷 4자리를 입력하면 됩니다.`)) return;
+            try{ toast((await api(`/student-attendance/api/students/${reset.dataset.sreset}/reset-device`, {})).message); loadStudents(); }
+            catch(e){ toast(e.message, true); }
+        }
+        if(del && c){
+            if(!confirm(`${del.dataset.name} 학생을 ${c.class_name} 명단에서 뺄까요?\n지난 출석 기록은 보존됩니다.`)) return;
+            try{ toast((await api(`/student-attendance/api/classes/${c.id}/students/${del.dataset.sdel}/remove`, {})).message); loadStudents(); loadClassesQuiet(); }
+            catch(e){ toast(e.message, true); }
+        }
+    });
+    $('sGPhone').addEventListener('input', e => {
+        const d = e.target.value.replace(/\D/g, '').slice(0, 11);
+        e.target.value = d.length > 7 ? `${d.slice(0,3)}-${d.slice(3, d.length - 4)}-${d.slice(-4)}` : d.length > 3 ? `${d.slice(0,3)}-${d.slice(3)}` : d;
+    });
+    async function loadClassesQuiet(){
+        try{ classes = (await api(`/student-attendance/api/classes?school_id=${schoolId()}`)).classes; }catch(e){}
+    }
+
+    // ---------- 월별 ----------
+    async function loadMonthly(){
+        const wrap = $('monthlyWrap');
+        const c = selectedClass();
+        const month = $('monMonth').value || TODAY.slice(0,7);
+        if(!c){ wrap.innerHTML = '<div class="sa-empty">과목을 먼저 만들어주세요.</div>'; return; }
+        $('monExcel').href = `/student-attendance/classes/${c.id}/monthly.xlsx?month=${month}`;
+        try{
+            const d = await api(`/student-attendance/api/classes/${c.id}/monthly?month=${month}`);
+            if(!d.rows.length){ wrap.innerHTML = '<div class="sa-empty">등록된 수강생이 없습니다.</div>'; return; }
+            const thCls = day => [day.class_day ? 'cd' : (day.weekend ? 'we' : ''), day.weekday === '일' ? 'sun' : '', day.weekday === '토' ? 'sat' : ''].join(' ');
+            let html = '<table class="sa-table sa-month"><thead><tr><th class="name">학생</th>';
+            d.days.forEach(day => html += `<th class="${thCls(day)}">${day.day}<br>${day.weekday}</th>`);
+            html += '<th>출석</th><th>지각</th><th>결석</th></tr></thead><tbody>';
+            d.rows.forEach(r => {
+                html += `<tr><td class="name">${esc(r.name)}${r.removed ? ' <span class="sa-muted">(제외)</span>' : ''}</td>`;
+                d.days.forEach(day => {
+                    const m = r.days[String(day.day)];
+                    html += m ? `<td class="m-${m.status}" title="${day.day}일 ${m.status} ${m.time} ${m.method}">${m.status[0]}</td>`
+                              : `<td class="${day.weekend ? 'we' : ''}"></td>`;
+                });
+                html += `<td class="sum">${r.present}</td><td class="sum">${r.late}</td><td class="sum">${r.absent}</td></tr>`;
+            });
+            wrap.innerHTML = html + '</tbody></table>';
+        }catch(e){ wrap.innerHTML = `<div class="sa-empty">${esc(e.message)}</div>`; }
+    }
+    function shiftMonth(delta){
+        const [y, m] = ($('monMonth').value || TODAY.slice(0,7)).split('-').map(Number);
+        const d = new Date(y, m - 1 + delta, 1);
+        $('monMonth').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        loadMonthly();
+    }
+    $('monMonth').addEventListener('change', loadMonthly);
+    $('monPrev').onclick = () => shiftMonth(-1);
+    $('monNext').onclick = () => shiftMonth(1);
+
+    connectSocket();
+    loadClasses();
+})();
+</script>
+{% endblock %}

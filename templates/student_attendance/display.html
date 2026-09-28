@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>{% if invalid %}출석 QR{% else %}{{ info.class_name }} 출석 QR{% endif %}</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.3vh;background:linear-gradient(180deg,#f0fdfa,#f8fafc);color:#0f172a;font-family:Pretendard,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;text-align:center;padding:2vh 16px;overflow:hidden}
+.brand{font-size:clamp(14px,2.2vh,22px);font-weight:800;color:#0d9488}
+h1{margin:0;font-size:clamp(24px,4.6vh,50px);font-weight:900}
+.date{font-size:clamp(16px,2.8vh,30px);font-weight:800;color:#334155;font-variant-numeric:tabular-nums}
+.qr{background:#fff;border-radius:24px;padding:2vh;box-shadow:0 14px 40px rgba(15,23,42,.1)}
+.qr img{display:block;width:min(56vh,82vw);height:min(56vh,82vw)}
+.guide{font-size:clamp(17px,2.8vh,30px);font-weight:800;color:#334155}
+.count{font-size:clamp(16px,2.6vh,28px);font-weight:900;color:#0f766e;min-height:1.3em}
+.sub{font-size:clamp(13px,1.9vh,19px);color:#64748b}
+.pop{position:fixed;left:50%;top:14%;transform:translate(-50%,-12px);opacity:0;pointer-events:none;background:#0d9488;color:#fff;padding:2.4vh 5vh;border-radius:26px;font-size:clamp(28px,6vh,64px);font-weight:900;box-shadow:0 20px 50px rgba(13,148,136,.35);transition:opacity .25s,transform .25s;white-space:nowrap}
+.pop.show{opacity:1;transform:translate(-50%,0)}
+.pop.late{background:#d97706;box-shadow:0 20px 50px rgba(217,119,6,.35)}
+</style>
+</head>
+<body>
+{% if invalid %}
+<h1>사용할 수 없는 링크입니다</h1>
+<p class="guide">링크가 새로 만들어졌거나 과목이 삭제되었습니다.<br>담당자에게 새 교실 QR 화면 링크를 요청해주세요.</p>
+{% else %}
+<div class="brand">새담 방과후학교 · 학생 출석</div>
+<h1>{{ info.school_name }} {{ info.class_name }}</h1>
+<div class="date">{{ today }} ({{ weekday }}) <span id="clock"></span></div>
+<div class="qr"><img id="qr" src="{{ url_for('student_attendance.display_qr_svg', display_key=display_key) }}?d={{ today }}" alt="출석 QR"></div>
+<div class="guide">휴대폰 카메라로 QR을 찍어 출석하세요</div>
+<div class="count" id="count"></div>
+<div class="sub">{% if info.qr_mode == 'live' %}QR은 {{ refresh_seconds }}초마다 바뀝니다 · 사진으로 보낸 QR은 출석되지 않습니다{% else %}오늘 하루만 사용할 수 있는 QR입니다{% endif %}</div>
+<div class="pop" id="pop"></div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+(function(){
+    const KEY = {{ display_key|tojson }};
+    const PAGE_DATE = {{ today|tojson }};
+    const QR_MODE = {{ info.qr_mode|tojson }};
+    const base = {{ url_for('student_attendance.display_page', display_key=display_key)|tojson }};
+    const $ = id => document.getElementById(id);
+    let socket = null;
+
+    function pop(name, status){
+        const el = $('pop');
+        el.textContent = `${name} ${status}!`;
+        el.className = 'pop show' + (status === '지각' ? ' late' : '');
+        clearTimeout(el._t); el._t = setTimeout(() => el.className = 'pop', 2500);
+    }
+    async function load(){
+        try{
+            const res = await fetch(base + '/summary', {cache:'no-store'});
+            // 링크를 새로 만들었거나 QR 방식을 바꿨으면 화면을 새로 연다.
+            if(res.status === 404) return location.reload();
+            const d = await res.json();
+            if(d.qr_mode && d.qr_mode !== QR_MODE) return location.reload();
+            const s = d.summary;
+            $('count').textContent = s.total ? `출석 ${s.present + s.late}명 / 수강생 ${s.total}명` : '';
+        }catch(e){}
+    }
+    if(window.io){
+        socket = io('/student-attendance', {transports:['polling'], auth:{display_key: KEY}});
+        socket.on('connect', load);
+        socket.on('attendance_changed', ev => {
+            if(ev && ev.name && (ev.status === '출석' || ev.status === '지각')) pop(ev.name, ev.status);
+            load();
+        });
+    }
+    setInterval(() => { if(!(socket && socket.connected)) load(); }, 15000);
+
+    const img = $('qr'), qrBase = img.src.split('?')[0];
+    setInterval(() => { img.src = qrBase + '?d=' + PAGE_DATE + '&r=' + Date.now(); }, QR_MODE === 'live' ? 10000 : 600000);
+    // 태블릿 시계와 무관하게 한국시간으로 날짜를 계산하고, 자정이 지나면 새 날짜의 QR로 다시 연다.
+    function kstNow(){ return new Date(Date.now() + (new Date().getTimezoneOffset() + 540) * 60000); }
+    function kstDate(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+    function tick(){
+        const now = kstNow();
+        $('clock').textContent = now.toTimeString().slice(0, 5);
+        if(kstDate(now) !== PAGE_DATE) location.reload();
+    }
+    setInterval(tick, 1000); tick();
+    load();
+})();
+</script>
+{% endif %}
+</body>
+</html>

@@ -1049,7 +1049,7 @@
                         <!-- 3. 학교관리 메뉴 신설 (드롭다운 서브메뉴 추가) -->
                         {% if menu_access.get('school_group', true) %}
                         <li class="menu-item-wrapper dropdown">
-                            <a href="javascript:void(0);" class="menu-item {% if 'school' in request.path or request.path.startswith('/survey') or request.path.startswith('/billing') %}active{% endif %}">
+                            <a href="javascript:void(0);" class="menu-item {% if 'school' in request.path or request.path.startswith('/survey') or request.path.startswith('/billing') or request.path.startswith('/student-attendance') %}active{% endif %}">
                                 <i class="fa-solid fa-school"></i> 학교관리
                             </a>
                             <div class="dropdown-content">
@@ -1058,6 +1058,8 @@
                                 {% if menu_access.get('school_calendar', true) %}<a href="/school/calendar"><i class="fa-solid fa-calendar-week"></i>학교일정표</a>{% endif %}
                                 {% if menu_access.get('school_survey', true) %}<a href="/survey/"><i class="fa-solid fa-square-poll-vertical"></i>설문조사</a>{% endif %}
                                 {% if menu_access.get('school_billing', false) %}<a href="/billing/"><i class="fa-solid fa-file-invoice-dollar"></i>청구업무</a>{% endif %}
+                                {% if menu_access.get('school_classroom_guide', true) %}<a href="/school/guide/"><i class="fa-solid fa-map-location-dot"></i>교실안내</a>{% endif %}
+                                {% if menu_access.get('school_student_attendance', false) %}<a href="{{ url_for('student_attendance.admin_page') }}"><i class="fa-solid fa-user-check"></i>학생출석관리</a>{% endif %}
                             </div>
                         </li>
                         {% endif %}
@@ -1117,7 +1119,7 @@
                         <!-- 7. 통합관리 메뉴 -->
                         {% if menu_access.get('admin_group', false) %}
                         <li class="menu-item-wrapper dropdown">
-                            <a href="javascript:void(0);" class="menu-item {% if request.path.startswith('/admin') or request.path.startswith('/mydesk') or (request.path.startswith('/user') and not request.path.startswith('/user/invite-sender')) or request.path.startswith('/ebook/books') or request.path.startswith('/webtoon') or request.path.startswith('/exhibition') or request.path.startswith('/photobook') %}active{% endif %}">
+                            <a href="javascript:void(0);" class="menu-item {% if request.path.startswith('/admin') or request.path.startswith('/mydesk') or (request.path.startswith('/user') and not request.path.startswith('/user/invite-sender')) or request.path.startswith('/ebook/books') or request.path.startswith('/webtoon') or request.path.startswith('/exhibition') or request.path.startswith('/photobook') or request.path.startswith('/multi-tts') %}active{% endif %}">
                                 <i class="fa-solid fa-screwdriver-wrench"></i>통합관리
                             </a>
                             <div class="dropdown-content">
@@ -1128,6 +1130,7 @@
                                 {% if menu_access.get('exhibition_main', false) %}<a href="{{ url_for('exhibition.index') }}"><i class="fa-solid fa-cube"></i>3D전시장</a>{% endif %}
                                 {% if menu_access.get('webtoon_main', false) %}<a href="{{ url_for('webtoon.library') }}"><i class="fa-solid fa-book-open"></i>Webtoon</a>{% endif %}
                                 {% if menu_access.get('photobook_main', false) %}<a href="{{ url_for('photobook.library') }}"><i class="fa-solid fa-images"></i>웹전자책</a>{% endif %}
+                                {% if menu_access.get('multi_tts_main', false) %}<a href="{{ url_for('multi_tts.index') }}"><i class="fa-solid fa-microphone-lines"></i>멀티TTS</a>{% endif %}
                                 {% if menu_access.get('mydesk_main', false) %}<a href="{{ url_for('mydesk.index') }}"><i class="fa-solid fa-mug-hot"></i>마이데스크</a>{% endif %}
                                 <a href="#sitemap" data-sitemap-trigger><i class="fa-solid fa-wand-magic-sparkles"></i>사이트맵</a>
                                 <a href="#sitemap2" data-sitemap-trigger data-sitemap-variant="pastel"><i class="fa-solid fa-cloud-sun"></i>사이트맵2</a>

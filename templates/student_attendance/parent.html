@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#e78100">
+<title>새담 방과후학교 출결 알림 등록</title>
+<style>
+:root{--orange:#e78100;--orange2:#ff9d1b;--ink:#172033;--muted:#70798b;--line:#e7e9ee;--bad:#d84c4c}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(150deg,#fff4df,#f6f8fc 60%);color:var(--ink);font-family:Pretendard,"Noto Sans KR",Arial,sans-serif;min-height:100vh}
+.wrap{width:min(560px,100%);margin:auto;padding:24px 16px 48px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:20px;margin:8px 4px 20px}
+.brand-mark{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--orange);color:#fff}
+.card{background:#fff;border:1px solid rgba(231,129,0,.18);border-radius:22px;box-shadow:0 15px 40px rgba(34,44,70,.10);padding:24px;margin-bottom:15px}
+h1{font-size:24px;line-height:1.35;margin:0 0 9px}
+.lead{color:var(--muted);line-height:1.65;margin:0}
+.class{display:inline-block;margin:0 0 12px;padding:6px 12px;border-radius:99px;background:#fff4df;color:#9a5a00;font-weight:800;font-size:14px}
+label{display:block;font-size:14px;font-weight:800;margin:16px 0 6px}
+input{width:100%;font:inherit;font-size:18px;padding:14px;border:1px solid #d6dae2;border-radius:12px;outline:none}
+input:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(231,129,0,.15)}
+button{border:0;border-radius:14px;width:100%;margin-top:20px;padding:16px 18px;font:inherit;font-weight:900;font-size:17px;cursor:pointer;background:linear-gradient(135deg,var(--orange),var(--orange2));color:#fff}
+.error{margin-top:16px;padding:12px 14px;border-radius:12px;background:#fff0f0;color:#b83838;font-size:14px;line-height:1.55}
+.steps{margin:0;padding-left:20px;color:var(--muted);line-height:1.8;font-size:14px}
+.privacy{font-size:12px;color:#8a91a0;text-align:center;line-height:1.6;padding:8px 12px}
+.invalid{text-align:center;padding:60px 22px}
+</style>
+</head>
+<body>
+<main class="wrap">
+    <div class="brand"><span class="brand-mark">S</span> 새담 방과후학교</div>
+    {% if invalid %}
+    <section class="card invalid"><h1>사용할 수 없는 링크입니다</h1><p class="lead">링크가 새로 만들어졌거나 과목이 종료되었습니다.<br>학교 담당자에게 새 안내를 요청해주세요.</p></section>
+    {% else %}
+    <section class="card">
+        <span class="class">{{ info.school_name }} · {{ info.class_name }}</span>
+        <h1>자녀 출결 알림을<br>무료로 받아보세요</h1>
+        <p class="lead">자녀가 수업에 출석하거나 하원하면 이 휴대폰으로 바로 알려드립니다. 앱 설치·회원가입·문자 비용이 없습니다.</p>
+        <form method="post" autocomplete="off">
+            <label for="child">자녀 이름</label>
+            <input id="child" name="child_name" maxlength="40" value="{{ form.get('child_name', '') }}" required>
+            <label for="phone">보호자 휴대폰번호</label>
+            <input id="phone" name="phone" type="tel" inputmode="numeric" maxlength="13" placeholder="010-0000-0000" value="{{ form.get('phone', '') }}" required>
+            {% if error %}<div class="error">{{ error }}</div>{% endif %}
+            <button type="submit">다음</button>
+        </form>
+    </section>
+    <section class="card">
+        <ol class="steps">
+            <li>방과후 신청 때 적은 <b>보호자 휴대폰번호</b>로 확인합니다.</li>
+            <li>다음 화면에서 <b>‘출결 알림 받기’</b>를 누르고 알림을 허용하면 끝입니다.</li>
+            <li>아이폰은 Safari 공유 버튼 → <b>‘홈 화면에 추가’</b> 후, 추가된 아이콘으로 열어 등록해주세요.</li>
+        </ol>
+    </section>
+    <p class="privacy">출결 알림은 자녀의 위치와 관련된 정보라 명단에 등록된 보호자만 받을 수 있습니다.</p>
+    {% endif %}
+</main>
+{% if not invalid %}
+<script>
+document.getElementById('phone').addEventListener('input', e => {
+    const d = e.target.value.replace(/\D/g, '').slice(0, 11);
+    e.target.value = d.length > 7 ? `${d.slice(0,3)}-${d.slice(3, d.length - 4)}-${d.slice(-4)}` : d.length > 3 ? `${d.slice(0,3)}-${d.slice(3)}` : d;
+});
+</script>
+{% endif %}
+</body>
+</html>

@@ -62,6 +62,8 @@ async function registerPush(){
         setStatus(data.message,'ok');button.textContent='알림 등록 완료';
     }catch(error){setStatus(error.message||'알림 등록 중 오류가 발생했습니다.','bad');button.disabled=false}
 }
+// 이미 등록한 기기도 이 페이지를 열면 알림 도우미를 최신 버전(수신 확인 포함)으로 바로 바꾼다.
+if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('/parent/').then(r=>r&&r.update()).catch(()=>{})}
 </script>
 {% endif %}
 </body></html>

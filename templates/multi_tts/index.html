@@ -1,0 +1,227 @@
+{% extends 'base.html' %}
+{% block title %}멀티TTS{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/multi_tts.css') }}?v=20260927-child">
+{% endblock %}
+{% block content %}
+<div class="mtts-page" id="mttsApp">
+
+  <section class="mtts-hero">
+    <div class="mtts-hero-copy">
+      <span class="mtts-eyebrow"><i class="fa-solid fa-microphone-lines"></i> SAEDAM MULTI VOICE STUDIO</span>
+      <h1>멀티TTS</h1>
+      <p>글을 붙여넣거나 문서를 올리면 원하는 목소리의 음성파일로 만들어 드립니다. 두 캐릭터의 대화도 연출할 수 있습니다.</p>
+    </div>
+    <div class="mtts-hero-side">
+      <span class="mtts-chip {% if boot.api_ready %}ok{% else %}warn{% endif %}" id="mttsApiChip">
+        {% if boot.api_ready %}
+        <i class="fa-solid fa-circle-check"></i> {{ boot.api_label }} · {{ model_name }}
+        {% else %}
+        <i class="fa-solid fa-triangle-exclamation"></i> OpenAI API 키 미설정
+        {% endif %}
+      </span>
+      <span class="mtts-chip" id="mttsUsageChip" title="이번 달 내가 만든 분량"></span>
+    </div>
+  </section>
+
+  {% if not boot.api_ready %}
+  <div class="mtts-notice warn" role="alert">
+    <i class="fa-solid fa-key"></i>
+    <div>
+      <strong>음성을 만들려면 OpenAI API 키가 필요합니다.</strong>
+      [통합관리 &gt; 시스템관리 &gt; AI api설정]에서 OpenAI 프리셋에 키를 등록하면 바로 쓸 수 있습니다.
+      {% if menu_access.get('admin_ai_settings', false) and boot.urls.ai_settings %}
+      <a href="{{ boot.urls.ai_settings }}">AI api설정 열기 <i class="fa-solid fa-arrow-right"></i></a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="mtts-tabs" role="tablist" aria-label="멀티TTS 기능">
+    <button type="button" role="tab" id="mttsTabSingle" aria-controls="mttsPanelSingle" aria-selected="true" data-tab="single">
+      <i class="fa-solid fa-file-audio"></i> 텍스트 → 음성
+    </button>
+    <button type="button" role="tab" id="mttsTabDialogue" aria-controls="mttsPanelDialogue" aria-selected="false" data-tab="dialogue" tabindex="-1">
+      <i class="fa-solid fa-comments"></i> 대화 연출
+    </button>
+    <button type="button" role="tab" id="mttsTabLibrary" aria-controls="mttsPanelLibrary" aria-selected="false" data-tab="library" tabindex="-1">
+      <i class="fa-solid fa-folder-open"></i> 저장한 음성 <span class="mtts-tab-count" id="mttsClipCount">0</span>
+    </button>
+  </div>
+
+  <!-- ① 텍스트 → 음성 -->
+  <section class="mtts-panel" role="tabpanel" id="mttsPanelSingle" aria-labelledby="mttsTabSingle">
+    <div class="mtts-single">
+      <div class="mtts-card mtts-editor">
+        <div class="mtts-card-head">
+          <h2><span class="mtts-step">1</span> 읽을 글</h2>
+          <div class="mtts-head-tools">
+            <label class="mtts-btn sm" for="mttsSingleFile">
+              <i class="fa-solid fa-file-arrow-up"></i> 파일 불러오기
+            </label>
+            <input type="file" id="mttsSingleFile" class="mtts-visually-hidden"
+                   accept=".txt,.md,.srt,.csv,.docx,.hwp,.hwpx,.pdf">
+            <button type="button" class="mtts-btn sm ghost" id="mttsSingleClear"><i class="fa-solid fa-eraser"></i> 지우기</button>
+          </div>
+        </div>
+        <div class="mtts-drop" id="mttsSingleDrop">
+          <textarea id="mttsSingleText" maxlength="{{ boot.limits.text_chars }}" spellcheck="false"
+                    aria-label="음성으로 만들 글"
+                    placeholder="여기에 글을 붙여넣거나, TXT · DOCX · HWP · HWPX · PDF 파일을 끌어다 놓으세요.&#10;&#10;빈 줄로 문단을 나누면 문단 사이에 쉼이 들어갑니다."></textarea>
+          <div class="mtts-drop-hint" aria-hidden="true"><i class="fa-solid fa-file-import"></i> 여기에 놓으면 글을 불러옵니다</div>
+        </div>
+        <div class="mtts-editor-foot">
+          <span id="mttsSingleCount">0 / {{ '{:,}'.format(boot.limits.text_chars) }}자</span>
+          <span id="mttsSingleEstimate"></span>
+        </div>
+      </div>
+
+      <div class="mtts-card mtts-voice-card">
+        <div class="mtts-card-head">
+          <h2><span class="mtts-step">2</span> 목소리</h2>
+          <span class="mtts-muted" id="mttsSingleVoiceName"></span>
+        </div>
+        <div class="mtts-voice-groups" id="mttsVoiceGrid"></div>
+        <div class="mtts-custom" id="mttsSingleCustom" hidden>
+          <label>기본 목소리
+            <select id="mttsSingleCustomVoice"></select>
+          </label>
+          <label>목소리 특징 · 연기 지시
+            <textarea id="mttsSingleCustomText" rows="3" maxlength="{{ boot.limits.custom_chars }}"
+                      placeholder="예: 60대 호탕한 시장 상인. 걸걸하고 큰 목소리로 신나게 손님을 부르듯이"></textarea>
+          </label>
+          <button type="button" class="mtts-btn sm" id="mttsSingleCustomPlay"><i class="fa-solid fa-play"></i> 이 설정으로 미리듣기</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mtts-card mtts-build">
+      <div class="mtts-card-head">
+        <h2><span class="mtts-step">3</span> 만들기</h2>
+      </div>
+      <div class="mtts-build-grid">
+        <label class="mtts-field grow">제목
+          <input type="text" id="mttsSingleTitle" maxlength="{{ boot.limits.title_chars }}" placeholder="비워 두면 글 첫머리로 정합니다">
+        </label>
+        <label class="mtts-field">말하기 속도 <output id="mttsSingleSpeedOut">1.0배</output>
+          <input type="range" id="mttsSingleSpeed" min="0.7" max="1.5" step="0.05" value="1">
+        </label>
+        <label class="mtts-field">문단 사이 쉼 <output id="mttsSingleGapOut">0.7초</output>
+          <input type="range" id="mttsSingleGap" min="0" max="2000" step="100" value="700">
+        </label>
+        <button type="button" class="mtts-btn primary lg" id="mttsSingleBuild">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> 음성 만들기
+        </button>
+      </div>
+      <div class="mtts-progress" id="mttsSingleProgress" hidden>
+        <div class="mtts-progress-bar"><span></span></div>
+        <p class="mtts-progress-text" aria-live="polite"></p>
+      </div>
+      <div class="mtts-result" id="mttsSingleResult" hidden></div>
+    </div>
+  </section>
+
+  <!-- ② 대화 연출 -->
+  <section class="mtts-panel" role="tabpanel" id="mttsPanelDialogue" aria-labelledby="mttsTabDialogue" hidden>
+    <div class="mtts-card">
+      <div class="mtts-card-head">
+        <h2><span class="mtts-step">1</span> 등장인물</h2>
+        <span class="mtts-muted">이름과 목소리를 정하면 대사마다 그 목소리로 연기합니다.</span>
+      </div>
+      <div class="mtts-cast" id="mttsCast"></div>
+    </div>
+
+    <div class="mtts-card">
+      <div class="mtts-card-head">
+        <h2><span class="mtts-step">2</span> 대본</h2>
+        <div class="mtts-head-tools">
+          <button type="button" class="mtts-btn sm" id="mttsScriptPaste"><i class="fa-solid fa-paste"></i> 대본 붙여넣기 · 파일</button>
+          <button type="button" class="mtts-btn sm ghost" id="mttsScriptClear"><i class="fa-solid fa-trash-can"></i> 모두 지우기</button>
+        </div>
+      </div>
+      <ol class="mtts-lines" id="mttsLines" aria-label="대사 목록"></ol>
+      <div class="mtts-lines-empty" id="mttsLinesEmpty">
+        <i class="fa-regular fa-comments"></i>
+        <p>아래 버튼으로 대사를 추가하거나, <strong>대본 붙여넣기</strong>로 “A: 대사” 형식의 대본을 한 번에 넣으세요.</p>
+      </div>
+      <div class="mtts-add-lines">
+        <button type="button" class="mtts-btn add-a" data-add="A"><i class="fa-solid fa-plus"></i> <span data-cast-name="A">A</span> 대사</button>
+        <button type="button" class="mtts-btn add-b" data-add="B"><i class="fa-solid fa-plus"></i> <span data-cast-name="B">B</span> 대사</button>
+        <span class="mtts-muted mtts-kbd-hint">대사 칸에서 <kbd>Ctrl</kbd>+<kbd>Enter</kbd> → 상대 대사 추가</span>
+      </div>
+    </div>
+
+    <div class="mtts-card mtts-build">
+      <div class="mtts-card-head">
+        <h2><span class="mtts-step">3</span> 연출 · 저장</h2>
+      </div>
+      <div class="mtts-build-grid">
+        <label class="mtts-field grow">제목
+          <input type="text" id="mttsDialogueTitle" maxlength="{{ boot.limits.title_chars }}" placeholder="비워 두면 “A · B 대화”로 정합니다">
+        </label>
+        <label class="mtts-field">말하기 속도 <output id="mttsDialogueSpeedOut">1.0배</output>
+          <input type="range" id="mttsDialogueSpeed" min="0.7" max="1.5" step="0.05" value="1">
+        </label>
+        <label class="mtts-field">대사 사이 간격 <output id="mttsDialogueGapOut">0.5초</output>
+          <input type="range" id="mttsDialogueGap" min="0" max="2000" step="100" value="500">
+        </label>
+        <label class="mtts-check">
+          <input type="checkbox" id="mttsDialogueStereo" checked>
+          <span><strong>좌우 입체 배치</strong><small>A는 왼쪽, B는 오른쪽에서 들립니다</small></span>
+        </label>
+        <button type="button" class="mtts-btn primary lg" id="mttsDialogueBuild">
+          <i class="fa-solid fa-clapperboard"></i> 대화 음성 만들기
+        </button>
+      </div>
+      <div class="mtts-progress" id="mttsDialogueProgress" hidden>
+        <div class="mtts-progress-bar"><span></span></div>
+        <p class="mtts-progress-text" aria-live="polite"></p>
+      </div>
+      <div class="mtts-result" id="mttsDialogueResult" hidden></div>
+    </div>
+  </section>
+
+  <!-- ③ 저장한 음성 -->
+  <section class="mtts-panel" role="tabpanel" id="mttsPanelLibrary" aria-labelledby="mttsTabLibrary" hidden>
+    <div class="mtts-library-bar">
+      <div class="mtts-muted" id="mttsLibrarySummary"></div>
+      {% if boot.can_view_all %}
+      <div class="mtts-segmented" role="group" aria-label="보기 범위">
+        <button type="button" data-scope="mine" aria-pressed="true">내 음성</button>
+        <button type="button" data-scope="all" aria-pressed="false">전체 직원</button>
+      </div>
+      {% endif %}
+    </div>
+    <div class="mtts-library" id="mttsLibrary"></div>
+  </section>
+
+  <dialog class="mtts-dialog" id="mttsPasteDialog" aria-labelledby="mttsPasteTitle">
+    <form method="dialog" class="mtts-dialog-body">
+      <h2 id="mttsPasteTitle"><i class="fa-solid fa-paste"></i> 대본 붙여넣기</h2>
+      <p class="mtts-muted">한 줄에 한 대사씩 <code>이름: 대사</code> 형식으로 적어 주세요. 대사 앞의 <code>(괄호)</code>는 연기 지시로 들어갑니다.</p>
+      <pre class="mtts-example">철수: (반갑게) 영희야, 오랜만이다!
+영희: 어머, 철수야! 잘 지냈어?
+철수: 응. 너는 요즘 어떻게 지내?</pre>
+      <textarea id="mttsPasteText" rows="10" placeholder="A: 안녕하세요&#10;B: 반갑습니다"></textarea>
+      <div class="mtts-dialog-row">
+        <label class="mtts-btn sm" for="mttsPasteFile"><i class="fa-solid fa-file-arrow-up"></i> 파일에서 불러오기</label>
+        <input type="file" id="mttsPasteFile" class="mtts-visually-hidden" accept=".txt,.md,.srt,.csv,.docx,.hwp,.hwpx,.pdf">
+        <label class="mtts-radio"><input type="radio" name="pasteMode" value="replace" checked> 기존 대본 바꾸기</label>
+        <label class="mtts-radio"><input type="radio" name="pasteMode" value="append"> 뒤에 이어 붙이기</label>
+      </div>
+      <p class="mtts-paste-status mtts-muted" id="mttsPasteStatus" aria-live="polite"></p>
+      <div class="mtts-dialog-actions">
+        <button type="submit" value="cancel" class="mtts-btn">취소</button>
+        <button type="submit" value="apply" class="mtts-btn primary" id="mttsPasteApply"><i class="fa-solid fa-check"></i> 대본 적용</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="mtts-toast" id="mttsToast" role="status" aria-live="polite" hidden></div>
+</div>
+
+<script type="application/json" id="mttsBoot">{{ boot|tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/multi_tts.js') }}?v=20260927-child"></script>
+{% endblock %}
