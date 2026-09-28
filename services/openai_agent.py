@@ -18,7 +18,7 @@ from .ai_tools import TOOL_DEFINITIONS, ToolPermissionError, execute_tool
 
 
 LOGGER = logging.getLogger(__name__)
-DEFAULT_MODEL = "gpt-4.1-mini"
+DEFAULT_MODEL = "gpt-6-luna"
 MAX_TOOL_ROUNDS = 4
 MAX_HISTORY_ITEMS = 8
 HISTORY_TTL_SECONDS = 60 * 60

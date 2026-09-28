@@ -1383,7 +1383,8 @@ def get_parent_notification_summary(arguments: dict[str, Any], context: dict[str
                         ("total_count", "대상인원"), ("sent_count", "발송"), ("failed_count", "실패")], [],
                        [{"label": "학부모알림전송으로 이동", "url": "/parent-notifications", "style": "primary"}]),
             )
-        where = ["date(created_at) BETWEEN ? AND ?"]
+        # created_at은 UTC(CURRENT_TIMESTAMP)로 저장되므로 한국 날짜로 바꿔 비교한다.
+        where = ["date(created_at, '+9 hours') BETWEEN ? AND ?"]
         params: list[Any] = [start.isoformat(), end.isoformat()]
         if kind:
             where.append("kind=?")
