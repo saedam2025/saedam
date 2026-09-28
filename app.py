@@ -34,6 +34,7 @@ from routes.notifications import emit_notification_refresh, noti_bp
 from routes.gallery import gallery_bp
 from routes.school_bp import school_bp
 from routes.school_task import school_task_bp
+from routes.classroom_guide import classroom_guide_bp, init_classroom_guide_schema
 from routes.survey import init_survey_schema, survey_bp
 from routes.contacts import contacts_bp
 from routes.event_admin import ensure_event_schema, event_bp
@@ -41,6 +42,7 @@ from routes.school_billing import billing_bp, ensure_billing_schema, portal_bp
 from routes.admin_management import admin_bp, get_active_theme
 from routes.ebook import ebook_bp, init_ebook_schema
 from routes.photobook import init_photobook_schema, photobook_bp
+from routes.multi_tts import init_multi_tts_schema, multi_tts_bp
 from routes.exhibition import exhibition_bp, init_exhibition_schema
 from routes.meeting import init_meeting_schema, meeting_bp
 from routes.webtoon import init_webtoon_schema, webtoon_bp
@@ -52,6 +54,10 @@ from routes.parent_notifications import (
 from routes.instructor_attendance import (
     init_instructor_attendance_schema,
     instructor_attendance_bp,
+)
+from routes.student_attendance import (
+    init_student_attendance_schema,
+    student_attendance_bp,
 )
 from routes.points import points_bp, award_response_activity
 from routes.unified_search import unified_search_bp
@@ -104,6 +110,7 @@ with app.app_context():
         init_ebook_schema()
         init_webtoon_schema()
         init_photobook_schema()
+        init_multi_tts_schema()
         init_exhibition_schema()
         init_meeting_schema()
         init_manual_schema()
@@ -112,7 +119,9 @@ with app.app_context():
         ensure_interview_schema()
         ensure_mydesk_schema()
         init_survey_schema()
+        init_classroom_guide_schema()
         init_instructor_attendance_schema()
+        init_student_attendance_schema()
         event_conn = get_db()
         try:
             ensure_event_schema(event_conn)
@@ -197,6 +206,8 @@ EXEMPT_ROUTES = [
     'parent_notifications.parent_push_public_key',
     'parent_notifications.parent_push_subscribe',
     'parent_notifications.parent_push_worker',
+    # 학부모 휴대폰의 알림 도우미가 보내는 수신 확인(추측할 수 없는 확인 번호로 보호).
+    'parent_notifications.parent_push_receipt',
     # 강사 전용 링크의 안내 화면만 공개하고 출결·발송 API는 로그인을 요구한다.
     'parent_notifications.instructor_page',
     # 면접자가 인트라넷 계정 없이 링크로 여는 사전질문지.
@@ -211,11 +222,19 @@ EXEMPT_ROUTES = [
 # 자체 로그인(billing_member_id)으로 보호하므로 인트라넷 로그인 검사에서 뺀다.
 # 강사출결 스캔·QR표시 화면은 강사 휴대폰과 학교 태블릿이 계정 없이 연다.
 # (오늘 발급된 QR 토큰과 표시용 비밀키로 보호한다.)
+# 교실안내 공유 링크는 학부모·수강생이 계정 없이 여는 안내도다(공유 토큰으로 보호).
+# 학생출석: 학생 휴대폰 스캔(당일 QR+서명 티켓), 강사용 실시간 화면·교실 QR 화면(과목별 비밀키),
+# 학부모 알림등록 안내(보호자 번호 대조)는 계정 없이 연다.
 PUBLIC_PATH_PREFIXES = (
     '/survey/r/',
+    '/school/guide/p/',
     '/portal',
     '/instructor-attendance/scan/',
     '/instructor-attendance/display/',
+    '/student-attendance/s/',
+    '/student-attendance/live/',
+    '/student-attendance/display/',
+    '/student-attendance/p/',
 )
 
 def _is_script_request() -> bool:
@@ -334,6 +353,7 @@ def _classify_menu(path):
         ('/payroll', '급여/업무지원'),
         ('/attendance', '근태관리'),
         ('/instructor-attendance', '강사출결시스템'),
+        ('/student-attendance', '학생출석관리'),
         ('/contacts', '본사연락망'),
         ('/memo', '개인화이트보드'),
         ('/meeting', '회의센터'),
@@ -342,6 +362,7 @@ def _classify_menu(path):
         ('/ebook/books', 'eBook'),
         ('/ebook', 'e리플렛'),
         ('/photobook', '웹전자책'),
+        ('/multi-tts', '멀티TTS'),
         ('/exhibition', '3D전시장'),
         ('/notifications', '알림'),
     ]
@@ -1112,6 +1133,7 @@ app.register_blueprint(noti_bp)
 app.register_blueprint(gallery_bp) 
 app.register_blueprint(school_bp, url_prefix='/school')
 app.register_blueprint(school_task_bp, url_prefix='/school/tasks')
+app.register_blueprint(classroom_guide_bp, url_prefix='/school/guide')
 app.register_blueprint(survey_bp, url_prefix='/survey')
 app.register_blueprint(contacts_bp)
 app.register_blueprint(event_bp, url_prefix='/event-admin')
@@ -1122,11 +1144,13 @@ app.register_blueprint(admin_bp, url_prefix='/admin')
 app.register_blueprint(ebook_bp, url_prefix='/ebook')
 app.register_blueprint(webtoon_bp, url_prefix='/webtoon')
 app.register_blueprint(photobook_bp, url_prefix='/photobook')
+app.register_blueprint(multi_tts_bp, url_prefix='/multi-tts')
 app.register_blueprint(exhibition_bp, url_prefix='/exhibition')
 app.register_blueprint(meeting_bp, url_prefix='/meeting')
 app.register_blueprint(manual_bp, url_prefix='/manual')
 app.register_blueprint(parent_notification_bp)
 app.register_blueprint(instructor_attendance_bp)
+app.register_blueprint(student_attendance_bp)
 app.register_blueprint(points_bp)
 app.register_blueprint(unified_search_bp)
 

@@ -1,0 +1,21 @@
+{
+    "searchQuery": {
+        "forceSpecificAssetId": false,
+        "category": [],
+        "assetId": [],
+        "dataType": [
+            "Material"
+        ],
+        "creationMethod": null,
+        "queryString": "graffiti",
+        "sort": "Popular",
+        "createdUsingAssetId": null,
+        "basedOnAssetId": null,
+        "variationsOfAssetId": null,
+        "limit": 20,
+        "offset": 0
+    },
+    "numberOfResults": 0,
+    "currentPageHttp": "https://ambientcg.com/api/v2/full_json?type=material&q=graffiti&sort=popular&limit=20&include=statisticsData%2ClabelData%2CpreviewData%2CtechnicalData%2CfileData",
+    "foundAssets": []
+}
