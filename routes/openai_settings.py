@@ -24,28 +24,35 @@ PROVIDER_LABELS = {'openai': 'OpenAI', 'claude': 'Claude'}
 DEFAULT_PROVIDER = 'openai'
 
 PROVIDER_MODELS = {
-    'openai': ('gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol'),
+    'openai': ('gpt-6-luna', 'gpt-6-sol', 'gpt-6-astra'),
     'claude': ('claude-opus-5', 'claude-sonnet-5', 'claude-fable-5', 'claude-haiku-4-5-20251001'),
 }
 MODEL_LABELS = {
-    'gpt-5.6-luna': 'GPT-5.6 Luna · 빠르고 경제적',
-    'gpt-5.6-terra': 'GPT-5.6 Terra · 균형형',
-    'gpt-5.6-sol': 'GPT-5.6 Sol · 고품질',
+    'gpt-6-luna': '빠른 AI · GPT-6 Luna',
+    'gpt-6-sol': '고급 AI · GPT-6 Sol',
+    'gpt-6-astra': '최고급 AI · GPT-6 Astra',
     'claude-opus-5': 'Claude Opus 5 · 최고 성능',
     'claude-sonnet-5': 'Claude Sonnet 5 · 균형형',
     'claude-fable-5': 'Claude Fable 5 · 경량형',
     'claude-haiku-4-5-20251001': 'Claude Haiku 4.5 · 빠르고 경제적',
 }
 MODEL_SHORT_NAMES = {
-    'gpt-5.6-luna': 'Luna',
-    'gpt-5.6-terra': 'Terra',
-    'gpt-5.6-sol': 'Sol',
+    'gpt-6-luna': 'Luna',
+    'gpt-6-sol': 'Sol',
+    'gpt-6-astra': 'Astra',
     'claude-opus-5': 'Opus 5',
     'claude-sonnet-5': 'Sonnet 5',
     'claude-fable-5': 'Fable 5',
     'claude-haiku-4-5-20251001': 'Haiku 4.5',
 }
-DEFAULT_MODEL = {'openai': 'gpt-5.6-luna', 'claude': 'claude-sonnet-5'}
+DEFAULT_MODEL = {'openai': 'gpt-6-luna', 'claude': 'claude-sonnet-5'}
+
+# 기존 프리셋의 등급을 유지한 채 새 모델로 승계한다.
+LEGACY_OPENAI_MODELS = {
+    'gpt-5.6-luna': 'gpt-6-luna',
+    'gpt-5.6-terra': 'gpt-6-sol',
+    'gpt-5.6-sol': 'gpt-6-astra',
+}
 
 SOURCE_LABELS = {
     'menu': '메뉴 등록 API 사용 중',
@@ -138,10 +145,11 @@ def _legacy_table_fallback(conn) -> dict:
         return {}
     if not row:
         return {}
+    model = LEGACY_OPENAI_MODELS.get(row['model'], row['model'])
     return {
         'provider': 'openai',
         'api_key_encrypted': row['api_key_encrypted'],
-        'model': row['model'] if row['model'] in PROVIDER_MODELS['openai'] else DEFAULT_MODEL['openai'],
+        'model': model if model in PROVIDER_MODELS['openai'] else DEFAULT_MODEL['openai'],
         'updated_by': '',
         'updated_at': str(row['updated_at'] or ''),
     }
@@ -174,6 +182,8 @@ def _load_store(conn) -> dict:
         preset['label'] = str(raw.get('label') or DEFAULT_PRESET_LABELS[preset_id])
         if preset['provider'] not in PROVIDERS:
             preset['provider'] = DEFAULT_PROVIDER
+        if preset['provider'] == 'openai':
+            preset['model'] = LEGACY_OPENAI_MODELS.get(preset['model'], preset['model'])
         normalized[preset_id] = preset
     if active not in PRESET_IDS:
         active = '1'
@@ -348,6 +358,32 @@ def get_preset_api_key(preset_id: Any, conn=None) -> str:
             conn.close()
 
 
+def find_openai_api_key(conn=None) -> dict[str, Any]:
+    """OpenAI에만 있는 기능(멀티TTS 음성합성 등)에 쓸 OpenAI 키를 찾는다.
+
+    현재 적용 프리셋이 OpenAI면 그 키를 쓰고, 아니면(예: Claude 적용 중) 키가 등록된
+    OpenAI 프리셋 중 번호가 가장 앞선 것을 쓴다. 키가 없으면 api_key가 빈 문자열이다.
+    """
+    owns_connection = conn is None
+    if owns_connection:
+        conn = get_db()
+    try:
+        store = _load_store(conn)
+        presets = store['presets']
+        visible_ids = PRESET_IDS[:store['visible_count']]
+        candidates = [store['active']] + [pid for pid in visible_ids if pid != store['active']]
+        for preset_id in candidates:
+            preset = presets[preset_id]
+            token = str(preset.get('api_key_encrypted') or '').strip()
+            if preset['provider'] == 'openai' and token:
+                return {'api_key': _decrypt_api_key(token), 'preset_id': preset_id,
+                        'preset_label': preset['label']}
+        return {'api_key': '', 'preset_id': '', 'preset_label': ''}
+    finally:
+        if owns_connection:
+            conn.close()
+
+
 def public_ai_settings(settings: dict[str, Any]) -> dict[str, Any]:
     """비밀정보를 뺀, 화면 표시용 상태를 반환한다."""
     key = settings.get('api_key') or ''
@@ -407,6 +443,7 @@ USAGE_SOURCES = (
     ('smart_document_history', '스마트공문발송'),
     ('ai_agent_history', 'AI에이전트'),
     ('interview_resume_analysis_history', '면접 이력서 분석'),
+    ('classroom_guide_ai_history', '교실안내 평면도 분석'),
 )
 
 

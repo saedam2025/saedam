@@ -86,6 +86,9 @@ MENU_GROUPS = (
             ('school_calendar', '학교일정표', 'fa-calendar-week', 14),
             ('school_survey', '설문조사', 'fa-square-poll-vertical', 14),
             ('school_billing', '청구업무', 'fa-file-invoice-dollar', 5),
+            ('school_classroom_guide', '교실안내', 'fa-map-location-dot', 14),
+            ('school_classroom_guide_edit', '교실안내 - 배치도 편집·공유링크', 'fa-pen-ruler', 7),
+            ('school_student_attendance', '학생출석관리', 'fa-user-check', 7),
             ('school_center_boards', '[센터장] 일반 게시판 (9개 메뉴 일괄)', 'fa-table-list', 14),
             ('school_center_shared', '[센터장] 본부공지사항·자료실 - 접근', 'fa-door-open', 8),
             ('school_center_shared_read', '[센터장] 본부공지사항·자료실 - 읽기', 'fa-book-open', 8),
@@ -157,6 +160,7 @@ MENU_GROUPS = (
             ('exhibition_main', '3D전시장', 'fa-cube', 2),
             ('webtoon_main', 'Webtoon', 'fa-book-open', 2),
             ('photobook_main', '웹전자책', 'fa-images', 2),
+            ('multi_tts_main', '멀티TTS', 'fa-microphone-lines', 2),
         ),
     },
 )
@@ -498,6 +502,11 @@ def resolve_request_menu(path, endpoint='', view_args=None):
         return 'school_tasks'
     if path.startswith('/school/calendar'):
         return 'school_calendar'
+    # 교실안내 공유 링크는 학부모·수강생이 계정 없이 여는 공개 안내도다.
+    if path.startswith('/school/guide/p/'):
+        return None
+    if path == '/school/guide' or path.startswith('/school/guide/'):
+        return 'school_classroom_guide'
     if path.startswith('/school'):
         return 'school_workspace'
     # 발송 명세서 열람본은 라우트 내부에서 "발송자 본인 또는 스마트
@@ -525,6 +534,14 @@ def resolve_request_menu(path, endpoint='', view_args=None):
         return None
     if path.startswith('/instructor-attendance'):
         return 'instructor_attendance'
+    # 학생 휴대폰 스캔, 강사용 실시간 화면, 교실 QR 화면, 학부모 알림등록 안내는 계정 없이 여는 공개 주소다.
+    if path.startswith('/student-attendance/s/') \
+            or path.startswith('/student-attendance/live/') \
+            or path.startswith('/student-attendance/display/') \
+            or path.startswith('/student-attendance/p/'):
+        return None
+    if path.startswith('/student-attendance'):
+        return 'school_student_attendance'
     # 면접자 사전질문지는 로그인 없는 공개 링크이므로 메뉴 권한 검사에서 제외한다.
     if path.startswith('/interview/q/'):
         return None
@@ -538,6 +555,8 @@ def resolve_request_menu(path, endpoint='', view_args=None):
         return 'webtoon_main'
     if path.startswith('/photobook'):
         return 'photobook_main'
+    if path.startswith('/multi-tts'):
+        return 'multi_tts_main'
     if path.startswith('/board/'):
         board_key = str(view_args.get('board_en') or '').strip()
         if not board_key:

@@ -372,10 +372,11 @@ def _save_instructor(conn, school_id, name, phone, subject, memo, instructor_id=
             WHERE id=? AND school_id=?
         ''', (name, phone, subject, memo, instructor_id, school_id))
     else:
+        # 등록일은 일별 출결표의 명단 기준일이므로 DB 시계(서버 시간대)가 아닌 한국시간으로 남긴다.
         conn.execute('''
-            INSERT INTO lecturer_instructors (school_id, name, phone, subject, memo, created_by)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (school_id, name, phone, subject, memo, session.get('user_name')))
+            INSERT INTO lecturer_instructors (school_id, name, phone, subject, memo, created_by, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (school_id, name, phone, subject, memo, session.get('user_name'), _now_text()))
     return None
 
 

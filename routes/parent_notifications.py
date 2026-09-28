@@ -1,11 +1,12 @@
 import io
 import json
+import logging
 import os
 import secrets
 import sqlite3
 import urllib.error
 import urllib.request
-from datetime import date
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 from flask import (
@@ -24,6 +25,12 @@ except Exception:  # pragma: no cover - 배포 설정 전에도 관리화면은 
 
 
 parent_notification_bp = Blueprint('parent_notifications', __name__)
+logger = logging.getLogger(__name__)
+
+# 수신 확인이 도착하면 알려 줄 다른 기능(예: 학생출석관리 실시간 화면). fn(conn, notification_row)
+RECEIPT_LISTENERS = []
+# 최근 알림이 이만큼 연달아 수신 확인되지 않으면 '확인 필요'로 표시한다.
+RECEIPT_WARN_COUNT = 3
 
 NOTICE_KINDS = {
     '출석': ('출석 알림', '{student} 학생이 수업에 출석했습니다.'),
@@ -40,6 +47,33 @@ NOTICE_KINDS = {
     '일반': ('새담 방과후학교', '새로운 안내가 도착했습니다.'),
 }
 ATTENDANCE_KINDS = {'출석', '지각', '결석', '하원'}
+KST = timezone(timedelta(hours=9))
+
+
+def _kst_text(value):
+    """DB의 CURRENT_TIMESTAMP(UTC) 문자열을 화면용 한국시간으로 바꾼다.
+
+    저장값은 기존 기록과 섞이지 않도록 UTC 그대로 두고, 화면에 내보낼 때만 변환한다.
+    """
+    text = str(value or '').strip()
+    try:
+        parsed = datetime.strptime(text[:19], '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        return value
+    return parsed.replace(tzinfo=timezone.utc).astimezone(KST).strftime('%Y-%m-%d %H:%M:%S')
+
+
+def _with_kst(row):
+    item = dict(row)
+    for key, value in item.items():
+        if key.endswith('_at'):
+            item[key] = _kst_text(value)
+    return item
+
+
+def _today_kst():
+    # 서버(Render)는 UTC라 date.today()를 쓰면 한국 새벽 0~9시에 전날로 기록된다.
+    return datetime.now(KST).date().isoformat()
 
 
 def ensure_parent_notification_schema(conn=None):
@@ -132,6 +166,8 @@ def ensure_parent_notification_schema(conn=None):
             failure_count INTEGER NOT NULL DEFAULT 0,
             last_success_at DATETIME,
             last_error TEXT,
+            receipt_key TEXT,
+            last_received_at DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (guardian_id) REFERENCES parent_guardians(id) ON DELETE CASCADE
@@ -166,6 +202,9 @@ def ensure_parent_notification_schema(conn=None):
             sent_count INTEGER NOT NULL DEFAULT 0,
             error_message TEXT,
             sent_at DATETIME,
+            receipt_token TEXT,
+            received_at DATETIME,
+            opened_at DATETIME,
             FOREIGN KEY (notification_id) REFERENCES parent_notifications(id) ON DELETE CASCADE,
             FOREIGN KEY (guardian_id) REFERENCES parent_guardians(id) ON DELETE CASCADE,
             FOREIGN KEY (student_id) REFERENCES parent_students(id) ON DELETE SET NULL
@@ -186,9 +225,31 @@ def ensure_parent_notification_schema(conn=None):
             FOREIGN KEY (notification_id) REFERENCES parent_notifications(id) ON DELETE SET NULL
         );
     ''')
+    # 수신 확인 기능 이전에 만든 DB에 열을 채워 넣는다.
+    _add_missing_columns(conn, 'parent_push_subscriptions', {
+        'receipt_key': 'TEXT', 'last_received_at': 'DATETIME',
+    })
+    _add_missing_columns(conn, 'parent_notification_recipients', {
+        'receipt_token': 'TEXT', 'received_at': 'DATETIME', 'opened_at': 'DATETIME',
+    })
+    conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_parent_recipients_receipt '
+                 'ON parent_notification_recipients(receipt_token)')
     conn.commit()
     if owns_connection:
         conn.close()
+
+
+def _add_missing_columns(conn, table, columns):
+    existing = {row[1] for row in conn.execute(f'PRAGMA table_info({table})').fetchall()}
+    for name, kind in columns.items():
+        if name in existing:
+            continue
+        try:
+            conn.execute(f'ALTER TABLE {table} ADD COLUMN {name} {kind}')
+        except sqlite3.OperationalError as exc:
+            # 여러 요청이 동시에 열을 추가하려 한 경우
+            if 'duplicate column' not in str(exc).lower():
+                raise
 
 
 def _level():
@@ -364,9 +425,20 @@ def _send_notification(conn, guardian_ids, kind, title, body, *, class_id=None,
     ''', (kind, title, body, class_id, student_id, target_type,
           created_by or session.get('user_name') or '시스템', len(guardian_ids)))
     notification_id = cursor.lastrowid
+    # 휴대폰의 수신 확인이 발송 처리보다 먼저 도착할 수 있으므로 수신자 행을 먼저 저장해 둔다.
+    recipients = {}
+    for guardian_id in guardian_ids:
+        receipt_token = secrets.token_urlsafe(16)
+        recipients[guardian_id] = (conn.execute('''
+            INSERT INTO parent_notification_recipients(
+                notification_id, guardian_id, student_id, status, receipt_token
+            ) VALUES (?, ?, ?, '발송중', ?)
+        ''', (notification_id, guardian_id, student_id, receipt_token)).lastrowid, receipt_token)
+    conn.commit()
     successful_parents = 0
     failed_parents = 0
     for guardian_id in guardian_ids:
+        recipient_id, receipt_token = recipients[guardian_id]
         subscriptions = conn.execute('''
             SELECT * FROM parent_push_subscriptions
             WHERE guardian_id=? AND is_active=1 ORDER BY id
@@ -381,7 +453,10 @@ def _send_notification(conn, guardian_ids, kind, title, body, *, class_id=None,
             'url': _notification_url(conn, guardian_id),
         }
         for subscription in subscriptions:
-            ok, error = _send_subscription(conn, subscription, payload)
+            ok, error = _send_subscription(
+                conn, subscription, {**payload, 'receipt': f"{receipt_token}.{subscription['id']}"})
+            # 알림 서버 응답을 기다리는 동안 DB를 잠가 두지 않도록 기기마다 바로 저장한다.
+            conn.commit()
             if ok:
                 sent += 1
             elif error:
@@ -396,18 +471,65 @@ def _send_notification(conn, guardian_ids, kind, title, body, *, class_id=None,
             status = '실패'
             failed_parents += 1
         conn.execute('''
-            INSERT INTO parent_notification_recipients(
-                notification_id, guardian_id, student_id, status,
-                subscription_count, sent_count, error_message, sent_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, CASE WHEN ? > 0 THEN CURRENT_TIMESTAMP END)
-        ''', (notification_id, guardian_id, student_id, status,
-              len(subscriptions), sent, '; '.join(errors)[:1000], sent))
+            UPDATE parent_notification_recipients
+            SET status=?, subscription_count=?, sent_count=?, error_message=?,
+                sent_at=CASE WHEN ? > 0 THEN CURRENT_TIMESTAMP END
+            WHERE id=?
+        ''', (status, len(subscriptions), sent, '; '.join(errors)[:1000], sent, recipient_id))
+        conn.commit()
     conn.execute('''
         UPDATE parent_notifications
         SET sent_count=?, failed_count=? WHERE id=?
     ''', (successful_parents, failed_parents, notification_id))
     conn.commit()
     return notification_id, successful_parents, failed_parents
+
+
+def receipt_health(conn, guardian_ids=None):
+    """보호자별 최근 수신 확인 상태를 돌려준다.
+
+    {보호자ID: {'last_received_at': 한국시간 문자열 또는 '', 'missed': 연속 미확인 건수, 'warn': bool}}
+    'warn'은 수신 확인을 보낼 수 있는 기기인데도 최근 알림이 연달아 확인되지 않은 경우다.
+    (수신 확인 기능 이전에 등록한 기기는 알림 도우미가 새 버전으로 바뀐 뒤부터 확인을 보낸다.)
+    """
+    ids = sorted({int(value) for value in guardian_ids or [] if value})
+    if guardian_ids is not None and not ids:
+        return {}
+    where, params = '', []
+    if ids:
+        where = f"AND guardian_id IN ({','.join('?' * len(ids))})"
+        params = ids
+    result = {}
+    for row in conn.execute(f'''
+        SELECT guardian_id, MAX(last_received_at) AS last_received_at,
+               MAX(CASE WHEN is_active=1 AND receipt_key IS NOT NULL THEN 1 ELSE 0 END) AS capable
+        FROM parent_push_subscriptions WHERE 1=1 {where} GROUP BY guardian_id
+    ''', params).fetchall():
+        result[row['guardian_id']] = {
+            'last_received_at': _kst_text(row['last_received_at']) if row['last_received_at'] else '',
+            'missed': 0,
+            'capable': bool(row['capable'] or row['last_received_at']),
+        }
+    counting = {}
+    for row in conn.execute(f'''
+        SELECT guardian_id, received_at FROM parent_notification_recipients
+        WHERE status='발송' AND receipt_token IS NOT NULL
+          AND sent_at <= datetime('now', '-10 minutes') AND sent_at >= datetime('now', '-60 days')
+          {where}
+        ORDER BY id DESC
+    ''', params).fetchall():
+        info = result.get(row['guardian_id'])
+        if not info or counting.get(row['guardian_id']) == 'done':
+            continue
+        if row['received_at']:
+            counting[row['guardian_id']] = 'done'
+            continue
+        info['missed'] += 1
+        if info['missed'] >= RECEIPT_WARN_COUNT:
+            counting[row['guardian_id']] = 'done'
+    for info in result.values():
+        info['warn'] = info.pop('capable') and info['missed'] >= RECEIPT_WARN_COUNT
+    return result
 
 
 def _guardian_ids_for_target(conn, target_type, target_id=None):
@@ -447,12 +569,13 @@ def _children_by_guardian(conn):
         ORDER BY s.school_name, s.name
     ''').fetchall()
     for row in rows:
-        result.setdefault(row['guardian_id'], []).append(dict(row))
+        result.setdefault(row['guardian_id'], []).append(_with_kst(row))
     return result
 
 
 def _bootstrap_payload(conn):
     children = _children_by_guardian(conn)
+    health = receipt_health(conn)
     guardians = []
     for row in conn.execute('''
         SELECT g.*,
@@ -466,8 +589,11 @@ def _bootstrap_payload(conn):
         WHERE g.is_active=1
         GROUP BY g.id ORDER BY g.name, g.id
     ''').fetchall():
-        item = dict(row)
+        item = _with_kst(row)
         item['children'] = children.get(row['id'], [])
+        receipt = health.get(row['id'], {})
+        item['last_received_at'] = receipt.get('last_received_at', '')
+        item['receipt_warn'] = bool(receipt.get('warn'))
         item['invite_url'] = (
             f"{_base_url()}/parent/register/{row['invite_token']}"
             if row['invite_token'] else ''
@@ -481,11 +607,17 @@ def _bootstrap_payload(conn):
         WHERE c.is_active=1 GROUP BY c.id
         ORDER BY c.school_name, c.department, c.class_name
     ''').fetchall():
-        item = dict(row)
+        item = _with_kst(row)
         item['instructor_url'] = f"{_base_url()}/parent-notifications/instructor/{row['access_token']}"
         classes.append(item)
-    histories = [dict(row) for row in conn.execute('''
-        SELECT n.*, c.class_name, c.school_name
+    histories = [_with_kst(row) for row in conn.execute('''
+        SELECT n.*, c.class_name, c.school_name,
+               (SELECT COUNT(*) FROM parent_notification_recipients r
+                WHERE r.notification_id=n.id AND r.received_at IS NOT NULL) AS received_count,
+               (SELECT COUNT(*) FROM parent_notification_recipients r
+                WHERE r.notification_id=n.id AND r.opened_at IS NOT NULL) AS opened_count,
+               (SELECT COUNT(*) FROM parent_notification_recipients r
+                WHERE r.notification_id=n.id AND r.receipt_token IS NOT NULL) AS receipt_tracked
         FROM parent_notifications n
         LEFT JOIN parent_classes c ON c.id=n.class_id
         ORDER BY n.id DESC LIMIT 100
@@ -511,6 +643,7 @@ def _bootstrap_payload(conn):
             'unregistered': max(0, total - registered),
             'sms_sent': sms_sent,
             'classes': len(classes),
+            'receipt_warn': sum(1 for info in health.values() if info['warn']),
         },
         'guardians': guardians,
         'classes': classes,
@@ -782,8 +915,10 @@ def history_detail(notification_id):
     notification = conn.execute(
         'SELECT * FROM parent_notifications WHERE id=?', (notification_id,)
     ).fetchone()
-    recipients = [dict(row) for row in conn.execute('''
-        SELECT r.*, g.name AS guardian_name, g.phone, s.name AS student_name
+    recipients = [_with_kst(row) for row in conn.execute('''
+        SELECT r.id, r.status, r.subscription_count, r.sent_count, r.error_message,
+               r.sent_at, r.received_at, r.opened_at,
+               g.name AS guardian_name, g.phone, s.name AS student_name
         FROM parent_notification_recipients r
         JOIN parent_guardians g ON g.id=r.guardian_id
         LEFT JOIN parent_students s ON s.id=r.student_id
@@ -792,7 +927,7 @@ def history_detail(notification_id):
     conn.close()
     if not notification:
         return jsonify(ok=False, message='발송 기록을 찾을 수 없습니다.'), 404
-    return jsonify(ok=True, notification=dict(notification), recipients=recipients)
+    return jsonify(ok=True, notification=_with_kst(notification), recipients=recipients)
 
 
 EXCEL_ALIASES = {
@@ -958,7 +1093,7 @@ def parent_register(token):
         return render_template('parent_notifications/register.html', invalid=True), 404
     conn.execute('UPDATE parent_invites SET last_opened_at=CURRENT_TIMESTAMP WHERE id=?', (invite['id'],))
     conn.commit()
-    children = [dict(row) for row in conn.execute('''
+    children = [_with_kst(row) for row in conn.execute('''
         SELECT s.*, GROUP_CONCAT(DISTINCT c.class_name) AS class_names
         FROM parent_guardian_students gs
         JOIN parent_students s ON s.id=gs.student_id
@@ -966,7 +1101,7 @@ def parent_register(token):
         LEFT JOIN parent_classes c ON c.id=cs.class_id AND c.is_active=1
         WHERE gs.guardian_id=? GROUP BY s.id ORDER BY s.name
     ''', (invite['guardian_id'],)).fetchall()]
-    notices = [dict(row) for row in conn.execute('''
+    notices = [_with_kst(row) for row in conn.execute('''
         SELECT n.kind, n.title, n.body, n.created_at, r.status
         FROM parent_notification_recipients r
         JOIN parent_notifications n ON n.id=r.notification_id
@@ -977,7 +1112,7 @@ def parent_register(token):
         WHERE guardian_id=? AND is_active=1
     ''', (invite['guardian_id'],)).fetchone()[0] > 0
     conn.close()
-    return render_template('parent_notifications/register.html', invalid=False, invite=dict(invite),
+    return render_template('parent_notifications/register.html', invalid=False, invite=_with_kst(invite),
                            children=children, notices=notices, registered=registered,
                            token=token, push_configured=_push_ready())
 
@@ -1016,15 +1151,16 @@ def parent_push_subscribe(token):
         return jsonify(ok=False, message='푸시 구독 정보가 올바르지 않습니다.'), 400
     conn.execute('''
         INSERT INTO parent_push_subscriptions(
-            guardian_id, endpoint, p256dh, auth, user_agent
-        ) VALUES (?, ?, ?, ?, ?)
+            guardian_id, endpoint, p256dh, auth, user_agent, receipt_key
+        ) VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(endpoint) DO UPDATE SET
             guardian_id=excluded.guardian_id, p256dh=excluded.p256dh,
             auth=excluded.auth, user_agent=excluded.user_agent,
+            receipt_key=excluded.receipt_key,
             is_active=1, failure_count=0, last_error=NULL,
             updated_at=CURRENT_TIMESTAMP
     ''', (invite['guardian_id'], endpoint, p256dh, auth,
-          _text(request.headers.get('User-Agent'), 500)))
+          _text(request.headers.get('User-Agent'), 500), secrets.token_urlsafe(16)))
     conn.execute('''
         UPDATE parent_invites SET registered_at=COALESCE(registered_at, CURRENT_TIMESTAMP),
             last_opened_at=CURRENT_TIMESTAMP WHERE id=?
@@ -1038,10 +1174,57 @@ def parent_push_subscribe(token):
         'body': '무료 출결·학부모 알림 등록이 완료되었습니다.',
         'tag': f"saedam-parent-welcome-{invite['guardian_id']}",
         'url': f'/parent/register/{token}',
+        'receipt': f"{subscription['receipt_key']}.{subscription['id']}",
     })
     conn.commit()
     conn.close()
     return jsonify(ok=True, message='출결·학부모 알림 등록이 완료되었습니다.')
+
+
+@parent_notification_bp.route('/parent/api/push/receipt', methods=['POST'])
+def parent_push_receipt():
+    """학부모 휴대폰의 알림 도우미(서비스워커)가 알림을 띄우거나(received) 누를 때(opened) 보내는 확인.
+
+    확인 번호는 '수신자별 무작위 값.기기ID' 형식이라 추측할 수 없고, 기기가 그 보호자의 것일 때만 인정한다.
+    """
+    data = request.get_json(silent=True, force=True) or {}
+    token, _, subscription_text = _text(data.get('receipt'), 120).partition('.')
+    subscription_id = int(subscription_text) if subscription_text.isdigit() else None
+    opened = 1 if data.get('event') == 'opened' else 0
+    if not token or not subscription_id:
+        return jsonify(ok=False), 400
+    conn = get_db()
+    try:
+        recipient = conn.execute('''
+            SELECT r.id, r.notification_id FROM parent_notification_recipients r
+            JOIN parent_push_subscriptions ps ON ps.id=? AND ps.guardian_id=r.guardian_id
+            WHERE r.receipt_token=?
+        ''', (subscription_id, token)).fetchone()
+        if recipient:
+            conn.execute('''
+                UPDATE parent_notification_recipients
+                SET received_at=COALESCE(received_at, CURRENT_TIMESTAMP),
+                    opened_at=CASE WHEN ? THEN COALESCE(opened_at, CURRENT_TIMESTAMP) ELSE opened_at END
+                WHERE id=?
+            ''', (opened, recipient['id']))
+        elif not conn.execute('SELECT 1 FROM parent_push_subscriptions WHERE id=? AND receipt_key=?',
+                              (subscription_id, token)).fetchone():
+            # 등록 완료 알림은 수신자 행 없이 기기별 비밀값으로 확인한다. 둘 다 아니면 무시한다.
+            return jsonify(ok=False), 404
+        conn.execute('UPDATE parent_push_subscriptions SET last_received_at=CURRENT_TIMESTAMP WHERE id=?',
+                     (subscription_id,))
+        conn.commit()
+        if recipient:
+            notification = conn.execute('SELECT * FROM parent_notifications WHERE id=?',
+                                        (recipient['notification_id'],)).fetchone()
+            for listener in RECEIPT_LISTENERS:
+                try:
+                    listener(conn, notification)
+                except Exception:
+                    logger.exception('수신 확인 후속 처리 실패')
+    finally:
+        conn.close()
+    return jsonify(ok=True)
 
 
 @parent_notification_bp.route('/parent/push-sw.js')
@@ -1094,7 +1277,7 @@ def instructor_page(token):
                                forbidden=True, class_info=dict(class_row)), 403
     students = []
     if authorized:
-        students = [dict(row) for row in conn.execute('''
+        students = [_with_kst(row) for row in conn.execute('''
             SELECT s.*,
                    (SELECT a.status FROM parent_attendance a
                     WHERE a.class_id=? AND a.student_id=s.id AND a.event_date=?
@@ -1106,11 +1289,11 @@ def instructor_page(token):
             LEFT JOIN parent_guardian_students gs ON gs.student_id=s.id
             LEFT JOIN parent_push_subscriptions ps ON ps.guardian_id=gs.guardian_id
             WHERE cs.class_id=? GROUP BY s.id ORDER BY s.name
-        ''', (class_row['id'], date.today().isoformat(), class_row['id'])).fetchall()]
+        ''', (class_row['id'], _today_kst(), class_row['id'])).fetchall()]
     conn.close()
     return render_template('parent_notifications/instructor.html', invalid=False,
                            logged_in=logged_in, forbidden=False, authorized=authorized,
-                           class_info=dict(class_row), students=students, token=token,
+                           class_info=_with_kst(class_row), students=students, token=token,
                            notice_kinds=list(NOTICE_KINDS))
 
 
@@ -1151,7 +1334,7 @@ def instructor_attendance(token):
         INSERT INTO parent_attendance(
             class_id, student_id, status, event_date, note, recorded_by, notification_id
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (class_row['id'], student_id, status, date.today().isoformat(),
+    ''', (class_row['id'], student_id, status, _today_kst(),
           _text(data.get('note'), 500), session.get('user_name'), notification_id))
     conn.commit()
     conn.close()
