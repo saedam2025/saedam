@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/classroom_guide.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="cg-page" data-cg-editor>
+    <header class="cg-card cg-header">
+        <div class="cg-header-icon"><i class="fa-solid fa-pen-ruler"></i></div>
+        <div class="cg-header-text">
+            <h1>교실안내 배치도 편집 <span class="cg-dirty" data-ed-dirty>저장 안 됨</span></h1>
+            <p>① 평면도로 초안 만들기 → ② 점검 목록 따라 고치기 → ③ 저장하면 3D 안내도와 길안내가 완성됩니다. <span class="cg-meta" data-ed-saved-at></span></p>
+        </div>
+        <div class="cg-header-tools">
+            <select class="cg-select" data-ed-school aria-label="학교 선택">
+                {% for s in schools %}
+                <option value="{{ s.id }}"{% if s.id == school.id %} selected{% endif %}>{{ s.school_name }}{% if s.year %} ({{ s.year }}){% endif %}</option>
+                {% endfor %}
+            </select>
+            <button type="button" class="cg-btn cg-btn-ai" data-ed-import-open title="학교 평면도를 올리면 AI가 층별 배치도 초안을 그립니다"><i class="fa-solid fa-wand-magic-sparkles"></i> 평면도로 자동 그리기</button>
+            <button type="button" class="cg-btn" data-ed-undo title="되돌리기 (Ctrl+Z)" aria-label="되돌리기"><i class="fa-solid fa-rotate-left"></i></button>
+            <button type="button" class="cg-btn" data-ed-redo title="다시 하기 (Ctrl+Shift+Z)" aria-label="다시 하기"><i class="fa-solid fa-rotate-right"></i></button>
+            <a class="cg-btn" href="{{ url_for('classroom_guide.index', school=school.id) }}"><i class="fa-solid fa-eye"></i> 안내도 보기</a>
+            <button type="button" class="cg-issue-badge" data-ed-issue-badge title="완성도 점검 목록으로 이동"></button>
+            <button type="button" class="cg-btn cg-btn-primary" data-ed-save><i class="fa-solid fa-floppy-disk"></i> 저장하기</button>
+        </div>
+    </header>
+
+    <div class="cg-editor-main">
+        <section class="cg-card cg-editor-card" data-ed-editor-card>
+            <div class="cg-start" data-ed-start hidden>
+                <i class="fa-solid fa-map cg-start-icon"></i>
+                <h2>학교 평면도로 시작하세요</h2>
+                <p>층별 평면도(이미지·PDF)를 올리면 AI가 건물·교실·계단·출입구를 읽어 배치도 초안을 그립니다.<br>
+                    초안을 만든 뒤 <b>완성도 점검</b> 목록을 따라 부족한 곳만 고치면 됩니다.</p>
+                <ol class="cg-start-steps">
+                    <li><b>1</b> 평면도 올리기</li>
+                    <li><b>2</b> 점검 목록 따라 고치기</li>
+                    <li><b>3</b> 저장하기</li>
+                </ol>
+                <div class="cg-start-actions">
+                    <button type="button" class="cg-btn cg-btn-primary" data-ed-import-open><i class="fa-solid fa-cloud-arrow-up"></i> 평면도 올려서 시작하기</button>
+                    <button type="button" class="cg-btn" data-ed-start-manual><i class="fa-solid fa-pencil"></i> 평면도 없이 직접 그리기</button>
+                </div>
+            </div>
+            <div class="cg-tabs" role="tablist">
+                <button type="button" class="cg-tab" role="tab" data-ed-tab="site"><span class="cg-step-no">1</span> 학교 부지·건물</button>
+                <button type="button" class="cg-tab" role="tab" data-ed-tab="floor"><span class="cg-step-no">2</span> 층별 교실 배치</button>
+            </div>
+
+            <div data-ed-pane="site">
+                <div class="cg-editor-toolbar">
+                    <button type="button" class="cg-btn cg-btn-sm" data-ed-add-building><i class="fa-solid fa-building"></i> 건물 추가</button>
+                    <button type="button" class="cg-btn cg-btn-sm" data-ed-add-connector><i class="fa-solid fa-bridge"></i> 연결통로 추가</button>
+                    <select class="cg-select cg-select-action" data-ed-add-landmark aria-label="바깥 시설 추가">
+                        <option value="">＋ 바깥 시설 추가</option>
+                        <option value="field">운동장</option>
+                        <option value="parking">주차장</option>
+                        <option value="garden">화단·숲</option>
+                        <option value="playground">놀이터</option>
+                        <option value="etc">기타</option>
+                    </select>
+                    <select class="cg-select cg-select-action" data-ed-add-gate aria-label="출입문 추가">
+                        <option value="">＋ 출입문 추가</option>
+                        <option value="main">교문 (담장 위)</option>
+                        <option value="back">후문 (담장 위)</option>
+                        <option value="door">건물출입문 (건물 외벽 위)</option>
+                    </select>
+                    <span class="cg-spacer"></span>
+                    <label class="cg-field"><span>부지 가로</span><input type="number" min="10" max="160" data-ed-site-cols></label>
+                    <label class="cg-field"><span>세로</span><input type="number" min="10" max="160" data-ed-site-rows></label>
+                    <label class="cg-field" title="격자 한 칸이 실제 몇 m인지 (길안내 거리 계산에 사용)"><span>1칸=</span><input type="number" min="1" max="10" data-ed-cell><span>m</span></label>
+                </div>
+                <div class="cg-editor-toolbar cg-grow" role="group" aria-label="부지 넓히기">
+                    <span class="cg-grow-label"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> 부지 넓히기</span>
+                    <select class="cg-select" data-ed-grow-step aria-label="한 번에 넓힐 칸 수">
+                        <option value="5">5칸씩</option>
+                        <option value="10" selected>10칸씩</option>
+                        <option value="20">20칸씩</option>
+                    </select>
+                    <button type="button" class="cg-btn cg-btn-sm" data-ed-grow="n" title="부지 위(북)쪽으로 넓힙니다"><i class="fa-solid fa-arrow-up"></i> 북쪽</button>
+                    <button type="button" class="cg-btn cg-btn-sm" data-ed-grow="s" title="부지 아래(남)쪽으로 넓힙니다"><i class="fa-solid fa-arrow-down"></i> 남쪽</button>
+                    <button type="button" class="cg-btn cg-btn-sm" data-ed-grow="w" title="부지 왼(서)쪽으로 넓힙니다"><i class="fa-solid fa-arrow-left"></i> 서쪽</button>
+                    <button type="button" class="cg-btn cg-btn-sm" data-ed-grow="e" title="부지 오른(동)쪽으로 넓힙니다"><i class="fa-solid fa-arrow-right"></i> 동쪽</button>
+                    <button type="button" class="cg-btn cg-btn-sm" data-ed-trim title="건물·시설 바깥의 빈 여백을 4칸만 남기고 줄입니다"><i class="fa-solid fa-crop-simple"></i> 빈 여백 줄이기</button>
+                    <span class="cg-meta">최대 가로·세로 160칸 · 건물이 부족하면 [건물 추가] 때 저절로 넓어집니다</span>
+                </div>
+            </div>
+
+            <div data-ed-pane="floor" hidden>
+                <div class="cg-editor-toolbar">
+                    <select class="cg-select" data-ed-building aria-label="건물 선택"></select>
+                    <div class="cg-floor-tabs" data-ed-floors></div>
+                    <button type="button" class="cg-btn cg-btn-sm" data-ed-add-door hidden><i class="fa-solid fa-door-closed"></i> 건물출입문 추가</button>
+                    <span class="cg-spacer"></span>
+                    <span data-ed-copy class="cg-editor-toolbar" style="margin:0">
+                        <select class="cg-select" data-ed-copy-to aria-label="복사할 층"></select>
+                        <button type="button" class="cg-btn cg-btn-sm" data-ed-copy-floor><i class="fa-regular fa-copy"></i> 이 층 배치를 복사</button>
+                    </span>
+                </div>
+                <div class="cg-palette" data-ed-palette aria-label="그릴 교실 종류"></div>
+            </div>
+
+            <div class="cg-underlay-bar" data-ed-underlay hidden>
+                <label class="cg-check"><input type="checkbox" data-ed-underlay-on checked> <i class="fa-regular fa-image"></i> 평면도 밑그림</label>
+                <label class="cg-underlay-range" title="밑그림 진하기"><span>진하기</span><input type="range" min="10" max="90" step="5" value="45" data-ed-underlay-alpha aria-label="밑그림 진하기"></label>
+                <span class="cg-meta" data-ed-underlay-note></span>
+                <span class="cg-spacer"></span>
+                <button type="button" class="cg-btn cg-btn-sm cg-btn-danger" data-ed-underlay-delete title="보관한 평면도 파일을 지웁니다(배치도는 그대로)"><i class="fa-regular fa-trash-can"></i> 평면도 삭제</button>
+            </div>
+            <div class="cg-canvas-wrap"><canvas data-ed-canvas aria-label="배치도 편집 격자"></canvas></div>
+            <p class="cg-editor-hint">
+                <b>① 학교 부지</b>: 건물·시설을 끌어서 옮기고, 오른쪽 아래 파란 점을 끌어 크기를 바꿉니다. 교문·후문은 담장에, 건물출입문은 외벽에 저절로 붙습니다. 자리가 모자라면 [부지 넓히기]로 원하는 쪽을 넓히세요.
+                <b>② 층별 교실</b>: 교실 종류를 고르고 빈 칸을 드래그해 교실을 그립니다. 빈 칸은 복도가 됩니다. 계단을 고르고 <kbd>R</kbd>로 오르는 방향을 돌립니다.
+                <kbd>Delete</kbd> 삭제 · <kbd>Ctrl</kbd>+<kbd>Z</kbd> 되돌리기 · <kbd>Ctrl</kbd>+<kbd>S</kbd> 저장
+            </p>
+        </section>
+
+        <div class="cg-editor-right">
+            <section class="cg-card cg-form" data-ed-form></section>
+            <section class="cg-card" data-ed-check-card>
+                <h2 class="cg-card-title"><i class="fa-solid fa-list-check"></i> 완성도 점검 <small>항목을 누르면 그 자리로 이동합니다</small></h2>
+                <div class="cg-issues" data-ed-issues></div>
+            </section>
+            <section class="cg-card">
+                <h2 class="cg-card-title"><i class="fa-solid fa-cube"></i> 3D 미리보기 <small>교실을 누르면 해당 교실을 편집합니다</small></h2>
+                <div class="cg-preview" data-ed-preview></div>
+            </section>
+        </div>
+    </div>
+
+    <dialog class="cg-dialog cg-import" data-ed-import>
+        <div class="cg-dialog-body">
+            <h2><i class="fa-solid fa-wand-magic-sparkles"></i> 평면도로 자동 그리기</h2>
+
+            <div data-ed-import-step="pick">
+                <p>학교 층별 평면도(JPG·PNG 이미지 또는 PDF)를 올리면 AI가 건물·교실·계단·출입구 위치를 읽어 층별 배치도 초안을 그립니다.
+                    층마다 한 장씩 올리면 가장 정확하고, 한 장에 여러 층이 있어도 됩니다. 파일마다 <b>건물(본관·후관·별관·특별관)</b>을 골라 두면, 현관·복도로 나뉘어 보여도 한 건물로 그립니다. 올린 평면도는 편집 화면에 밑그림으로 깔려 초안을 고칠 때 참고할 수 있습니다.</p>
+                <div class="cg-import-target" data-ed-import-target-wrap hidden>
+                    <label class="cg-field"><span>평면도를 쓸 곳</span>
+                        <select class="cg-select" data-ed-import-target></select>
+                    </label>
+                    <p class="cg-import-target-note" data-ed-import-target-note></p>
+                </div>
+                <label class="cg-drop" data-ed-import-drop>
+                    <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,application/pdf,.pdf" data-ed-import-files hidden>
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <b>평면도 파일을 끌어다 놓거나 눌러서 고르세요</b>
+                    <small>최대 12장(쪽) · 파일당 25MB</small>
+                </label>
+                <ul class="cg-import-list" data-ed-import-list></ul>
+                <p class="cg-import-note">
+                    <i class="fa-solid fa-robot"></i> 사용 AI: <b>{{ ai_status.status_text }}</b>{% if not ai_status.masked_key %} — 통합관리 &gt; AI api설정에서 API 키를 먼저 등록해 주세요.{% endif %}
+                </p>
+                <div class="cg-dialog-actions">
+                    <button type="button" class="cg-btn" data-ed-import-close>취소</button>
+                    <button type="button" class="cg-btn cg-btn-primary" data-ed-import-run disabled><i class="fa-solid fa-wand-magic-sparkles"></i> 분석 시작</button>
+                </div>
+            </div>
+
+            <div data-ed-import-step="busy" hidden>
+                <div class="cg-import-busy">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i>
+                    <b>평면도를 읽고 있습니다… <span data-ed-import-elapsed></span></b>
+                    <small>도면 수와 크기에 따라 1~5분쯤 걸립니다. 이 창을 닫지 말고 기다려 주세요.</small>
+                </div>
+            </div>
+
+            <div data-ed-import-step="done" hidden>
+                <div class="cg-import-stats" data-ed-import-stats></div>
+                <div class="cg-warnings" data-ed-import-warnings></div>
+                <p class="cg-import-note"><i class="fa-solid fa-circle-info"></i> AI 초안은 실제와 다를 수 있습니다. 적용하면 오른쪽 <b>완성도 점검</b>에 고칠 곳이 모이니, 밑그림과 비교하며 차례로 고친 뒤 저장하세요.</p>
+                <div class="cg-dialog-actions">
+                    <button type="button" class="cg-btn" data-ed-import-close>적용하지 않음</button>
+                    <button type="button" class="cg-btn cg-btn-primary" data-ed-import-apply><i class="fa-solid fa-check"></i> 편집기에 적용</button>
+                </div>
+            </div>
+        </div>
+    </dialog>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script id="cgLayoutData" type="application/json">{{ layout | tojson }}</script>
+<script id="cgFloorplanData" type="application/json">{{ floorplan | tojson }}</script>
+<script type="module">
+import { mountEditor } from "{{ url_for('static', filename='js/classroom_guide/editor.js') }}";
+
+mountEditor(document.querySelector('[data-cg-editor]'), {
+    layout: JSON.parse(document.getElementById('cgLayoutData').textContent),
+    floorplan: JSON.parse(document.getElementById('cgFloorplanData').textContent),
+    schoolId: {{ school.id | tojson }},
+    saveUrl: "{{ url_for('classroom_guide.save_layout', school_id=school.id) }}",
+    analyzeUrl: "{{ url_for('classroom_guide.analyze_floorplan', school_id=school.id) }}",
+    floorplanUrl: "{{ url_for('classroom_guide.delete_floorplan', school_id=school.id) }}",
+});
+</script>
+{% endblock %}

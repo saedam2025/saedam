@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/classroom_guide.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="cg-page" data-cg-viewer>
+    <header class="cg-card cg-header">
+        <div class="cg-header-icon"><i class="fa-solid fa-school"></i></div>
+        <div class="cg-header-text">
+            <h1>{% if school %}{{ school.school_name }} {% endif %}3D 교실 안내도</h1>
+            <p>학교 건물을 3D로 보며 방과후 교실 위치와 강좌 정보를 확인하고, 정문에서 교실까지 가는 길을 안내합니다.</p>
+        </div>
+        <div class="cg-header-tools">
+            {% if schools %}
+            <form method="get" action="{{ url_for('classroom_guide.index') }}">
+                <select id="cgSchool" name="school" class="cg-select" onchange="this.form.submit()" aria-label="학교 선택">
+                    {% for s in schools %}
+                    <option value="{{ s.id }}"{% if school and s.id == school.id %} selected{% endif %}>{{ s.school_name }}{% if s.year %} ({{ s.year }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% endif %}
+            {% if layout %}
+            <div class="cg-floor-tabs" data-cg-floors role="group" aria-label="층 선택"></div>
+            <div class="cg-compass" title="북쪽"><b>N</b><span class="cg-compass-needle" data-cg-compass></span></div>
+            {% if can_edit or share.enabled %}
+            <button type="button" class="cg-btn" data-cg-share-open><i class="fa-solid fa-share-nodes"></i> 학부모용 링크</button>
+            {% endif %}
+            {% endif %}
+            {% if can_edit and school %}
+            <a class="cg-btn cg-btn-primary" href="{{ url_for('classroom_guide.editor', school=school.id) }}"><i class="fa-solid fa-pen-ruler"></i> 배치도 편집</a>
+            {% endif %}
+        </div>
+    </header>
+
+    {% if not schools %}
+    <section class="cg-card cg-empty">
+        <i class="fa-solid fa-school-circle-exclamation cg-empty-icon"></i>
+        <h2>등록된 학교가 없습니다</h2>
+        <p>[학교업무공간]에서 학교를 먼저 등록해 주세요.</p>
+    </section>
+    {% elif not layout %}
+    <section class="cg-card cg-empty">
+        <i class="fa-solid fa-map-location-dot cg-empty-icon"></i>
+        <h2>아직 {{ school.school_name }}의 교실 배치도가 없습니다</h2>
+        <p>학교 층별 평면도를 올리면 AI가 배치도 초안을 그리고,<br>부족한 곳을 고쳐 저장하면 층별 3D 안내도와 교실까지의 길안내가 만들어집니다.</p>
+        {% if can_edit %}
+        <a class="cg-btn cg-btn-primary" href="{{ url_for('classroom_guide.editor', school=school.id, start='floorplan') }}"><i class="fa-solid fa-cloud-arrow-up"></i> 평면도로 배치도 만들기</a>
+        {% else %}
+        <p class="cg-muted">배치도 편집 권한이 있는 담당자에게 요청해 주세요.</p>
+        {% endif %}
+    </section>
+    {% else %}
+    <div class="cg-main">
+        <section class="cg-card cg-stage-card">
+            <div class="cg-stage" data-cg-stage></div>
+            <div class="cg-searchbox" data-cg-searchbox>
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="search" class="cg-search-input" data-cg-search placeholder="강좌명·교실명·강사명으로 찾기 (예: 바이올린)" aria-label="교실 검색" autocomplete="off">
+                <div class="cg-search-results" data-cg-search-results role="listbox" hidden></div>
+            </div>
+            <div class="cg-toolbar" role="toolbar" aria-label="3D 화면 조작">
+                <button type="button" class="cg-tool" data-cg-action="reset" title="전체 보기"><i class="fa-solid fa-cube"></i>전체 보기</button>
+                <button type="button" class="cg-tool" data-cg-action="zoom-in" title="확대"><i class="fa-solid fa-magnifying-glass-plus"></i>확대</button>
+                <button type="button" class="cg-tool" data-cg-action="zoom-out" title="축소"><i class="fa-solid fa-magnifying-glass-minus"></i>축소</button>
+                <button type="button" class="cg-tool" data-cg-action="rotate" title="자동 회전"><i class="fa-solid fa-rotate"></i>회전</button>
+            </div>
+            <div class="cg-legend" aria-hidden="true">
+                <span style="--room:#fde68a;--room-edge:#f59e0b"><i></i>방과후교실</span>
+                <span style="--room:#e9d5ff;--room-edge:#a855f7"><i></i>특별교실</span>
+                <span style="--room:#dbeafe;--room-edge:#60a5fa"><i></i>일반교실</span>
+                <span style="--room:#fbcfe8;--room-edge:#ec4899"><i></i>돌봄교실</span>
+                <span style="--room:#fed7aa;--room-edge:#f97316"><i></i>계단</span>
+                <span style="--room:#bbf7d0;--room-edge:#22c55e"><i></i>현관</span>
+                <span class="cg-route-legend"><i></i>이동 경로</span>
+            </div>
+        </section>
+
+        <aside class="cg-side">
+            <section class="cg-card">
+                <h2><i class="fa-solid fa-chalkboard"></i> 교실 정보</h2>
+                <div data-cg-info></div>
+            </section>
+            <section class="cg-card">
+                <h2 data-cg-floor-courses-title>해당 층의 강좌</h2>
+                <div class="cg-course-grid" data-cg-floor-courses></div>
+            </section>
+        </aside>
+    </div>
+
+    <div class="cg-bottom">
+        <section class="cg-card" data-cg-route-panel>
+            <h2><i class="fa-solid fa-route"></i> 교실 찾아가기 <small class="cg-meta">수강생·학부모 이동 경로 안내</small></h2>
+            <div class="cg-route-form">
+                <label class="cg-field"><span>출발지</span><select data-cg-from></select></label>
+                <label class="cg-field"><span>도착 교실</span><select data-cg-to></select></label>
+                <div class="cg-route-actions">
+                    <label class="cg-check"><input type="checkbox" data-cg-elevator> 엘리베이터 이용 (유모차·휠체어)</label>
+                    <button type="button" class="cg-btn" data-cg-clear-route><i class="fa-solid fa-eraser"></i> 지우기</button>
+                    <button type="button" class="cg-btn cg-btn-primary" data-cg-find><i class="fa-solid fa-location-arrow"></i> 경로 안내</button>
+                </div>
+            </div>
+            <div data-cg-route-summary></div>
+            <ol class="cg-steps" data-cg-steps></ol>
+        </section>
+        <section class="cg-card">
+            <h2><i class="fa-solid fa-layer-group"></i> 층별 정보</h2>
+            <div data-cg-floorinfo></div>
+            {% if updated.at %}<p class="cg-meta" style="margin-top:12px">최종 수정 {{ updated.at }}{% if updated.by %} · {{ updated.by }}{% endif %}</p>{% endif %}
+        </section>
+    </div>
+
+    {% if can_edit or share.enabled %}
+    <dialog class="cg-dialog" data-cg-share>
+        <div class="cg-dialog-body">
+            <h2><i class="fa-solid fa-share-nodes"></i> 학부모·수강생용 공유 링크</h2>
+            <p>로그인 없이 휴대폰으로 3D 안내도와 길안내를 볼 수 있는 주소입니다. 교실 정보에서 [학부모 안내 링크 복사]를 누르면 해당 교실까지 바로 안내하는 링크를 보낼 수 있습니다.</p>
+            <div class="cg-share-status" data-cg-share-status></div>
+            <div data-cg-share-on>
+                <div class="cg-share-link">
+                    <input type="text" readonly data-cg-share-link aria-label="공유 링크">
+                    <button type="button" class="cg-btn cg-btn-primary" data-cg-share-copy><i class="fa-regular fa-copy"></i> 복사</button>
+                </div>
+                <div class="cg-share-qr"><img alt="공유 링크 QR코드" data-cg-share-qr></div>
+            </div>
+            <div class="cg-dialog-actions">
+                {% if can_edit %}
+                <button type="button" class="cg-btn cg-btn-danger" data-cg-share-action="disable"><i class="fa-solid fa-link-slash"></i> 공유 중지</button>
+                <button type="button" class="cg-btn" data-cg-share-action="regenerate" title="이전 링크는 더 이상 열리지 않습니다"><i class="fa-solid fa-arrows-rotate"></i> 새 링크 발급</button>
+                <button type="button" class="cg-btn cg-btn-primary" data-cg-share-action="enable"><i class="fa-solid fa-link"></i> 공유 시작</button>
+                {% endif %}
+                <button type="button" class="cg-btn" data-cg-share-close>닫기</button>
+            </div>
+        </div>
+    </dialog>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if layout %}
+<script id="cgLayoutData" type="application/json">{{ layout | tojson }}</script>
+<script id="cgShareData" type="application/json">{{ {'enabled': share.enabled, 'link': share.link, 'canEdit': can_edit} | tojson }}</script>
+<script type="module">
+import { mountViewer } from "{{ url_for('static', filename='js/classroom_guide/viewer.js') }}";
+
+const root = document.querySelector('[data-cg-viewer]');
+const layout = JSON.parse(document.getElementById('cgLayoutData').textContent);
+let share = JSON.parse(document.getElementById('cgShareData').textContent);
+const viewer = mountViewer(root, { layout, publicLink: share.enabled ? share.link : '' });
+
+const dialog = root.querySelector('[data-cg-share]');
+const shareUrl = "{{ url_for('classroom_guide.update_share', school_id=school.id) }}";
+const qrUrl = "{{ url_for('classroom_guide.share_qr', school_id=school.id) }}";
+
+function renderShare() {
+    if (!dialog) return;
+    const status = dialog.querySelector('[data-cg-share-status]');
+    status.textContent = share.enabled ? '● 공유 중' : '○ 공유하지 않음';
+    status.className = `cg-share-status ${share.enabled ? 'is-on' : 'is-off'}`;
+    dialog.querySelector('[data-cg-share-on]').hidden = !share.enabled;
+    dialog.querySelector('[data-cg-share-link]').value = share.link || '';
+    if (share.enabled) dialog.querySelector('[data-cg-share-qr]').src = `${qrUrl}?v=${Date.now()}`;
+    dialog.querySelectorAll('[data-cg-share-action]').forEach(btn => {
+        const a = btn.dataset.cgShareAction;
+        btn.hidden = (a === 'enable' && share.enabled) || (a !== 'enable' && !share.enabled);
+    });
+    viewer.setPublicLink(share.enabled ? share.link : '');
+}
+
+function notify(message) {
+    let box = root.querySelector('.cg-toast');
+    if (!box) { box = document.createElement('div'); box.className = 'cg-toast'; root.appendChild(box); }
+    box.textContent = message;
+    box.classList.add('is-on');
+    clearTimeout(box._t);
+    box._t = setTimeout(() => box.classList.remove('is-on'), 2600);
+}
+
+root.querySelector('[data-cg-share-open]')?.addEventListener('click', () => { renderShare(); dialog.showModal(); });
+dialog?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (e.target === dialog || (btn && 'cgShareClose' in btn.dataset)) { dialog.close(); return; }
+    if (!btn) return;
+    if ('cgShareCopy' in btn.dataset) {
+        const input = dialog.querySelector('[data-cg-share-link]');
+        try { await navigator.clipboard.writeText(input.value); } catch (_) { input.select(); document.execCommand('copy'); }
+        notify('공유 링크를 복사했습니다.');
+        return;
+    }
+    const action = btn.dataset.cgShareAction;
+    if (!action) return;
+    if (action === 'regenerate' && !confirm('새 링크를 발급하면 이전에 보낸 링크는 더 이상 열리지 않습니다. 계속할까요?')) return;
+    if (action === 'disable' && !confirm('공유를 중지하면 학부모에게 보낸 링크가 열리지 않습니다. 계속할까요?')) return;
+    btn.disabled = true;
+    try {
+        const res = await fetch(shareUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ action }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.status !== 'success') { notify(data.message || '처리하지 못했습니다.'); return; }
+        share = { ...share, ...data.share };
+        renderShare();
+        notify(action === 'disable' ? '공유를 중지했습니다.' : '공유 링크가 준비되었습니다.');
+    } finally {
+        btn.disabled = false;
+    }
+});
+</script>
+{% endif %}
+{% endblock %}
