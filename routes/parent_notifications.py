@@ -1227,6 +1227,41 @@ def parent_push_receipt():
     return jsonify(ok=True)
 
 
+@parent_notification_bp.route('/parent/manifest/<string:token>.webmanifest')
+def parent_manifest(token):
+    """학부모별 홈 화면 앱 정보. 홈 화면 아이콘을 누르면 그 학부모의 등록 페이지가 바로 열린다."""
+    conn = get_db()
+    ensure_parent_notification_schema(conn)
+    valid = _invite_from_token(conn, token) is not None
+    conn.close()
+    if not valid:
+        return jsonify(ok=False, message='유효하지 않은 등록 링크입니다.'), 404
+    start_url = f'/parent/register/{token}'
+    icon_dir = '/static/images/parent_app'
+    manifest = {
+        'id': start_url,
+        'name': '새담 방과후학교 출결알림',
+        'short_name': '새담알림',
+        'description': '자녀 출결과 방과후학교 안내를 무료 알림으로 받습니다.',
+        'lang': 'ko',
+        'start_url': start_url,
+        'scope': '/parent/',
+        'display': 'standalone',
+        'background_color': '#fff9f0',
+        'theme_color': '#e78100',
+        'icons': [
+            {'src': f'{icon_dir}/icon-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any'},
+            {'src': f'{icon_dir}/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any'},
+            {'src': f'{icon_dir}/icon-maskable-512.png', 'sizes': '512x512', 'type': 'image/png',
+             'purpose': 'maskable'},
+        ],
+    }
+    response = Response(json.dumps(manifest, ensure_ascii=False), mimetype='application/manifest+json')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    return response
+
+
 @parent_notification_bp.route('/parent/push-sw.js')
 def parent_push_worker():
     response = current_app.send_static_file('js/parent_push_sw.js')

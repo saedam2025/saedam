@@ -445,7 +445,7 @@ def resolve_request_menu(path, endpoint='', view_args=None):
     # 학부모 등록은 비회원 서비스이고, 강사 전용페이지는 자체 로그인·사번
     # 검사를 수행하므로 관리자 메뉴 권한과 분리한다.
     if path.startswith('/parent/register/') or path.startswith('/parent/api/') \
-            or path == '/parent/push-sw.js' \
+            or path == '/parent/push-sw.js' or path.startswith('/parent/manifest/') \
             or path.startswith('/parent-notifications/instructor/'):
         return None
     if path.startswith('/api/unified-search'):
