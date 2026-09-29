@@ -5,10 +5,19 @@
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <meta name="theme-color" content="#e78100">
     <title>새담 방과후학교 학부모 알림</title>
-    <link rel="manifest" href="/static/parent_manifest.webmanifest">
+    {% if not invalid %}
+    {# 홈 화면 아이콘을 누르면 이 학부모의 등록 페이지가 바로 열리도록 학부모별 앱 정보를 쓴다. #}
+    <link rel="manifest" href="{{ url_for('parent_notifications.parent_manifest', token=token) }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='images/parent_app/icon-192.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/parent_app/apple-touch-icon.png') }}">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="새담알림">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    {% endif %}
     <style>
         :root{color-scheme:light;--orange:#e78100;--orange2:#ff9d1b;--ink:#172033;--muted:#70798b;--line:#e7e9ee;--bg:#fff9f0;--ok:#169b62;--bad:#d84c4c}
-        *{box-sizing:border-box}body{margin:0;background:linear-gradient(150deg,#fff4df,#f6f8fc 60%);color:var(--ink);font-family:Pretendard,"Noto Sans KR",Arial,sans-serif;min-height:100vh}.wrap{width:min(620px,100%);margin:auto;padding:24px 16px 48px}.brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:20px;margin:8px 4px 20px}.brand-mark{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--orange);color:#fff}.card{background:#fff;border:1px solid rgba(231,129,0,.18);border-radius:22px;box-shadow:0 15px 40px rgba(34,44,70,.10);padding:24px;margin-bottom:15px}.hero{background:linear-gradient(145deg,#fff,#fff6e7)}h1{font-size:26px;line-height:1.35;margin:0 0 9px}.lead{color:var(--muted);line-height:1.65;margin:0}.status{display:flex;gap:10px;align-items:flex-start;padding:13px 14px;border-radius:13px;background:#f5f7fa;margin:20px 0 14px;font-size:14px;line-height:1.55}.status.ok{background:#eaf8f1;color:#11794d}.status.bad{background:#fff0f0;color:#b83838}.dot{width:10px;height:10px;border-radius:50%;background:#aab1bd;margin-top:5px;flex:none}.ok .dot{background:var(--ok)}.bad .dot{background:var(--bad)}button{border:0;border-radius:14px;width:100%;padding:16px 18px;font:inherit;font-weight:900;font-size:17px;cursor:pointer;background:linear-gradient(135deg,var(--orange),var(--orange2));color:#fff;box-shadow:0 8px 18px rgba(231,129,0,.24)}button:disabled{filter:grayscale(.65);opacity:.65;cursor:not-allowed}.note{font-size:13px;line-height:1.6;color:var(--muted);margin:12px 2px 0}.section-title{font-size:18px;margin:0 0 14px}.child{padding:13px 0;border-bottom:1px solid var(--line)}.child:last-child{border:0}.child strong{display:block;margin-bottom:5px}.sub{font-size:13px;color:var(--muted)}.notice{border-left:4px solid #ffc46f;padding:10px 12px;margin:12px 0;background:#fffaf2;border-radius:0 12px 12px 0}.notice-head{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)}.notice h3{font-size:15px;margin:5px 0}.notice p{white-space:pre-wrap;line-height:1.55;margin:0;font-size:14px}.empty{text-align:center;color:var(--muted);padding:20px 0}.invalid{text-align:center;padding:60px 22px}.invalid .icon{font-size:54px;margin-bottom:15px}.privacy{font-size:12px;color:#8a91a0;text-align:center;line-height:1.6;padding:8px 12px}@media(max-width:480px){.wrap{padding:14px 12px 36px}.card{padding:20px;border-radius:18px}h1{font-size:23px}}
+        *{box-sizing:border-box}body{margin:0;background:linear-gradient(150deg,#fff4df,#f6f8fc 60%);color:var(--ink);font-family:Pretendard,"Noto Sans KR",Arial,sans-serif;min-height:100vh}.wrap{width:min(620px,100%);margin:auto;padding:24px 16px 48px}.brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:20px;margin:8px 4px 20px}.brand-mark{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--orange);color:#fff}.card{background:#fff;border:1px solid rgba(231,129,0,.18);border-radius:22px;box-shadow:0 15px 40px rgba(34,44,70,.10);padding:24px;margin-bottom:15px}.hero{background:linear-gradient(145deg,#fff,#fff6e7)}h1{font-size:26px;line-height:1.35;margin:0 0 9px}.lead{color:var(--muted);line-height:1.65;margin:0}.status{display:flex;gap:10px;align-items:flex-start;padding:13px 14px;border-radius:13px;background:#f5f7fa;margin:20px 0 14px;font-size:14px;line-height:1.55}.status.ok{background:#eaf8f1;color:#11794d}.status.bad{background:#fff0f0;color:#b83838}.dot{width:10px;height:10px;border-radius:50%;background:#aab1bd;margin-top:5px;flex:none}.ok .dot{background:var(--ok)}.bad .dot{background:var(--bad)}button{border:0;border-radius:14px;width:100%;padding:16px 18px;font:inherit;font-weight:900;font-size:17px;cursor:pointer;background:linear-gradient(135deg,var(--orange),var(--orange2));color:#fff;box-shadow:0 8px 18px rgba(231,129,0,.24)}button:disabled{filter:grayscale(.65);opacity:.65;cursor:not-allowed}button[hidden]{display:none}button.secondary{margin-top:10px;background:#fff;color:#9a5a00;border:2px solid #ffc46f;box-shadow:none}.note{font-size:13px;line-height:1.6;color:var(--muted);margin:12px 2px 0}.section-title{font-size:18px;margin:0 0 14px}.child{padding:13px 0;border-bottom:1px solid var(--line)}.child:last-child{border:0}.child strong{display:block;margin-bottom:5px}.sub{font-size:13px;color:var(--muted)}.notice{border-left:4px solid #ffc46f;padding:10px 12px;margin:12px 0;background:#fffaf2;border-radius:0 12px 12px 0}.notice-head{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)}.notice h3{font-size:15px;margin:5px 0}.notice p{white-space:pre-wrap;line-height:1.55;margin:0;font-size:14px}.empty{text-align:center;color:var(--muted);padding:20px 0}.invalid{text-align:center;padding:60px 22px}.invalid .icon{font-size:54px;margin-bottom:15px}.privacy{font-size:12px;color:#8a91a0;text-align:center;line-height:1.6;padding:8px 12px}@media(max-width:480px){.wrap{padding:14px 12px 36px}.card{padding:20px;border-radius:18px}h1{font-size:23px}}
     </style>
 </head>
 <body>
@@ -25,7 +34,8 @@
         <p class="lead">출결과 방과후학교 안내를 이 기기의 브라우저 알림으로 빠르게 받아보실 수 있습니다. 회원가입은 필요하지 않습니다.</p>
         <div id="pushStatus" class="status {% if registered %}ok{% endif %}"><span class="dot"></span><span>{% if registered %}이 학부모 계정에 알림 기기가 등록되어 있습니다. 현재 기기도 등록할 수 있습니다.{% else %}아래 버튼을 누르고 브라우저 알림을 허용해주세요.{% endif %}</span></div>
         <button id="subscribeButton" type="button" onclick="registerPush()">{% if registered %}이 기기에도 알림 등록{% else %}출결 알림 받기{% endif %}</button>
-        <p class="note">아이폰·아이패드는 Safari의 공유 버튼에서 ‘홈 화면에 추가’한 뒤, 추가된 아이콘으로 이 페이지를 열어 등록해주세요.</p>
+        <button id="homeButton" class="secondary" type="button" hidden>📲 홈 화면에 아이콘 추가</button>
+        <p id="installNote" class="note">홈 화면에 ‘새담알림’ 아이콘을 추가해 두면 앱처럼 바로 열어 알림 내역을 볼 수 있습니다. 아이폰·아이패드는 홈 화면 아이콘으로 열어야 알림을 받을 수 있습니다.</p>
     </section>
     <section class="card">
         <h2 class="section-title">등록된 자녀</h2>
@@ -43,15 +53,54 @@
     {% endif %}
 </main>
 {% if not invalid %}
+<script src="{{ url_for('static', filename='js/parent_app.js') }}?v=20260929-home"></script>
 <script>
 const token={{ token|tojson }};
+const alreadyRegistered={{ registered|tojson }};
+const app=window.SaedamParentApp;
 const button=document.getElementById('subscribeButton');
+const homeButton=document.getElementById('homeButton');
+const installNote=document.getElementById('installNote');
 const statusBox=document.getElementById('pushStatus');
+const pushSupported='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+// 아이폰 Safari는 홈 화면 아이콘으로 연 화면에서만 알림(푸시)을 쓸 수 있다.
+const iosNeedsHome=app.isIOS&&!app.standalone&&!pushSupported;
 function setStatus(message,type=''){statusBox.className='status '+type;statusBox.querySelector('span:last-child').textContent=message}
 function base64ToUint8(value){const padding='='.repeat((4-value.length%4)%4);const raw=atob((value+padding).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)))}
+function refreshHomeButton(){
+    homeButton.hidden=!app.canAddToHome();
+    if(app.standalone)installNote.textContent='홈 화면의 ‘새담알림’ 아이콘으로 열려 있습니다.';
+}
+function setupPage(){
+    if(app.guardInApp(document.querySelector('.brand'))){
+        // 카카오톡 등 앱 안의 화면에서는 알림 등록이 되지 않으므로 위의 안내 카드로만 이동시킨다.
+        button.hidden=true;homeButton.hidden=true;installNote.hidden=true;
+        setStatus(`이 화면(${app.inApp.label})에서는 알림을 등록할 수 없습니다. 위의 ‘${app.openLabel}’를 눌러주세요.`,'bad');
+        return;
+    }
+    if(iosNeedsHome){
+        // 아이폰: ① 홈 화면에 추가 → ② 추가된 아이콘으로 열어 알림 받기
+        button.hidden=true;homeButton.classList.remove('secondary');homeButton.textContent='📲 홈 화면에 추가하기';
+        setStatus((alreadyRegistered?'이미 알림을 받는 기기가 있습니다. ':'')+'아이폰은 ① 홈 화면에 추가 → ② 추가된 ‘새담알림’ 아이콘으로 열어 알림 받기 순서로 등록합니다.',alreadyRegistered?'ok':'');
+        installNote.textContent='아이폰·아이패드는 iOS 16.4 이상에서 홈 화면 아이콘으로 열어야 알림을 받을 수 있습니다.';
+    }else if(app.isIOS&&app.standalone&&!alreadyRegistered){
+        setStatus('홈 화면 아이콘으로 잘 여셨습니다. 아래 버튼을 누르고 알림을 허용해주세요.');
+    }
+    refreshHomeButton();
+    app.onChange(refreshHomeButton);
+    homeButton.addEventListener('click',async()=>{
+        const result=await app.addToHome();
+        if(result==='accepted'){setStatus('홈 화면에 ‘새담알림’ 아이콘을 추가했습니다.','ok');refreshHomeButton()}
+    });
+    // 알림 도우미를 미리 등록해 두어야 안드로이드가 '홈 화면에 추가'를 앱 설치로 인정한다.
+    // 이미 등록한 기기도 알림 도우미를 최신 버전(수신 확인 포함)으로 바로 바꾼다.
+    if('serviceWorker' in navigator){navigator.serviceWorker.register('/parent/push-sw.js',{scope:'/parent/'}).then(r=>r.update()).catch(()=>{})}
+}
 async function registerPush(){
+    if(app.inApp){app.openExternal();return}
     if(!window.isSecureContext){setStatus('알림 등록은 HTTPS 보안 연결에서만 가능합니다.','bad');return}
-    if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)){setStatus('이 브라우저는 푸시알림을 지원하지 않습니다. Chrome, Edge 또는 Safari 최신 버전을 이용해주세요.','bad');return}
+    if(iosNeedsHome){app.showGuide();return}
+    if(!pushSupported){setStatus(app.isIOS?'iOS 16.4 이상에서 알림을 받을 수 있습니다. 설정 > 일반 > 소프트웨어 업데이트 후 홈 화면 아이콘으로 다시 열어주세요.':'이 브라우저는 푸시알림을 지원하지 않습니다. Chrome, 삼성 인터넷 또는 Safari 최신 버전을 이용해주세요.','bad');return}
     button.disabled=true;setStatus('브라우저 알림 등록을 준비하고 있습니다.');
     try{
         const keyResponse=await fetch(`/parent/api/push/public-key/${token}`,{cache:'no-store'});const keyData=await keyResponse.json();if(!keyResponse.ok)throw new Error(keyData.message||'서버 푸시 설정을 확인해주세요.');
@@ -62,8 +111,7 @@ async function registerPush(){
         setStatus(data.message,'ok');button.textContent='알림 등록 완료';
     }catch(error){setStatus(error.message||'알림 등록 중 오류가 발생했습니다.','bad');button.disabled=false}
 }
-// 이미 등록한 기기도 이 페이지를 열면 알림 도우미를 최신 버전(수신 확인 포함)으로 바로 바꾼다.
-if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('/parent/').then(r=>r&&r.update()).catch(()=>{})}
+setupPage();
 </script>
 {% endif %}
 </body></html>

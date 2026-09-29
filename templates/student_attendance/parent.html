@@ -51,14 +51,18 @@ button{border:0;border-radius:14px;width:100%;margin-top:20px;padding:16px 18px;
         <ol class="steps">
             <li>방과후 신청 때 적은 <b>보호자 휴대폰번호</b>로 확인합니다.</li>
             <li>다음 화면에서 <b>‘출결 알림 받기’</b>를 누르고 알림을 허용하면 끝입니다.</li>
-            <li>아이폰은 Safari 공유 버튼 → <b>‘홈 화면에 추가’</b> 후, 추가된 아이콘으로 열어 등록해주세요.</li>
+            <li>카카오톡에서 열었다면 <b>Safari·Chrome 등 인터넷 브라우저</b>로 다시 열어야 등록됩니다.</li>
+            <li>아이폰은 다음 화면의 <b>‘홈 화면에 추가하기’</b>로 아이콘을 만든 뒤, 그 아이콘으로 열어 알림을 받아주세요.</li>
         </ol>
     </section>
     <p class="privacy">출결 알림은 자녀의 위치와 관련된 정보라 명단에 등록된 보호자만 받을 수 있습니다.</p>
     {% endif %}
 </main>
 {% if not invalid %}
+<script src="{{ url_for('static', filename='js/parent_app.js') }}?v=20260929-home"></script>
 <script>
+// 카카오톡 등 앱 안의 브라우저로 열었으면 Safari·Chrome으로 다시 열도록 안내(카카오톡은 자동으로 연다).
+window.SaedamParentApp.guardInApp(document.querySelector('.brand'));
 document.getElementById('phone').addEventListener('input', e => {
     const d = e.target.value.replace(/\D/g, '').slice(0, 11);
     e.target.value = d.length > 7 ? `${d.slice(0,3)}-${d.slice(3, d.length - 4)}-${d.slice(-4)}` : d.length > 3 ? `${d.slice(0,3)}-${d.slice(3)}` : d;
