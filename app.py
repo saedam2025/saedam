@@ -206,6 +206,8 @@ EXEMPT_ROUTES = [
     'parent_notifications.parent_push_public_key',
     'parent_notifications.parent_push_subscribe',
     'parent_notifications.parent_push_worker',
+    # 홈 화면 아이콘 정보(학부모별 등록 링크로 바로 열리게 한다).
+    'parent_notifications.parent_manifest',
     # 학부모 휴대폰의 알림 도우미가 보내는 수신 확인(추측할 수 없는 확인 번호로 보호).
     'parent_notifications.parent_push_receipt',
     # 강사 전용 링크의 안내 화면만 공개하고 출결·발송 API는 로그인을 요구한다.
