@@ -1,11 +1,11 @@
 /* 회의센터 · 실시간 회의진행 화면.
 
-   - 왼쪽 안건을 클릭하면 가운데에서 크게 보여 주고, 그 안건의 자료를 쪽마다
-     썸네일로 늘어놓는다. 썸네일을 누르면 화면에 가득 차게 확대한다.
-   - 회의 중에 나온 공통 안건은 왼쪽 [안건 추가하기]로 그 자리에서 넣는다.
-   - 오른쪽에서 안건별 논의·결정을 적으면 자동으로 서버에 저장된다.
-   - 녹음(MediaRecorder)과 받아쓰기(음성 인식)를 켜 두면 회의가 끝난 뒤
-     AI가 그 내용을 회의록으로 정리한다.                                        */
+   - 왼쪽에서 안건을 고르면 가운데 메인에 안건 내용과 큰 기록 칸이 열린다.
+   - 논의·결정 기록과 받아쓰기는 안건마다 따로 쌓이고 자동으로 서버에 저장된다.
+   - 녹음은 지금 진행 중인 안건에 붙는다. 녹음 중에 안건을 바꾸면 그 자리에서
+     한 회차를 끊어 올리고, 새 안건의 녹음으로 이어서 시작한다.
+   - 안건의 자료·녹음·받아쓰기 파일은 아래 [첨부파일] 줄에 모이고,
+     누르면 전체화면으로 크게 열린다.                                            */
 (() => {
   const root = document.getElementById('mtLive');
   const dataNode = document.getElementById('mtStageData');
@@ -22,24 +22,21 @@
   }
 
   const meetingId = root.dataset.meetingId;
-  const decisionUrlBase = (root.dataset.decisionUrl || '').replace(/\/0$/, '/');
-  const transcriptUrl = root.dataset.transcriptUrl;
+  const decisionUrlBase = (root.dataset.decisionUrl || '').replace(/\/0\/decision$/, '/');
+  const decisionUrlOf = agenda => decisionUrlBase + agenda.id + '/decision';
+  const transcriptUrlBase = (root.dataset.transcriptUrl || '').replace(/\/0\/transcript$/, '/');
   const recordingUrl = root.dataset.recordingUrl;
   const minutesUrl = root.dataset.minutesUrl;
+
+  function transcriptUrlOf(agenda) {
+    return transcriptUrlBase + agenda.id + '/transcript';
+  }
 
   const listEl = document.getElementById('mtAgendaList');
   const stageNo = document.getElementById('mtStageNo');
   const stageTitle = document.getElementById('mtStageTitle');
   const stageSummary = document.getElementById('mtStageSummary');
   const stageOwner = document.getElementById('mtStageOwner');
-  const thumbs = document.getElementById('mtThumbs');
-  const stageFiles = document.getElementById('mtStageFiles');
-  const zoom = document.getElementById('mtZoom');
-  const zoomImg = document.getElementById('mtZoomImg');
-  const zoomLabel = document.getElementById('mtZoomLabel');
-  const zoomPrev = document.getElementById('mtZoomPrev');
-  const zoomNext = document.getElementById('mtZoomNext');
-  const zoomClose = document.getElementById('mtZoomClose');
   const agendaCount = document.getElementById('mtAgendaCount');
   const minutesText = document.getElementById('mtMinutesText');
   const decisionText = document.getElementById('mtDecisionText');
@@ -48,13 +45,13 @@
   const decisionState = document.getElementById('mtDecisionState');
   const transcript = document.getElementById('mtTranscript');
   const transcriptState = document.getElementById('mtTranscriptState');
+  const interimBox = document.getElementById('mtInterim');
+  const attachRow = document.getElementById('mtAttachRow');
+  const attachCount = document.getElementById('mtAttachCount');
   const toast = document.getElementById('mtToast');
-
   const alertBox = document.getElementById('mtAlert');
 
-  let current = null;      // 지금 확대해서 보고 있는 안건
-  let frames = [];         // 지금 안건의 자료를 쪽 단위로 펼친 목록
-  let framePos = -1;       // 확대해서 보고 있는 쪽 (-1이면 썸네일 목록)
+  let current = null;      // 지금 진행 중인 안건
   let toastTimer = null;
   let sessionLost = false;
 
@@ -63,7 +60,7 @@
     toast.textContent = message;
     toast.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('show'), duration || 1800);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), duration || 2200);
   }
 
   /* 화면 위쪽에 계속 남는 안내줄. 저장이 막힌 상태를 사용자가 놓치지 않게 한다. */
@@ -178,8 +175,10 @@
       title.textContent = agenda.title;
       body.appendChild(title);
       const sub = document.createElement('small');
+      const extras = agendaRecordings(agenda).length + (agenda.transcript ? 1 : 0)
+        + agenda.materials.length;
       sub.textContent = (agenda.owner ? agenda.owner : '담당 미지정')
-        + (agenda.materials.length ? ' · 자료 ' + agenda.materials.length + '개' : '');
+        + (extras ? ' · 첨부 ' + extras + '개' : '');
       body.appendChild(sub);
 
       const dot = document.createElement('span');
@@ -191,115 +190,210 @@
     });
   }
 
-  // ------------------------------------------- 가운데 : 자료 썸네일 · 확대 보기
-  // 올린 파일 순서 → 그 파일의 쪽 순서로 한 줄로 펼친다.
-  function buildFrames(agenda) {
-    const list = [];
-    (agenda ? agenda.materials : []).forEach(material => {
-      (material.pages || []).forEach(page => {
-        list.push({
-          name: material.name,
-          pageNo: page.no,
-          pages: (material.pages || []).length,
-          thumb: page.thumb,
-          full: page.full,
-        });
-      });
-    });
-    return list;
+  // ------------------------------------------------- 첨부파일 줄 · 전체화면 보기
+  /* 첨부파일은 세 갈래다.
+       1) 안건 자료 : 올린 파일 → 쪽 순서 (이미지·PDF는 쪽마다 그림으로 열린다)
+       2) 이 안건 때 만든 녹음
+       3) 이 안건의 받아쓰기(.txt)
+     화면에는 타일로 늘어놓고, 전체화면 보기에서는 같은 순서로 넘겨 볼 수 있다. */
+  const viewer = document.getElementById('mtViewer');
+  const viewerStage = document.getElementById('mtViewerStage');
+  const viewerTitle = document.getElementById('mtViewerTitle');
+  const viewerDown = document.getElementById('mtViewerDown');
+  const viewerPrev = document.getElementById('mtViewerPrev');
+  const viewerNext = document.getElementById('mtViewerNext');
+  const viewerClose = document.getElementById('mtViewerClose');
+
+  let slides = [];        // 전체화면에서 넘겨 볼 장면 목록
+  let slidePos = -1;
+
+  function agendaRecordings(agenda) {
+    return recordings.filter(item => item.agenda_id === agenda.id);
   }
 
-  function frameLabel(frame) {
-    return frame.pages > 1 ? `${frame.name} · ${frame.pageNo}/${frame.pages}쪽` : frame.name;
+  function makeTile(kind, iconClass, title, sub, thumbUrl) {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'mt-att is-' + kind;
+    tile.title = title;
+    if (thumbUrl) {
+      const image = document.createElement('img');
+      image.src = thumbUrl;
+      image.alt = title;
+      image.loading = 'lazy';
+      tile.appendChild(image);
+    } else {
+      const icon = document.createElement('div');
+      icon.className = 'mt-att-icon';
+      icon.innerHTML = '<i class="' + iconClass + '"></i>';
+      tile.appendChild(icon);
+    }
+    const cap = document.createElement('span');
+    cap.className = 'mt-att-cap';
+    cap.textContent = title;
+    if (sub) {
+      const small = document.createElement('small');
+      small.textContent = sub;
+      cap.appendChild(small);
+    }
+    tile.appendChild(cap);
+    return tile;
   }
 
-  function renderThumbs(agenda) {
-    thumbs.innerHTML = '';
-    frames = buildFrames(agenda);
-    if (!frames.length) {
-      const none = document.createElement('div');
-      none.className = 'mt-stage-none';
-      none.textContent = agenda && agenda.materials.length
-        ? '이 안건의 자료는 그림으로 바꿀 수 없는 형식입니다. 아래에서 내려받아 주세요.'
-        : '이 안건에는 등록된 자료가 없습니다.';
-      thumbs.appendChild(none);
+  function renderAttachments() {
+    attachRow.innerHTML = '';
+    slides = [];
+    if (!current) {
+      attachCount.textContent = '0';
       return;
     }
-    frames.forEach((frame, index) => {
-      const tile = document.createElement('button');
-      tile.type = 'button';
-      tile.className = 'mt-thumb';
-      tile.title = frameLabel(frame);
+    let count = 0;
 
+    // 1) 자료
+    current.materials.forEach(material => {
+      const pages = material.pages || [];
+      count += 1;
+      if (!pages.length) {
+        const tile = makeTile('file', 'fa-solid fa-file-lines', material.name,
+          '미리보기 없음 · 눌러서 열기');
+        const start = slides.length;
+        slides.push({
+          kind: 'file', title: material.name, src: '',
+          down: material.url + '?download=1',
+        });
+        tile.addEventListener('click', () => openViewer(start));
+        attachRow.appendChild(tile);
+        return;
+      }
+      const start = slides.length;
+      pages.forEach(page => {
+        slides.push({
+          kind: 'image',
+          title: pages.length > 1 ? `${material.name} · ${page.no}/${pages.length}쪽` : material.name,
+          src: page.full,
+          down: material.url + '?download=1',
+        });
+      });
+      const tile = makeTile('image', 'fa-solid fa-image', material.name,
+        pages.length > 1 ? pages.length + '쪽' : '1쪽', pages[0].thumb);
+      tile.addEventListener('click', () => openViewer(start));
+      attachRow.appendChild(tile);
+    });
+
+    // 2) 이 안건의 녹음
+    agendaRecordings(current).forEach((item, index) => {
+      count += 1;
+      const name = '녹음 ' + (index + 1) + '회차';
+      const tile = makeTile('audio', 'fa-solid fa-circle-play', name,
+        item.length + ' · ' + item.size_kb + 'KB');
+      const start = slides.length;
+      slides.push({
+        kind: 'audio', title: current.title + ' · ' + name,
+        src: item.url, down: item.download_url,
+      });
+      tile.addEventListener('click', () => openViewer(start));
+      attachRow.appendChild(tile);
+    });
+
+    // 올리지 못한 녹음은 눈에 보이게 두고 다시 올릴 수 있게 한다.
+    recPending.filter(item => item.agendaId === current.id).forEach(item => {
+      count += 1;
+      const tile = makeTile('audio', 'fa-solid fa-rotate-right', '저장 못한 녹음',
+        fmt(item.seconds) + ' · 눌러서 다시 올리기');
+      tile.classList.add('is-pending');
+      tile.addEventListener('click', () => flushPending(true));
+      attachRow.appendChild(tile);
+    });
+
+    // 3) 받아쓰기 파일 (화면에 적힌 최신 내용을 그대로 보여 준다)
+    if (transcript.value.trim() || current.transcript) {
+      count += 1;
+      const tile = makeTile('text', 'fa-solid fa-file-lines', '받아쓰기.txt',
+        transcript.value.length + '자');
+      const start = slides.length;
+      slides.push({
+        kind: 'text', title: current.title + ' · 받아쓰기',
+        text: '', live: true, down: current.transcript_url + '?download=1',
+      });
+      tile.addEventListener('click', () => openViewer(start));
+      attachRow.appendChild(tile);
+    }
+
+    attachCount.textContent = String(count);
+    if (!count) {
+      const none = document.createElement('div');
+      none.className = 'mt-attach-empty';
+      none.textContent = '이 안건에는 첨부된 자료·녹음·받아쓰기가 없습니다. '
+        + '녹음이나 받아쓰기를 하면 여기에 파일로 붙습니다.';
+      attachRow.appendChild(none);
+    }
+  }
+
+  function openViewer(index) {
+    if (!slides.length) return;
+    slidePos = Math.max(0, Math.min(index, slides.length - 1));
+    const slide = slides[slidePos];
+    viewerStage.innerHTML = '';
+    viewerTitle.textContent = slide.title + (slides.length > 1
+      ? `  (${slidePos + 1}/${slides.length})` : '');
+    viewerDown.href = slide.down || '#';
+    viewerDown.hidden = !slide.down;
+
+    if (slide.kind === 'image') {
       const image = document.createElement('img');
-      image.src = frame.thumb;
-      image.alt = frameLabel(frame);
-      image.loading = 'lazy';
-
-      const caption = document.createElement('span');
-      caption.className = 'mt-thumb-cap';
-      caption.textContent = frame.name;
-      const sub = document.createElement('small');
-      sub.textContent = frame.pages > 1 ? `${frame.pageNo}/${frame.pages}쪽` : '1쪽';
-      caption.appendChild(sub);
-
-      tile.append(image, caption);
-      tile.addEventListener('click', () => openZoom(index));
-      thumbs.appendChild(tile);
-    });
+      image.src = slide.src;
+      image.alt = slide.title;
+      viewerStage.appendChild(image);
+    } else if (slide.kind === 'audio') {
+      const box = document.createElement('div');
+      box.className = 'mt-viewer-audio';
+      const label = document.createElement('div');
+      label.textContent = slide.title;
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.preload = 'metadata';
+      audio.src = slide.src;
+      box.append(label, audio);
+      viewerStage.appendChild(box);
+    } else if (slide.kind === 'text') {
+      const pre = document.createElement('pre');
+      pre.className = 'mt-viewer-text';
+      pre.textContent = slide.live ? (transcript.value || '(받아쓰기 기록이 없습니다.)') : slide.text;
+      viewerStage.appendChild(pre);
+    } else {
+      const box = document.createElement('div');
+      box.className = 'mt-viewer-audio';
+      box.textContent = '이 형식은 화면에서 미리 볼 수 없습니다. 위의 [내려받기]로 열어 주세요.';
+      viewerStage.appendChild(box);
+    }
+    viewerPrev.disabled = slidePos === 0;
+    viewerNext.disabled = slidePos === slides.length - 1;
+    viewer.hidden = false;
   }
 
-  // 그림으로 바꿀 수 없는 자료는 아래에 내려받기 줄로 남긴다.
-  function renderFiles(agenda) {
-    stageFiles.innerHTML = '';
-    (agenda ? agenda.materials : []).forEach(material => {
-      if ((material.pages || []).length) return;
-      const link = document.createElement('a');
-      link.href = material.url + '?download=1';
-      link.target = '_blank';
-      link.rel = 'noopener';
-      link.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i>';
-      const name = document.createElement('span');
-      name.textContent = material.name;
-      link.appendChild(name);
-      stageFiles.appendChild(link);
-    });
+  function closeViewer() {
+    viewer.hidden = true;
+    viewerStage.innerHTML = '';   // 재생 중인 소리도 함께 멈춘다.
+    slidePos = -1;
   }
 
-  function openZoom(index) {
-    if (!frames.length) return;
-    framePos = Math.max(0, Math.min(index, frames.length - 1));
-    const frame = frames[framePos];
-    zoomImg.src = frame.full;
-    zoomImg.alt = frameLabel(frame);
-    zoomLabel.textContent = frameLabel(frame);
-    zoomPrev.disabled = framePos === 0;
-    zoomNext.disabled = framePos === frames.length - 1;
-    zoom.hidden = false;
-  }
-
-  function closeZoom() {
-    framePos = -1;
-    zoom.hidden = true;
-    zoomImg.removeAttribute('src');
-  }
-
-  zoomPrev.addEventListener('click', () => openZoom(framePos - 1));
-  zoomNext.addEventListener('click', () => openZoom(framePos + 1));
-  zoomClose.addEventListener('click', closeZoom);
+  viewerPrev.addEventListener('click', () => openViewer(slidePos - 1));
+  viewerNext.addEventListener('click', () => openViewer(slidePos + 1));
+  viewerClose.addEventListener('click', closeViewer);
   document.addEventListener('keydown', event => {
-    if (zoom.hidden) return;
-    if (event.target.matches('input, textarea, select')) return;
-    if (event.key === 'Escape') closeZoom();
-    if (event.key === 'ArrowLeft' && framePos > 0) openZoom(framePos - 1);
-    if (event.key === 'ArrowRight' && framePos < frames.length - 1) openZoom(framePos + 1);
+    if (viewer.hidden) return;
+    if (event.key === 'Escape') { event.preventDefault(); closeViewer(); }
+    else if (event.key === 'ArrowLeft' && slidePos > 0) openViewer(slidePos - 1);
+    else if (event.key === 'ArrowRight' && slidePos < slides.length - 1) openViewer(slidePos + 1);
   });
 
   function select(agendaId) {
     const agenda = agendas.find(item => item.id === agendaId);
-    if (!agenda) return;
+    if (!agenda || (current && current.id === agenda.id)) return;
     // 보던 안건의 입력 내용을 잃지 않도록 옮기기 전에 저장한다.
     if (current && isDirty()) saveDecision(true);
+    if (current && transcriptDirty()) saveTranscript(true);
+    cancelPendingSaves();
 
     current = agenda;
     stageNo.textContent = '안건 ' + agenda.no;
@@ -309,11 +403,14 @@
     minutesText.value = agenda.minutes || '';
     decisionText.value = agenda.decision || '';
     decisionStatus.value = agenda.decision_status || 'pending';
+    transcript.value = agenda.transcript || '';
     decisionState.textContent = '';
-    closeZoom();
-    renderThumbs(agenda);
-    renderFiles(agenda);
+    transcriptState.textContent = '';
+    closeViewer();
+    renderAttachments();
     renderList();
+    // 녹음 중이면 안건이 바뀐 이 시점에서 회차를 끊어 새 안건에 붙인다.
+    rotateRecordingForAgenda();
   }
 
   // ------------------------------------------------------------ 결정 저장
@@ -334,7 +431,7 @@
     };
     decisionState.textContent = '저장 중…';
     try {
-      const data = await request(decisionUrlBase + agenda.id, {
+      const data = await request(decisionUrlOf(agenda), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -412,59 +509,68 @@
   });
 
   // ------------------------------------------------------------ 받아쓰기 저장
-  /* 받아쓰기는 한 회의를 여러 참석자가 같이 적을 수 있다. 마지막으로 서버에서
-     받은 판번호(revision)를 같이 보내면, 그 사이 다른 사람이 적은 내용이 있을 때
-     서버가 두 기록을 합쳐 돌려준다(어느 쪽도 지워지지 않는다). */
+  /* 받아쓰기는 안건마다 따로 쌓인다. 서버에는 마지막으로 받아 간 본문(base)을
+     같이 보내, 그 사이 다른 참석자가 적은 내용이 있으면 서버가 두 기록을
+     줄 단위로 합쳐 돌려준다(어느 쪽도 지워지지 않는다). */
   let transcriptTimer = null;
   let transcriptRetryTimer = null;
-  let transcriptSaving = false;
-  let transcriptRevision = Number(root.dataset.transcriptRevision || 0);
-  let savedTranscript = transcript.value;
 
   function transcriptDirty() {
-    return transcript.value !== savedTranscript;
+    return !!current && transcript.value !== (current.transcript || '');
+  }
+
+  function cancelPendingSaves() {
+    clearTimeout(decisionTimer);
+    clearTimeout(transcriptTimer);
   }
 
   async function saveTranscript(quiet) {
-    if (transcriptSaving) return false;
-    if (!transcriptDirty() && quiet) {
-      return true;
-    }
-    transcriptSaving = true;
+    const agenda = current;
+    if (!agenda) return true;
+    if (agenda.transcriptSaving) return false;
     const sending = transcript.value;
+    if (sending === (agenda.transcript || '') && quiet) return true;
+    agenda.transcriptSaving = true;
     transcriptState.textContent = '저장 중…';
     try {
-      const data = await postJson(transcriptUrl, {
+      const data = await postJson(transcriptUrlOf(agenda), {
         transcript: sending,
-        base_revision: transcriptRevision,
+        base: agenda.transcript || '',
       });
-      transcriptRevision = Number(data.revision || transcriptRevision);
       if (data.merged && typeof data.transcript === 'string') {
         // 그 사이 다른 참석자가 적은 내용이 있어 서버가 두 기록을 합쳐 주었다.
-        const atBottom = transcript.scrollTop + transcript.clientHeight
-          >= transcript.scrollHeight - 8;
-        // 보내는 동안 내가 더 친 글자는 지우지 않고 뒤에 남긴다.
-        const typedAfter = transcript.value.slice(sending.length);
-        transcript.value = data.transcript + typedAfter;
-        savedTranscript = data.transcript;
-        if (atBottom) transcript.scrollTop = transcript.scrollHeight;
+        agenda.transcript = data.transcript;
+        if (current === agenda) {
+          const atBottom = transcript.scrollTop + transcript.clientHeight
+            >= transcript.scrollHeight - 8;
+          // 보내는 동안 내가 더 친 글자는 지우지 않고 뒤에 남긴다.
+          const typedAfter = transcript.value.slice(sending.length);
+          transcript.value = data.transcript + typedAfter;
+          if (atBottom) transcript.scrollTop = transcript.scrollHeight;
+        }
         notify('다른 참석자의 기록과 합쳤습니다.', 2400);
       } else {
-        savedTranscript = sending;
+        agenda.transcript = sending;
       }
-      transcriptState.textContent = '저장됨 ' + (data.saved_at || '') + ' · ' + (data.length || 0) + '자';
+      if (current === agenda) {
+        transcriptState.textContent = '저장됨 ' + (data.saved_at || '') + ' · ' + (data.length || 0) + '자';
+        renderAttachments();
+      }
       clearTimeout(transcriptRetryTimer);
+      renderList();
       if (!quiet) notify('받아쓰기를 저장했습니다.');
       return true;
     } catch (error) {
-      transcriptState.textContent = error.name === 'SessionError'
-        ? '로그인 필요 · 저장 안 됨' : '저장 실패 · 다시 시도합니다';
+      if (current === agenda) {
+        transcriptState.textContent = error.name === 'SessionError'
+          ? '로그인 필요 · 저장 안 됨' : '저장 실패 · 다시 시도합니다';
+      }
       clearTimeout(transcriptRetryTimer);
       transcriptRetryTimer = setTimeout(() => saveTranscript(true), 8000);
       if (!quiet) notify(error.message || '저장 중 오류가 발생했습니다.', 3000);
       return false;
     } finally {
-      transcriptSaving = false;
+      agenda.transcriptSaving = false;
     }
   }
 
@@ -479,26 +585,41 @@
 
   /* 화면을 닫거나 탭을 옮길 때 마지막 몇 초의 기록이 사라지지 않도록,
      응답을 기다리지 않는 sendBeacon으로 한 번 더 보낸다. */
-  function flushTranscriptBeacon() {
-    if (!transcriptDirty() || !navigator.sendBeacon) return;
+  function flushBeacon() {
+    if (!current || !navigator.sendBeacon) return;
     try {
-      const body = new Blob([JSON.stringify({
-        transcript: transcript.value,
-        base_revision: transcriptRevision,
-      })], { type: 'application/json' });
-      if (navigator.sendBeacon(transcriptUrl, body)) savedTranscript = transcript.value;
+      if (transcriptDirty()) {
+        const body = new Blob([JSON.stringify({
+          transcript: transcript.value, base: current.transcript || '',
+        })], { type: 'application/json' });
+        if (navigator.sendBeacon(transcriptUrlOf(current), body)) current.transcript = transcript.value;
+      }
+      if (isDirty()) {
+        const body = new Blob([JSON.stringify({
+          minutes: minutesText.value, decision: decisionText.value,
+          decision_status: decisionStatus.value,
+        })], { type: 'application/json' });
+        if (navigator.sendBeacon(decisionUrlOf(current), body)) {
+          current.minutes = minutesText.value;
+          current.decision = decisionText.value;
+          current.decision_status = decisionStatus.value;
+        }
+      }
     } catch (error) { /* 못 보내면 떠나기 전 경고창이 뜬다. */ }
   }
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushTranscriptBeacon();
-    else if (transcriptDirty()) saveTranscript(true);
+    if (document.visibilityState === 'hidden') flushBeacon();
+    else {
+      if (transcriptDirty()) saveTranscript(true);
+      if (isDirty()) saveDecision(true);
+    }
   });
-  window.addEventListener('pagehide', flushTranscriptBeacon);
+  window.addEventListener('pagehide', flushBeacon);
 
   function appendTranscript(text) {
     const line = String(text || '').trim();
-    if (!line) return;
+    if (!line || !current) return;
     const prefix = transcript.value && !transcript.value.endsWith('\n') ? '\n' : '';
     const stamp = new Date().toTimeString().slice(0, 5);
     transcript.value += `${prefix}[${stamp}] ${line}\n`;
@@ -513,38 +634,108 @@
   const sttHint = document.getElementById('mtSttHint');
   let recognition = null;
   let sttOn = false;
+  let sttRestartTimer = null;
+  let sttQuickEnds = 0;       // 아무 말도 못 받고 곧바로 끝난 횟수(연속)
+  let sttLastStart = 0;
 
   if (!SpeechRecognition) {
     sttBtn.disabled = true;
     sttLabel.textContent = '받아쓰기 미지원';
   }
 
-  function startStt() {
-    if (!SpeechRecognition || recognition) return;
-    recognition = new SpeechRecognition();
-    recognition.lang = 'ko-KR';
-    recognition.continuous = true;
-    recognition.interimResults = false;
-    recognition.onresult = event => {
+  function showInterim(text) {
+    if (!interimBox) return;
+    interimBox.textContent = text ? '듣는 중 : ' + text : '';
+    interimBox.hidden = !text;
+  }
+
+  function sttFinish(message) {
+    sttOn = false;
+    clearTimeout(sttRestartTimer);
+    if (recognition) {
+      recognition.onend = null;
+      try { recognition.stop(); } catch (error) { /* 무시 */ }
+      recognition = null;
+    }
+    showInterim('');
+    sttLabel.textContent = '받아쓰기 시작';
+    sttBtn.classList.remove('is-on', 'rec');
+    if (sttHint) sttHint.textContent = message;
+  }
+
+  function createRecognition() {
+    const instance = new SpeechRecognition();
+    instance.lang = 'ko-KR';
+    instance.continuous = true;
+    instance.interimResults = true;     // 말하는 도중에도 인식 중인 글자를 보여 준다.
+    instance.maxAlternatives = 1;
+
+    instance.onstart = () => { sttLastStart = Date.now(); };
+    instance.onresult = event => {
+      let interim = '';
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        if (event.results[index].isFinal) {
-          appendTranscript(event.results[index][0].transcript);
+        const result = event.results[index];
+        if (result.isFinal) {
+          sttQuickEnds = 0;
+          appendTranscript(result[0].transcript);
+        } else {
+          interim += result[0].transcript;
         }
       }
+      showInterim(interim);
     };
-    recognition.onerror = event => {
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        notify('마이크 사용이 차단되어 받아쓰기를 시작할 수 없습니다.', 3200);
-        stopStt();
+    instance.onerror = event => {
+      const code = event.error;
+      if (code === 'no-speech' || code === 'aborted') return;   // 조용했을 뿐이다. 계속 듣는다.
+      if (code === 'not-allowed' || code === 'service-not-allowed') {
+        notify('마이크 사용이 차단되어 받아쓰기를 할 수 없습니다. 주소창의 자물쇠에서 마이크를 허용해 주세요.', 4500);
+        sttFinish('마이크가 차단되었습니다. 허용한 뒤 [받아쓰기 시작]을 다시 눌러 주세요.');
+      } else if (code === 'audio-capture') {
+        notify('마이크를 찾지 못했습니다. 연결 상태를 확인해 주세요.', 4000);
+        sttFinish('마이크를 찾지 못했습니다.');
+      } else if (code === 'network') {
+        // 받아쓰기는 브라우저가 음성을 인터넷으로 보내 글자로 바꾼다.
+        notify('받아쓰기 서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요. 자동으로 다시 시도합니다.', 4000);
+      } else if (code === 'language-not-supported') {
+        notify('이 브라우저는 한국어 받아쓰기를 지원하지 않습니다.', 4000);
+        sttFinish('한국어 받아쓰기를 지원하지 않는 브라우저입니다.');
       }
     };
     // 조용한 구간이 길면 브라우저가 인식을 멈추므로 켜 둔 동안에는 다시 시작한다.
-    recognition.onend = () => {
+    // 곧바로 계속 끝나는 경우(연결 문제 등)는 간격을 늘려 무한 반복을 막는다.
+    instance.onend = () => {
+      showInterim('');
       if (!sttOn) return;
-      try { recognition.start(); } catch (error) { /* 이미 시작된 상태 */ }
+      if (Date.now() - sttLastStart < 1500) sttQuickEnds += 1;
+      const delay = Math.min(300 + sttQuickEnds * 700, 4000);
+      clearTimeout(sttRestartTimer);
+      sttRestartTimer = setTimeout(() => {
+        if (!sttOn) return;
+        try {
+          recognition = createRecognition();
+          recognition.start();
+        } catch (error) {
+          sttFinish('받아쓰기가 중단되었습니다. [받아쓰기 시작]을 다시 눌러 주세요.');
+        }
+      }, delay);
     };
+    return instance;
+  }
+
+  function startStt() {
+    if (!SpeechRecognition || sttOn) return;
+    if (!current) {
+      notify('먼저 왼쪽에서 안건을 선택해 주세요. 받아쓰기는 선택한 안건에 쌓입니다.', 3200);
+      return;
+    }
+    if (!window.isSecureContext) {
+      notify('보안 연결(https)에서만 받아쓰기를 할 수 있습니다.', 4200);
+      return;
+    }
+    sttQuickEnds = 0;
     sttOn = true;
     try {
+      recognition = createRecognition();
       recognition.start();
     } catch (error) {
       sttOn = false;
@@ -554,18 +745,11 @@
     }
     sttLabel.textContent = '받아쓰기 중지';
     sttBtn.classList.add('rec', 'is-on');
-    if (sttHint) sttHint.textContent = '받아쓰기 중입니다. 말한 내용이 자동으로 아래에 적힙니다.';
+    if (sttHint) sttHint.textContent = '받아쓰기 중입니다. 말한 내용이 지금 선택한 안건에 자동으로 적힙니다.';
   }
 
   function stopStt() {
-    sttOn = false;
-    if (recognition) {
-      try { recognition.stop(); } catch (error) { /* 무시 */ }
-      recognition = null;
-    }
-    sttLabel.textContent = '받아쓰기 시작';
-    sttBtn.classList.remove('is-on');
-    if (sttHint) sttHint.textContent = '받아쓰기를 멈췄습니다. 내용은 그대로 저장됩니다.';
+    sttFinish('받아쓰기를 멈췄습니다. 내용은 그대로 저장됩니다.');
     saveTranscript(true);
   }
 
@@ -575,8 +759,8 @@
   /* 회의는 길다. 한 번에 다 담아 두었다가 끝날 때 통째로 올리면
      - 브라우저가 소리 전체를 메모리에 물고 있어야 하고,
      - 중간에 창이 닫히거나 업로드가 한 번 실패하면 회의 전체가 사라진다.
-     그래서 정해진 시간마다 조각(회차)으로 끊어 그때그때 서버에 올린다.
-     회의센터는 원래 회차별 녹음을 목록으로 보여 주므로 화면 구성은 그대로다. */
+     그래서 5분마다, 그리고 안건이 바뀔 때마다 조각(회차)으로 끊어 그때그때
+     서버에 올린다. 각 회차는 녹음을 시작한 때의 안건에 붙는다. */
   const REC_SEGMENT_MS = 5 * 60 * 1000;   // 5분마다 한 회차로 끊어 올린다.
   const REC_CHUNK_MS = 2000;              // 2초마다 한 덩어리씩 받아 둔다.
 
@@ -584,10 +768,9 @@
   const recLabel = document.getElementById('mtRecLabel');
   const recDot = document.getElementById('mtRecDot');
   const recText = document.getElementById('mtRecText');
-  const recItems = document.getElementById('mtRecItems');
-  const recCount = document.getElementById('mtRecCount');
 
   let recorder = null;         // 지금 돌아가는 MediaRecorder
+  let recSegmentAgenda = 0;    // 지금 조각이 붙을 안건
   let recStream = null;        // 마이크 입력
   let recStartedAt = 0;        // 이번 조각을 시작한 시각
   let recTotalSeconds = 0;     // 이번 녹음에서 지금까지 담은 시간
@@ -649,79 +832,13 @@
     if (recText) recText.textContent = recStateText();
   }
 
-  // 회차마다 쌓인 녹음을 목록으로 보여 준다(바로 듣거나 내려받을 수 있다).
-  function renderRecordings() {
-    if (!recItems) return;
-    recItems.innerHTML = '';
-    if (recCount) recCount.textContent = recordings.length;
-    if (!recordings.length && !recPending.length) {
-      const empty = document.createElement('p');
-      empty.className = 'mt-rec-empty';
-      empty.textContent = '아직 녹음이 없습니다. [녹음 시작]을 누르면 5분마다 한 회차씩 자동으로 저장됩니다.';
-      recItems.appendChild(empty);
-      return;
-    }
-    recordings.forEach(item => {
-      const row = document.createElement('div');
-      row.className = 'mt-rec-item';
-      const no = document.createElement('b');
-      no.textContent = item.no + '회차';
-      const label = document.createElement('span');
-      label.textContent = item.length + ' · ' + item.size_kb + 'KB';
-      label.title = item.filename;
-
-      const play = document.createElement('a');
-      play.href = item.url || ('/meeting/' + meetingId + '/recording/' + item.id);
-      play.target = '_blank';
-      play.rel = 'noopener';
-      play.title = '새 창에서 듣기';
-      play.innerHTML = '<i class="fa-solid fa-circle-play"></i>';
-
-      const save = document.createElement('a');
-      save.href = item.download_url || ('/meeting/' + meetingId + '/recording/' + item.id + '?download=1');
-      save.title = '내 PC로 내려받기';
-      save.setAttribute('download', item.filename || '');
-      save.innerHTML = '<i class="fa-solid fa-download"></i>';
-
-      row.append(no, label, play, save);
-      recItems.appendChild(row);
-    });
-
-    // 아직 서버에 올리지 못한 조각도 눈에 보이게 두고, 직접 내려받아 보관할 수 있게 한다.
-    recPending.forEach((item, index) => {
-      const row = document.createElement('div');
-      row.className = 'mt-rec-item is-pending';
-      const no = document.createElement('b');
-      no.textContent = '대기';
-      const label = document.createElement('span');
-      label.textContent = fmt(item.seconds) + ' · 저장 실패';
-
-      const retry = document.createElement('button');
-      retry.type = 'button';
-      retry.className = 'mt-rec-mini';
-      retry.title = '다시 올리기';
-      retry.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
-      retry.addEventListener('click', () => flushPending(true));
-
-      const save = document.createElement('a');
-      // 목록을 다시 그릴 때마다 새 주소를 만들지 않도록 한 번만 만들어 둔다.
-      if (!item.localUrl) item.localUrl = URL.createObjectURL(item.blob);
-      save.href = item.localUrl;
-      save.download = '회의녹음_' + meetingId + '_' + (index + 1) + '.' + item.extension;
-      save.title = '이 조각을 내 PC에 보관';
-      save.innerHTML = '<i class="fa-solid fa-download"></i>';
-
-      row.append(no, label, retry, save);
-      recItems.appendChild(row);
-    });
-  }
-
-  async function uploadSegment(blob, seconds, mimeType) {
+  async function uploadSegment(blob, seconds, mimeType, agendaId) {
     const extension = extensionFor(mimeType);
     const form = new FormData();
     form.append('recording', blob, 'meeting_' + meetingId + '_' + Date.now() + '.' + extension);
     form.append('seconds', String(Math.round(seconds)));
     form.append('mime', mimeType || blob.type || '');
+    form.append('agenda_id', String(agendaId || 0));
     const data = await request(recordingUrl, { method: 'POST', body: form });
     recordings = data.recordings || recordings;
     return data;
@@ -729,18 +846,21 @@
 
   /* 조각 하나를 올린다. 실패하면 버리지 않고 대기 목록에 담아 두었다가
      [다시 올리기]를 누르거나 다음 조각을 저장할 때 함께 다시 시도한다. */
-  async function saveSegment(blob, seconds, mimeType) {
+  async function saveSegment(blob, seconds, mimeType, agendaId) {
     if (!blob || !blob.size) return;
     recUploading += 1;
     paintRecState();
     try {
-      const data = await uploadSegment(blob, seconds, mimeType);
-      renderRecordings();
-      notify('녹음 ' + (data.count || recordings.length) + '회차를 저장했습니다.');
+      const data = await uploadSegment(blob, seconds, mimeType, agendaId);
+      renderAttachments();
+      renderList();
+      notify('녹음 ' + (data.count || recordings.length) + '회차를 안건 첨부파일로 저장했습니다.');
       flushPending(false);
     } catch (error) {
-      recPending.push({ blob, seconds, mimeType, extension: extensionFor(mimeType) });
-      renderRecordings();
+      recPending.push({
+        blob, seconds, mimeType, agendaId, extension: extensionFor(mimeType),
+      });
+      renderAttachments();
       if (error.name !== 'SessionError') {
         notify(error.message || '녹음을 저장하지 못했습니다. 대기 목록에 담아 두었습니다.', 4000);
       }
@@ -753,12 +873,12 @@
   async function flushPending(announce) {
     if (!recPending.length) return;
     const queue = recPending.splice(0, recPending.length);
-    renderRecordings();
+    renderAttachments();
     for (const item of queue) {
       recUploading += 1;
       paintRecState();
       try {
-        await uploadSegment(item.blob, item.seconds, item.mimeType);
+        await uploadSegment(item.blob, item.seconds, item.mimeType, item.agendaId);
       } catch (error) {
         recPending.push(item);
         if (announce && error.name !== 'SessionError') {
@@ -768,7 +888,8 @@
         recUploading -= 1;
       }
     }
-    renderRecordings();
+    renderAttachments();
+    renderList();
     paintRecState();
     if (announce && !recPending.length) notify('밀린 녹음을 모두 저장했습니다.');
   }
@@ -792,6 +913,7 @@
     }
     const actualMime = instance.mimeType || wanted || 'audio/webm';
     const startedAt = Date.now();
+    const agendaId = current ? current.id : 0;   // 이 조각이 붙을 안건
     const chunks = [];
 
     instance.ondataavailable = event => {
@@ -805,20 +927,29 @@
       recTotalSeconds += seconds;
       const blob = new Blob(chunks, { type: actualMime });
       chunks.length = 0;
-      if (blob.size) saveSegment(blob, seconds, actualMime);
+      if (blob.size) saveSegment(blob, seconds, actualMime, agendaId);
       // 사용자가 아직 녹음 중이면 곧바로 다음 회차를 이어서 시작한다.
       if (recWanted && recStream) startSegment();
       else stopStream();
     };
 
     recorder = instance;
+    recSegmentAgenda = agendaId;
     recStartedAt = startedAt;
     instance.start(REC_CHUNK_MS);
 
     clearTimeout(recRotateTimer);
     recRotateTimer = setTimeout(() => {
-      if (recorder && recorder.state === 'recording') recorder.stop();
+      if (recorder === instance && instance.state === 'recording') instance.stop();
     }, REC_SEGMENT_MS);
+  }
+
+  // 녹음 중에 안건을 바꾸면, 지금까지의 소리는 이전 안건 회차로 끊어 올리고 새로 시작한다.
+  function rotateRecordingForAgenda() {
+    if (!recWanted || !recorder || recorder.state !== 'recording') return;
+    const agendaId = current ? current.id : 0;
+    if (agendaId === recSegmentAgenda) return;
+    try { recorder.stop(); } catch (error) { /* onstop이 이어서 처리 */ }
   }
 
   function stopStream() {
@@ -838,6 +969,10 @@
     }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
       notify('이 브라우저에서는 녹음을 지원하지 않습니다. 크롬이나 엣지에서 열어 주세요.', 3600);
+      return;
+    }
+    if (!current) {
+      notify('먼저 왼쪽에서 안건을 선택해 주세요. 녹음은 선택한 안건에 첨부됩니다.', 3200);
       return;
     }
     recStarting = true;
@@ -897,7 +1032,7 @@
   const minutesBtn = document.getElementById('mtMinutesBtn');
   if (minutesBtn) {
     minutesBtn.addEventListener('click', async () => {
-      if (!confirm('지금까지 기록한 안건 논의·결정과 받아쓰기 내용으로 AI 회의록을 만들까요?\n실행항목은 메인화면 달력에도 자동으로 등록됩니다.')) return;
+      if (!confirm('지금까지 기록한 안건별 논의·결정과 받아쓰기 내용으로 AI 회의록을 만들까요?\n실행항목은 메인화면 달력에도 자동으로 등록됩니다.')) return;
       if (sttOn) stopStt();
       if (isRecording()) stopRecording();
       // 안건 기록과 받아쓰기를 먼저 확실히 저장한 뒤에 회의록을 만든다.
@@ -915,7 +1050,7 @@
       minutesBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>회의록 작성 중…</span>';
       notify('AI가 회의록을 작성하고 있습니다. 잠시만 기다려 주세요.', 6000);
       try {
-        const data = await postJson(minutesUrl, { transcript: transcript.value });
+        const data = await postJson(minutesUrl, {});
         notify(`회의록을 만들었습니다. 실행항목 ${data.tasks_added || 0}건을 달력에 등록했습니다.`, 2600);
         setTimeout(() => { window.location.href = data.redirect; }, 900);
       } catch (error) {
@@ -979,7 +1114,7 @@
   });
 
   renderList();
-  renderRecordings();
+  renderAttachments();
   paintRecState();
   if (agendas.length) select(agendas[0].id);
 })();
