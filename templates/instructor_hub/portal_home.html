@@ -117,5 +117,21 @@
   {% endfor %}
   {% endif %}
 </div>
+<script>
+// 파일을 올리는 동안 버튼이 눌린 것이 보이게 하고, 같은 버튼을 또 눌러 두 번 올라가는 것을 막는다.
+document.querySelectorAll('form[enctype="multipart/form-data"]').forEach(form => {
+  form.addEventListener('submit', () => {
+    const button = form.querySelector('button[type=submit]');
+    if (!button) return;
+    setTimeout(() => { button.disabled = true; button.textContent = '올리는 중입니다… 잠시만 기다려 주세요'; }, 0);
+  });
+  const input = form.querySelector('input[type=file]');
+  if (input) input.addEventListener('change', () => {
+    let note = form.querySelector('.picked');
+    if (!note) { note = document.createElement('p'); note.className = 'muted picked'; input.after(note); }
+    note.textContent = input.files.length ? `선택한 파일 ${input.files.length}개` : '';
+  });
+});
+</script>
 </body>
 </html>
