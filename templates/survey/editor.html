@@ -253,6 +253,73 @@
     .byte-text .kind.sms { background: #e6f4ea; color: #176b36; }
     .byte-text .kind.lms { background: #fff3cd; color: #7a5b00; }
     .byte-text small { display: block; margin-top: 4px; font-weight: 600; color: var(--text-gray); }
+    /* 발송 단계 카드 (1 수신자등록 → 2 발송방법 → 3 미리보기 → 4 발송) */
+    .send-col-left { display: flex; flex-direction: column; gap: 14px; }
+    .step-card {
+        border: 1px solid var(--border-color); border-radius: 14px;
+        background: var(--card-bg, #fff); overflow: hidden;
+    }
+    .step-title {
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0;
+        padding: 12px 16px; font-size: 1rem; color: #fff;
+        background: var(--saedam-blue, #004ea2); border-bottom: 1px solid var(--border-color);
+    }
+    .step-no {
+        display: inline-flex; align-items: center; justify-content: center; flex: none;
+        width: 26px; height: 26px; border-radius: 50%;
+        background: #fff; color: var(--saedam-blue, #004ea2); font-size: .85rem; font-weight: 800;
+    }
+    .step-sub { font-size: .76rem; font-weight: 600; color: rgba(255,255,255,.85); }
+    .step-body { padding: 14px 16px 16px; }
+    .step-body .field:last-child { margin-bottom: 0; }
+    .method-summary {
+        display: flex; align-items: center; gap: 10px; margin-top: 10px;
+        font-size: .82rem; color: var(--text-gray); line-height: 1.5;
+    }
+    .method-summary #methodSummary { flex: 1; min-width: 0; }
+    .method-summary #methodSummary.warn { color: #9e2525; font-weight: 700; }
+    .method-summary .btn { flex: none; }
+    #detailBtn .caret { font-size: .7rem; transition: transform .15s ease; }
+    #detailBtn[aria-expanded="true"] .caret { transform: rotate(180deg); }
+    .warn-dot {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 16px; height: 16px; border-radius: 50%; background: #c0392b; color: #fff;
+        font-size: .68rem; font-weight: 800;
+    }
+    .detail-panel { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color); }
+    .detail-panel .kakao-box { margin-bottom: 14px; }
+    .send-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+    .send-actions .btn { flex: 1 1 160px; justify-content: center; padding-top: 12px; padding-bottom: 12px; }
+    /* 발송 방법 선택 */
+    .method-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .method-opt {
+        flex: 1 1 180px; display: flex; align-items: center; gap: 9px; cursor: pointer;
+        padding: 12px 14px; border: 1.5px solid var(--border-color); border-radius: 12px;
+        background: var(--card-bg, #fff); font-weight: 800; font-size: .9rem; color: var(--text-dark);
+    }
+    .method-opt input { width: auto; margin: 0; }
+    .method-opt small { margin-left: auto; font-size: .7rem; font-weight: 800; color: var(--text-gray); }
+    .method-opt.active { border-color: var(--saedam-blue, #004ea2); background: var(--tint, #eef4fb); }
+    .method-opt.kakao i { color: #3c1e1e; background: #fee500; border-radius: 6px; padding: 4px; font-size: .78rem; }
+    .method-opt.lms i { color: #fff; background: #2e7d32; border-radius: 6px; padding: 4px; font-size: .78rem; }
+    .kakao-box {
+        border: 1px solid var(--border-color); border-radius: 12px; padding: 14px;
+        background: var(--widget-bg, #f8fafc); margin-bottom: 18px;
+    }
+    .kakao-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .86rem; margin-bottom: 10px; }
+    .kakao-head .tpl-id { font-size: .72rem; color: var(--text-gray); word-break: break-all; }
+    .kakao-head .btn { margin-left: auto; }
+    .chip.approved { background: #e6f4ea; color: #176b36; }
+    .chip.pending { background: #fff3cd; color: #7a5b00; }
+    .kakao-vars { width: 100%; background: var(--card-bg, #fff); border-radius: 10px; overflow: hidden; }
+    .kakao-vars td { vertical-align: middle; font-size: .82rem; }
+    .kakao-vars code { font-weight: 800; color: #17457e; white-space: nowrap; }
+    .kakao-vars .auto { color: var(--text-gray); word-break: break-all; }
+    .kakao-vars .auto b { color: var(--text-dark); }
+    .kakao-vars .need { color: #9e2525; font-weight: 800; }
+    .kakao-vars input { width: 100%; box-sizing: border-box; padding: 7px 9px; font-size: .82rem; }
+    .kakao-vars input.required-empty { border-color: #c0392b; background: #fff6f6; }
+    .channel-tag { display: inline-block; margin-left: 4px; font-size: .68rem; font-weight: 800; color: var(--text-gray); }
     .msg { margin: 12px 0; padding: 12px 14px; border-radius: 9px; font-weight: 700; font-size: .86rem; display: none; }
     .msg.error { background: #fff0f0; color: #9e2525; display: block; }
     .msg.success { background: #e9f7ee; color: #176b36; display: block; }
@@ -285,7 +352,7 @@
     <div class="page-header">
         <div>
             <h1 class="page-title"><i class="fa-solid fa-square-poll-vertical"></i> <span id="headTitle">설문 만들기</span></h1>
-            <p class="page-sub">문항을 구성해 저장한 뒤, 수신자 탭에서 휴대폰번호를 등록하고 문자로 참여 URL을 보냅니다.</p>
+            <p class="page-sub">문항을 구성해 저장한 뒤, 수신자 탭에서 휴대폰번호를 등록하고 카카오 알림톡 또는 문자(LMS)로 참여 URL을 보냅니다.</p>
         </div>
         <div style="display:flex;gap:8px">
             <button type="button" class="btn" onclick="location.href='/survey/'"><i class="fa-solid fa-list"></i> 목록</button>
@@ -295,7 +362,7 @@
 
     <div class="tabs">
         <button type="button" class="tab active" data-panel="panelForm">1. 설문 내용</button>
-        <button type="button" class="tab" data-panel="panelSend" id="tabSend">2. 수신자 · 문자발송</button>
+        <button type="button" class="tab" data-panel="panelSend" id="tabSend">2. 수신자 · 발송</button>
     </div>
 
     <div id="globalMsg" class="msg"></div>
@@ -361,7 +428,7 @@
         </div>
     </section>
 
-    <!-- 2. 수신자 · 문자발송 -->
+    <!-- 2. 수신자 · 발송 -->
     <section id="panelSend" class="panel">
         <div class="stat-row">
             <div class="stat-box"><b id="cntRecipients">0</b><span>등록 수신자</span></div>
@@ -375,61 +442,135 @@
         <div class="send-split">
         <div class="send-col-left">
 
-        <div class="field">
-            <label>엑셀로 일괄 등록</label>
-            <div class="upload-row">
-                <button type="button" class="btn" id="templateBtn">
-                    <i class="fa-solid fa-file-arrow-down"></i> 엑셀 양식 내려받기
-                </button>
-                <label class="btn" for="recipientFile" style="margin:0">
-                    <i class="fa-solid fa-file-excel"></i> 엑셀 파일 선택
-                </label>
-                <input type="file" id="recipientFile" accept=".xlsx,.xlsm" style="display:none">
-                <span class="file-name" id="fileName"></span>
-                <button type="button" class="btn primary" id="uploadBtn">
-                    <i class="fa-solid fa-upload"></i> 업로드 등록
-                </button>
+        <!-- STEP 1. 수신자 등록 -->
+        <section class="step-card">
+            <h3 class="step-title"><span class="step-no">1</span> 수신자 등록
+                <span class="step-sub">등록한 수신자는 오른쪽 목록에 표시됩니다.</span></h3>
+            <div class="step-body">
+                <div class="field">
+                    <label>엑셀로 일괄 등록</label>
+                    <div class="upload-row">
+                        <button type="button" class="btn" id="templateBtn">
+                            <i class="fa-solid fa-file-arrow-down"></i> 엑셀 양식 내려받기
+                        </button>
+                        <label class="btn" for="recipientFile" style="margin:0">
+                            <i class="fa-solid fa-file-excel"></i> 엑셀 파일 선택
+                        </label>
+                        <input type="file" id="recipientFile" accept=".xlsx,.xlsm" style="display:none">
+                        <span class="file-name" id="fileName"></span>
+                        <button type="button" class="btn primary" id="uploadBtn">
+                            <i class="fa-solid fa-upload"></i> 업로드 등록
+                        </button>
+                    </div>
+                    <span class="hint">
+                        양식 열은 <b>번호 · 구분 · 이름 · 핸드폰번호 · 비고</b> 입니다. 이미 등록된 번호는 자동으로 건너뜁니다.
+                    </span>
+                </div>
+                <div class="field" style="margin-bottom:10px">
+                    <label for="recipientRaw">직접 입력으로 등록</label>
+                    <textarea id="recipientRaw" style="min-height:84px" placeholder="한 줄에 한 명씩 입력하세요.&#10;010-1234-5678&#10;홍길동,010-2345-6789"></textarea>
+                    <span class="hint">번호만 넣거나 <b>이름,번호</b> 형태로 넣을 수 있습니다(쉼표·탭·세로줄 구분).</span>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button type="button" class="btn primary" id="addRecipientBtn"><i class="fa-solid fa-user-plus"></i> 수신자 추가</button>
+                    <button type="button" class="btn danger" id="clearRecipientBtn"><i class="fa-solid fa-user-minus"></i> 전체 삭제</button>
+                </div>
             </div>
-            <span class="hint">
-                양식 열은 <b>번호 · 구분 · 이름 · 핸드폰번호 · 비고</b> 입니다.
-                실제 문자 발송에는 <b>이름</b>과 <b>핸드폰번호</b>만 사용하고, 구분·비고는 수신자 목록에 함께 표시됩니다.
-                번호는 보기용이라 등록할 때 쓰지 않으며, 이미 등록된 번호는 자동으로 건너뜁니다.
-            </span>
-        </div>
+        </section>
 
-        <div class="field">
-            <label for="recipientRaw">직접 입력으로 등록</label>
-            <textarea id="recipientRaw" style="min-height:120px" placeholder="한 줄에 한 명씩 입력하세요.&#10;010-1234-5678&#10;홍길동,010-2345-6789&#10;010-3456-7890,김새담"></textarea>
-            <span class="hint">번호만 넣거나 <b>이름,번호</b> 형태로 넣을 수 있습니다. 쉼표·탭·세로줄로 구분하며, 이미 등록된 번호는 자동으로 건너뜁니다.</span>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px">
-            <button type="button" class="btn primary" id="addRecipientBtn"><i class="fa-solid fa-user-plus"></i> 수신자 추가</button>
-            <button type="button" class="btn danger" id="clearRecipientBtn"><i class="fa-solid fa-user-minus"></i> 전체 삭제</button>
-        </div>
+        <!-- STEP 2. 발송방법 선택 -->
+        <section class="step-card">
+            <h3 class="step-title"><span class="step-no">2</span> 발송방법 선택</h3>
+            <div class="step-body">
+                <div class="method-row">
+                    <label class="method-opt kakao active">
+                        <input type="radio" name="sendMethod" value="kakao" checked>
+                        <i class="fa-solid fa-comment"></i> 카카오 알림톡 <small>기본</small>
+                    </label>
+                    <label class="method-opt lms">
+                        <input type="radio" name="sendMethod" value="lms">
+                        <i class="fa-solid fa-message"></i> 문자(LMS)
+                    </label>
+                </div>
+                <div class="method-summary">
+                    <span id="methodSummary">-</span>
+                    <button type="button" class="btn small" id="detailBtn" aria-expanded="false" aria-controls="detailPanel">
+                        <i class="fa-solid fa-gear"></i> 세부설정 <span class="warn-dot" id="detailWarn" style="display:none">!</span>
+                        <i class="fa-solid fa-chevron-down caret"></i>
+                    </button>
+                </div>
 
-        <div class="field">
-            <label for="smsTemplate">문자 내용</label>
-            <textarea id="smsTemplate" maxlength="500" style="min-height:90px"></textarea>
-            <div class="byte-meter">
-                <div class="byte-bar"><div class="byte-fill" id="byteFill"></div><div class="byte-mark" id="byteMark"></div></div>
-                <div class="byte-text" id="byteText"></div>
+                <div id="detailPanel" class="detail-panel" hidden>
+                    <div id="kakaoBox" class="kakao-box">
+                        <div class="kakao-head">
+                            <span>알림톡 템플릿 <b id="kakaoTplName">-</b></span>
+                            <span class="chip" id="kakaoTplStatus" style="display:none"></span>
+                            <span class="tpl-id" id="kakaoTplId"></span>
+                            <button type="button" class="btn small" id="kakaoReloadBtn" title="솔라피에서 템플릿을 다시 불러옵니다"><i class="fa-solid fa-rotate"></i> 다시 불러오기</button>
+                        </div>
+                        <div id="kakaoMsg" class="msg"></div>
+                        <table class="table kakao-vars">
+                            <thead>
+                                <tr>
+                                    <th style="width:110px">템플릿 변수</th>
+                                    <th>자동으로 들어갈 값</th>
+                                    <th style="width:38%">직접 입력 (선택)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kakaoVarBody">
+                                <tr><td colspan="3" style="text-align:center;color:var(--text-gray);padding:16px">템플릿을 불러오는 중입니다.</td></tr>
+                            </tbody>
+                        </table>
+                        <span class="hint" style="display:block;margin-top:8px">
+                            템플릿 본문·버튼은 솔라피에서 승인된 내용 그대로 발송되며, <b>#{변수}</b> 자리에만 값이 들어갑니다.
+                            직접 입력칸을 비워 두면 자동값을 쓰고, 입력하면 그 값이 우선합니다({제목} {기관명} {이름} {링크} 사용 가능).
+                        </span>
+                        <label class="q-check" style="margin-top:10px">
+                            <input type="checkbox" id="kakaoFallback" checked>
+                            알림톡 발송에 실패하면 아래 문자 내용으로 대체발송 (카카오톡 미사용자 등)
+                        </label>
+                    </div>
+
+                    <div class="field" id="smsField" style="margin-bottom:0">
+                        <label for="smsTemplate" id="smsTemplateLabel">문자 내용</label>
+                        <textarea id="smsTemplate" maxlength="500" style="min-height:90px"></textarea>
+                        <div class="byte-meter">
+                            <div class="byte-bar"><div class="byte-fill" id="byteFill"></div><div class="byte-mark" id="byteMark"></div></div>
+                            <div class="byte-text" id="byteText"></div>
+                        </div>
+                        <span class="hint">
+                            <b>{제목}</b>은 설문 제목, <b>{기관명}</b>은 솔라피설정의 발신 기관명, <b>{링크}</b>는 수신자별 응답 주소로 바뀝니다.
+                            <b>{링크}</b>는 반드시 포함해야 합니다. 한글·기호는 2바이트, 영문·숫자·공백은 1바이트로 셉니다.
+                        </span>
+                    </div>
+                </div>
             </div>
-            <span class="hint">
-                <b>{제목}</b>은 설문 제목, <b>{기관명}</b>은 솔라피설정의 발신 기관명, <b>{링크}</b>는 수신자별 응답 주소로 바뀝니다.
-                <b>{링크}</b>는 반드시 포함해야 합니다. 바이트는 치환된 실제 발송 내용 기준이며,
-                한글·기호는 2바이트, 영문·숫자·공백은 1바이트로 셉니다.
-            </span>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-            <button type="button" class="btn" id="previewBtn"><i class="fa-regular fa-eye"></i> 문자 미리보기</button>
-            <button type="button" class="btn" id="copyLinkBtn"><i class="fa-regular fa-copy"></i> 공용 링크 복사</button>
-        </div>
-        <div class="preview-box" id="previewBox">문자 미리보기 버튼을 누르면 실제 발송될 내용을 확인할 수 있습니다.</div>
+        </section>
 
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 0">
-            <button type="button" class="btn primary" id="sendBtn"><i class="fa-solid fa-paper-plane"></i> 미발송자에게 발송</button>
-            <button type="button" class="btn" id="resendBtn"><i class="fa-solid fa-rotate"></i> 전체 재발송</button>
-        </div>
+        <!-- STEP 3. 발송 미리보기 -->
+        <section class="step-card">
+            <h3 class="step-title"><span class="step-no">3</span> 발송 미리보기</h3>
+            <div class="step-body">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+                    <button type="button" class="btn" id="previewBtn"><i class="fa-regular fa-eye"></i> 발송 미리보기</button>
+                    <button type="button" class="btn" id="copyLinkBtn"><i class="fa-regular fa-copy"></i> 공용 링크 복사</button>
+                </div>
+                <div class="preview-box" id="previewBox">발송 미리보기 버튼을 누르면 첫 번째 수신자 기준으로 실제 발송될 내용을 확인할 수 있습니다.</div>
+            </div>
+        </section>
+
+        <!-- STEP 4. 발송 -->
+        <section class="step-card">
+            <h3 class="step-title"><span class="step-no">4</span> 발송
+                <span class="step-sub" id="sendMethodLabel"></span></h3>
+            <div class="step-body">
+                <div class="send-actions">
+                    <button type="button" class="btn primary" id="sendBtn"><i class="fa-solid fa-paper-plane"></i> 미발송자에게 발송</button>
+                    <button type="button" class="btn" id="resendBtn"><i class="fa-solid fa-rotate"></i> 전체 재발송</button>
+                </div>
+                <span class="hint">특정 수신자에게만 보내려면 오른쪽 목록에서 선택한 뒤 <b>선택 발송</b>을 누르세요.</span>
+            </div>
+        </section>
 
         </div>
 
@@ -497,6 +638,9 @@ const QTYPES = [
     ['scale', '5점 척도'],
 ];
 const SEND_LABEL = { ready: '대기', sent: '발송', failed: '실패' };
+const CHANNEL_LABEL = { kakao: '알림톡', lms: '문자' };
+const METHOD_LABEL = { kakao: '카카오 알림톡', lms: '문자(LMS)' };
+const METHOD_WITH = { kakao: '카카오 알림톡으로', lms: '문자(LMS)로' };
 const STATUS_LABEL = { draft: '작성중', open: '진행중', closed: '마감' };
 
 let surveyId = SURVEY_ID_INITIAL;
@@ -505,6 +649,11 @@ let questionsLocked = false;
 let publicLink = '';
 let defaultTemplate = '';
 let senderName = '새담';
+let sendMethod = 'kakao';          // 기본 발송방법: 카카오 알림톡
+let kakaoOverrides = {};           // 알림톡 변수 직접입력값 {변수명: 값}
+let kakaoReady = false;
+let smsReady = false;
+let kakaoLoadedFor = null;
 const SMS_BYTE_LIMIT = 90;
 const LMS_BYTE_LIMIT = 2000;
 
@@ -742,6 +891,8 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
                 allow_public_link: document.getElementById('allowPublicLink').checked,
                 allow_anonymous: document.getElementById('allowAnonymous').checked,
                 sms_template: document.getElementById('smsTemplate').value.trim() || defaultTemplate,
+                send_method: sendMethod,
+                kakao_variables: collectOverrides(),
                 questions: questions.map(question => ({
                     qtype: question.qtype,
                     title: question.title,
@@ -767,6 +918,7 @@ async function loadSurvey() {
         questions = [blankQuestion()];
         document.getElementById('smsTemplate').value = '[{기관명}] {제목} 설문에 참여해 주세요.\n{링크}';
         defaultTemplate = document.getElementById('smsTemplate').value;
+        setSendMethod('kakao', { silent: true });
         renderQuestions();
         updateByteMeter();
         return;
@@ -786,6 +938,9 @@ async function loadSurvey() {
     document.getElementById('allowPublicLink').checked = survey.allow_public_link;
     document.getElementById('allowAnonymous').checked = survey.allow_anonymous;
     document.getElementById('smsTemplate').value = survey.sms_template;
+    kakaoOverrides = Object.assign({}, survey.kakao_variables || {});
+    kakaoReady = !!data.kakao_ready;
+    smsReady = !!data.sms_ready;
 
     const resultBtn = document.getElementById('resultBtn');
     resultBtn.style.display = '';
@@ -818,10 +973,11 @@ async function loadSurvey() {
 
     if (!data.sms_ready) {
         showMessage('smsMsg',
-            '통합관리 > 솔라피설정에서 API KEY·API SECRET·발신번호를 먼저 저장해야 문자를 보낼 수 있습니다.', 'warn');
+            '통합관리 > 솔라피설정에서 API KEY·API SECRET·발신번호를 먼저 저장해야 알림톡·문자를 보낼 수 있습니다.', 'warn');
     }
     renderRecipients(data.recipients || []);
     renderLogs(data.send_logs || []);
+    setSendMethod(survey.send_method || data.default_send_method || 'kakao', { silent: true });
     updateByteMeter();
 }
 
@@ -842,7 +998,7 @@ function renderRecipients(items) {
             <td>${escapeHtml(item.name || '-')}</td>
             <td class="num">${escapeHtml(item.phone)}</td>
             <td style="font-size:.82rem;color:var(--text-gray)">${escapeHtml(item.note || '')}</td>
-            <td><span class="chip ${item.send_status}">${SEND_LABEL[item.send_status] || item.send_status}</span></td>
+            <td><span class="chip ${item.send_status}">${SEND_LABEL[item.send_status] || item.send_status}</span>${item.send_channel && item.send_status !== 'ready' ? `<span class="channel-tag">${CHANNEL_LABEL[item.send_channel] || ''}</span>` : ''}</td>
             <td class="num">${escapeHtml(item.sent_at || '-')}</td>
             <td>${item.responded_at ? `<span class="chip done">${escapeHtml(item.responded_at)}</span>` : '<span style="color:var(--text-gray)">미응답</span>'}</td>
             <td style="color:#9e2525;font-size:.8rem">${escapeHtml(item.send_error || '')}</td>
@@ -997,10 +1153,26 @@ document.getElementById('previewBtn').addEventListener('click', async () => {
     try {
         const data = await api(`/survey/api/${surveyId}/preview`, {
             method: 'POST',
-            body: JSON.stringify({ sms_template: document.getElementById('smsTemplate').value.trim() }),
+            body: JSON.stringify({
+                sms_template: document.getElementById('smsTemplate').value.trim(),
+                send_method: sendMethod,
+                kakao_variables: collectOverrides(),
+            }),
         });
-        document.getElementById('previewBox').textContent =
-            `[${data.message_type} · ${data.bytes}바이트 · 실제 발송 기준]\n\n${data.text}`;
+        let text;
+        if (data.send_method === 'kakao') {
+            text = `[카카오 알림톡 · 미리보기 대상: ${data.preview_target}]\n\n${data.text}`;
+            if ((data.missing || []).length) {
+                text += `\n\n※ 값이 비어 있는 변수: ${data.missing.map(name => '#{' + name + '}').join(', ')} — 직접 입력칸을 채워 주세요.`;
+            }
+            if (data.problem) text += `\n\n※ ${data.problem}`;
+            if (document.getElementById('kakaoFallback').checked) {
+                text += `\n\n──────── 알림톡 실패 시 대체문자 (${data.fallback_type} · ${data.bytes}바이트) ────────\n${data.fallback_text}`;
+            }
+        } else {
+            text = `[${data.message_type} · ${data.bytes}바이트 · 실제 발송 기준]\n\n${data.text}`;
+        }
+        document.getElementById('previewBox').textContent = text;
     } catch (error) { showMessage('smsMsg', error.message, 'error'); }
 });
 
@@ -1019,9 +1191,15 @@ async function sendSurvey(options) {
     buttons.forEach(button => { button.disabled = true; });
     try {
         const data = await api(`/survey/api/${surveyId}/send`, {
-            method: 'POST', body: JSON.stringify(options),
+            method: 'POST',
+            body: JSON.stringify(Object.assign({
+                send_method: sendMethod,
+                kakao_variables: collectOverrides(),
+                sms_template: document.getElementById('smsTemplate').value.trim() || defaultTemplate,
+                fallback: document.getElementById('kakaoFallback').checked,
+            }, options)),
         });
-        let text = `총 ${data.total}건 중 ${data.success}건 접수, ${data.failed}건 실패했습니다.`;
+        let text = `[${METHOD_LABEL[data.send_method] || ''}] 총 ${data.total}건 중 ${data.success}건 접수, ${data.failed}건 실패했습니다.`;
         if (data.failed && (data.failures || []).length) {
             text += '\n실패: ' + data.failures.map(item => `${item.phone} (${item.error})`).join(' / ');
         }
@@ -1035,19 +1213,19 @@ async function sendSurvey(options) {
 }
 
 document.getElementById('sendBtn').addEventListener('click', () => {
-    if (!confirm('아직 발송하지 않은 수신자에게 설문 문자를 보낼까요?\n문자 발송 비용이 발생합니다.')) return;
+    if (!confirm(`아직 발송하지 않은 수신자에게 ${METHOD_WITH[sendMethod]} 설문을 보낼까요?\n발송 비용이 발생합니다.`)) return;
     sendSurvey({});
 });
 
 document.getElementById('resendBtn').addEventListener('click', () => {
-    if (!confirm('이미 발송한 사람을 포함해 전체에게 다시 보낼까요?\n중복 수신과 문자 발송 비용이 발생합니다.')) return;
+    if (!confirm(`이미 발송한 사람을 포함해 전체에게 ${METHOD_WITH[sendMethod]} 다시 보낼까요?\n중복 수신과 발송 비용이 발생합니다.`)) return;
     sendSurvey({ resend: true });
 });
 
 document.getElementById('sendSelectedBtn').addEventListener('click', () => {
     const ids = selectedRecipientIds();
     if (!ids.length) { showMessage('smsMsg', '발송할 수신자를 선택해 주세요.', 'error'); return; }
-    if (!confirm(`선택한 ${ids.length}명에게 설문 문자를 보낼까요?\n문자 발송 비용이 발생합니다.`)) return;
+    if (!confirm(`선택한 ${ids.length}명에게 ${METHOD_WITH[sendMethod]} 설문을 보낼까요?\n발송 비용이 발생합니다.`)) return;
     sendSurvey({ ids });
 });
 
@@ -1059,8 +1237,164 @@ document.querySelectorAll('.tab').forEach(tab => {
         document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
         tab.classList.add('active');
         document.getElementById(tab.dataset.panel).classList.add('active');
+        if (tab.id === 'tabSend' && sendMethod === 'kakao') loadKakaoTemplate();
     });
 });
+
+/* ---------------- 발송 방법 / 알림톡 템플릿 ---------------- */
+function setSendMethod(method, opts) {
+    sendMethod = method === 'lms' ? 'lms' : 'kakao';
+    document.querySelectorAll('input[name=sendMethod]').forEach(input => {
+        input.checked = input.value === sendMethod;
+        input.closest('.method-opt').classList.toggle('active', input.checked);
+    });
+    const isKakao = sendMethod === 'kakao';
+    document.getElementById('kakaoBox').style.display = isKakao ? '' : 'none';
+    document.getElementById('smsTemplateLabel').textContent =
+        isKakao ? '대체발송 문자 내용 (알림톡 실패 시)' : '문자 내용';
+    document.getElementById('smsField').style.opacity =
+        isKakao && !document.getElementById('kakaoFallback').checked ? '.5' : '';
+    document.getElementById('sendMethodLabel').textContent = `${METHOD_WITH[sendMethod]} 발송합니다.`;
+    updateMethodSummary();
+    if (isKakao && surveyId && document.getElementById('panelSend').classList.contains('active')) {
+        loadKakaoTemplate();
+    }
+}
+
+document.querySelectorAll('input[name=sendMethod]').forEach(input => {
+    input.addEventListener('change', () => { if (input.checked) setSendMethod(input.value); });
+});
+document.getElementById('kakaoFallback').addEventListener('change', () => setSendMethod(sendMethod, { silent: true }));
+document.getElementById('smsTemplate').addEventListener('input', () => updateMethodSummary());
+
+/* 세부설정(솔라피 템플릿·변수·문자 내용)은 버튼을 눌렀을 때만 펼친다. */
+function setDetailOpen(open) {
+    const panel = document.getElementById('detailPanel');
+    panel.hidden = !open;
+    document.getElementById('detailBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+document.getElementById('detailBtn').addEventListener('click', () => {
+    setDetailOpen(document.getElementById('detailPanel').hidden);
+});
+
+// 알림톡 템플릿 상태: 접힌 상태에서도 한 줄 요약으로 보여 준다.
+let kakaoState = { loaded: false, name: '', approved: false, problem: '', error: '', missing: 0 };
+
+function updateMethodSummary() {
+    const box = document.getElementById('methodSummary');
+    const warn = document.getElementById('detailWarn');
+    let text = '', bad = false;
+    if (sendMethod === 'kakao') {
+        const fallback = document.getElementById('kakaoFallback').checked ? '실패 시 문자 대체발송' : '대체발송 없음';
+        if (!kakaoReady && surveyId) {
+            text = '알림톡 설정이 없습니다. 통합관리 > 솔라피설정을 확인해 주세요.'; bad = true;
+        } else if (kakaoState.error) {
+            text = '템플릿을 불러오지 못했습니다. 세부설정을 확인해 주세요.'; bad = true;
+        } else if (!kakaoState.loaded) {
+            text = `템플릿 확인 중… · ${fallback}`;
+        } else if (kakaoState.problem) {
+            text = `템플릿 「${kakaoState.name}」 승인 대기 — 지금은 발송할 수 없습니다.`; bad = true;
+        } else if (kakaoState.missing) {
+            text = `템플릿 「${kakaoState.name}」 · 직접 입력이 필요한 변수 ${kakaoState.missing}개`; bad = true;
+        } else {
+            text = `템플릿 「${kakaoState.name}」 ${kakaoState.approved ? '승인' : ''} · ${fallback}`;
+        }
+    } else {
+        const bytes = textBytes(renderTemplate(document.getElementById('smsTemplate').value));
+        const kind = bytes > SMS_BYTE_LIMIT ? 'LMS 장문' : 'SMS 단문';
+        text = `문자 내용으로 발송 · ${kind} ${bytes}바이트 (세부설정에서 수정)`;
+        if (!smsReady && surveyId) { text = '문자 발송 설정이 없습니다. 통합관리 > 솔라피설정을 확인해 주세요.'; bad = true; }
+    }
+    box.textContent = text;
+    box.classList.toggle('warn', bad);
+    warn.style.display = bad ? '' : 'none';
+}
+
+function collectOverrides() {
+    document.querySelectorAll('#kakaoVarBody input[data-var]').forEach(input => {
+        const value = input.value.trim();
+        if (value) kakaoOverrides[input.dataset.var] = value;
+        else delete kakaoOverrides[input.dataset.var];
+    });
+    return Object.assign({}, kakaoOverrides);
+}
+
+async function loadKakaoTemplate(refresh) {
+    if (!surveyId) return;
+    const body = document.getElementById('kakaoVarBody');
+    if (!refresh && kakaoLoadedFor === surveyId && body.querySelector('input[data-var]')) return;
+    const msg = document.getElementById('kakaoMsg');
+    msg.className = 'msg';
+    msg.textContent = '';
+    if (!kakaoReady) {
+        body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-gray);padding:16px">알림톡 설정이 없습니다.</td></tr>';
+        showMessage('kakaoMsg', '통합관리 > 솔라피설정에서 API KEY·SECRET·발신번호와 설문조사 알림톡 채널 ID·템플릿 ID를 먼저 저장해 주세요.', 'error');
+        updateMethodSummary();
+        return;
+    }
+    try {
+        const data = await api(`/survey/api/${surveyId}/kakao-template`, {
+            method: 'POST',
+            body: JSON.stringify({ refresh: !!refresh, kakao_variables: collectOverrides() }),
+        });
+        kakaoLoadedFor = surveyId;
+        const tpl = data.template || {};
+        document.getElementById('kakaoTplName').textContent = tpl.name || '(이름 없음)';
+        document.getElementById('kakaoTplId').textContent = tpl.template_id || '';
+        const statusChip = document.getElementById('kakaoTplStatus');
+        const approved = String(tpl.status || '').toUpperCase() === 'APPROVED';
+        statusChip.style.display = tpl.status ? '' : 'none';
+        statusChip.className = 'chip ' + (approved ? 'approved' : 'pending');
+        statusChip.textContent = approved ? '승인' : (tpl.status || '');
+        kakaoState = {
+            loaded: true, name: tpl.name || '(이름 없음)', approved,
+            problem: data.problem || '', error: '', missing: 0,
+        };
+        renderKakaoVariables(data.variables || []);
+        if (data.problem) showMessage('kakaoMsg', data.problem, 'error');
+        else if (kakaoState.missing) {
+            showMessage('kakaoMsg', '자동으로 채울 수 없는 변수가 있습니다. 빨간 칸에 값을 직접 입력해 주세요.', 'error');
+            setDetailOpen(true);   // 직접 입력이 필요하면 세부설정을 펼쳐 보여 준다.
+        }
+    } catch (error) {
+        kakaoState = { loaded: false, name: '', approved: false, problem: '', error: error.message, missing: 0 };
+        body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-gray);padding:16px">템플릿을 불러오지 못했습니다.</td></tr>';
+        showMessage('kakaoMsg', error.message, 'error');
+    }
+    updateMethodSummary();
+}
+
+function renderKakaoVariables(rows) {
+    const body = document.getElementById('kakaoVarBody');
+    body.innerHTML = '';
+    if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-gray);padding:16px">이 템플릿에는 변수가 없습니다. 승인된 문구 그대로 발송됩니다.</td></tr>';
+        return;
+    }
+    rows.forEach(row => {
+        const tr = document.createElement('tr');
+        const auto = row.source
+            ? `<b>${escapeHtml(row.source_label)}</b><br>${escapeHtml(row.override ? '(직접 입력값 사용)' : row.value)}`
+            : `<span class="need">${escapeHtml(row.source_label)}</span>`;
+        tr.innerHTML = `
+            <td><code>${escapeHtml(row.key)}</code>${row.strip_scheme ? '<br><small style="color:var(--text-gray)">https:// 제외</small>' : ''}</td>
+            <td class="auto">${auto}</td>
+            <td><input type="text" maxlength="300" data-var="${escapeHtml(row.name)}"
+                       value="${escapeHtml(kakaoOverrides[row.name] || '')}"
+                       placeholder="${row.source ? '비워 두면 자동값' : '값을 입력해 주세요'}"></td>`;
+        const input = tr.querySelector('input');
+        const mark = () => {
+            input.classList.toggle('required-empty', !row.source && !input.value.trim());
+            kakaoState.missing = document.querySelectorAll('#kakaoVarBody input.required-empty').length;
+            updateMethodSummary();
+        };
+        input.addEventListener('input', mark);
+        body.appendChild(tr);
+        mark();
+    });
+}
+
+document.getElementById('kakaoReloadBtn').addEventListener('click', () => loadKakaoTemplate(true));
 
 document.addEventListener('DOMContentLoaded', () => {
     loadSurvey().catch(error => showMessage('globalMsg', error.message, 'error'));

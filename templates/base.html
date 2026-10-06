@@ -1035,12 +1035,17 @@
                             </a>
                             <div class="dropdown-content">
                                 {% if menu_access.get('approval_main', true) %}<a href="/approval"><i class="fa-solid fa-file-signature"></i>사내결재</a>{% endif %}
-                                 {% if menu_access.get('verified_contract_admin', true) %}
-                                 <a href="/verified-contract/admin"><i class="fa-solid fa-file-signature"></i>인증전자계약관리</a>
+                                 {% if menu_access.get('verified_contract_instructor', true) %}
+                                 <a href="/verified-contract/instructor/admin"><i class="fa-solid fa-file-signature"></i>강사전자계약</a>
+                                 {% endif %}
+                                 {% if menu_access.get('verified_contract_employee', true) %}
+                                 <a href="/verified-contract/employee/admin"><i class="fa-solid fa-file-contract"></i>임직원전자계약</a>
                                  {% endif %}
                                 
                                 <!-- 기존 증명서발급 세부 메뉴들 -->
-                                {% if menu_access.get('document_admin', true) %}<a href="/document/admin"><i class="fa-solid fa-file-invoice"></i>증명서 발급관리</a>{% endif %}
+                                {% if menu_access.get('document_instructor', true) %}<a href="/document/instructor/admin"><i class="fa-solid fa-file-invoice"></i>강사증명 발급관리</a>{% endif %}
+                                {% if menu_access.get('document_employee', true) %}<a href="/document/employee/admin"><i class="fa-solid fa-id-card"></i>임직원증명 발급관리</a>{% endif %}
+                                {% if menu_access.get('document_excellent', true) %}<a href="/document/excellent/admin"><i class="fa-solid fa-award"></i>우수강사인증서 관리</a>{% endif %}
                                 {% if menu_access.get('expense_main', true) %}<a href="/expense"><i class="fa-solid fa-receipt"></i>지출결의 관리</a>{% endif %}
                             </div>
                         </li>
@@ -1049,17 +1054,31 @@
                         <!-- 3. 학교관리 메뉴 신설 (드롭다운 서브메뉴 추가) -->
                         {% if menu_access.get('school_group', true) %}
                         <li class="menu-item-wrapper dropdown">
-                            <a href="javascript:void(0);" class="menu-item {% if 'school' in request.path or request.path.startswith('/survey') or request.path.startswith('/billing') or request.path.startswith('/student-attendance') %}active{% endif %}">
+                            <a href="javascript:void(0);" class="menu-item {% if 'school' in request.path and not request.path.startswith('/school/guide') %}active{% endif %}">
                                 <i class="fa-solid fa-school"></i> 학교관리
                             </a>
                             <div class="dropdown-content">
                                 {% if menu_access.get('school_workspace', true) %}<a href="/school"><i class="fa-solid fa-chalkboard-user"></i>학교업무공간</a>{% endif %}
                                 {% if menu_access.get('school_tasks', true) %}<a href="/school/tasks"><i class="fa-solid fa-list-check"></i>학교업무처리</a>{% endif %}
                                 {% if menu_access.get('school_calendar', true) %}<a href="/school/calendar"><i class="fa-solid fa-calendar-week"></i>학교일정표</a>{% endif %}
+                            </div>
+                        </li>
+                        {% endif %}
+
+                        <!-- 3-2. 학교지원 메뉴 (학교관리 오른쪽) -->
+                        {% if menu_access.get('school_support_group', true) %}
+                        <li class="menu-item-wrapper dropdown">
+                            <a href="javascript:void(0);" class="menu-item {% if request.path.startswith('/instructor-hub') or request.path.startswith('/survey') or request.path.startswith('/billing') or request.path.startswith('/student-attendance') or request.path.startswith('/school/guide') or request.path.startswith('/parent-notifications') or (request.path.startswith('/ebook') and not request.path.startswith('/ebook/books')) %}active{% endif %}">
+                                <i class="fa-solid fa-handshake-angle"></i> 학교지원
+                            </a>
+                            <div class="dropdown-content">
                                 {% if menu_access.get('school_survey', true) %}<a href="/survey/"><i class="fa-solid fa-square-poll-vertical"></i>설문조사</a>{% endif %}
-                                {% if menu_access.get('school_billing', false) %}<a href="/billing/"><i class="fa-solid fa-file-invoice-dollar"></i>청구업무</a>{% endif %}
                                 {% if menu_access.get('school_classroom_guide', true) %}<a href="/school/guide/"><i class="fa-solid fa-map-location-dot"></i>교실안내</a>{% endif %}
                                 {% if menu_access.get('school_student_attendance', false) %}<a href="{{ url_for('student_attendance.admin_page') }}"><i class="fa-solid fa-user-check"></i>학생출석관리</a>{% endif %}
+                                {% if menu_access.get('ebook_library', true) %}<a href="{{ url_for('ebook.library') }}"><i class="fa-solid fa-book-open-reader"></i>e리플렛</a>{% endif %}
+                                {% if menu_access.get('parent_notifications', false) %}<a href="/parent-notifications"><i class="fa-solid fa-bell"></i>학부모알림전송</a>{% endif %}
+                                {% if menu_access.get('school_billing', false) %}<a href="/billing/"><i class="fa-solid fa-file-invoice-dollar"></i>청구업무</a>{% endif %}
+                                {% if menu_access.get('school_instructor_hub', false) %}<a href="/instructor-hub/"><i class="fa-solid fa-chalkboard-user"></i>강사통합지원</a>{% endif %}
                             </div>
                         </li>
                         {% endif %}
@@ -1067,7 +1086,7 @@
                         <!-- 4. 업무지원 메뉴 (기존 유지) -->
                         {% if menu_access.get('support_group', true) %}
                         <li class="menu-item-wrapper dropdown">
-                            <a href="javascript:void(0);" class="menu-item {% if 'payroll' in request.path or 'ai-mail' in request.path or 'ai-agent' in request.path or 'smart-document' in request.path or 'excel-generator' in request.path or request.path.startswith('/parent-notifications') or (request.path.startswith('/ebook') and not request.path.startswith('/ebook/books')) %}active{% endif %}">
+                            <a href="javascript:void(0);" class="menu-item {% if 'payroll' in request.path or 'ai-mail' in request.path or 'ai-agent' in request.path or 'smart-document' in request.path or 'excel-generator' in request.path %}active{% endif %}">
                                 <i class="fa-solid fa-briefcase"></i> 업무지원
                             </a>
                             <div class="dropdown-content">
@@ -1075,8 +1094,6 @@
                                 {% if menu_access.get('payroll_main', true) %}<a href="/payroll"><i class="fa-solid fa-envelope-open-text"></i>스마트 명세서 발송</a>{% endif %}
                                 {% if menu_access.get('ai_mail_main', true) %}<a href="/ai-mail"><i class="fa-solid fa-wand-magic-sparkles"></i>스마트 메일 발송</a>{% endif %}
                                 {% if menu_access.get('excel_generator', true) %}<a href="{{ url_for('excel_generator.deposit_index') }}"><i class="fa-solid fa-file-excel"></i>입금용 엑셀 생성기</a>{% endif %}
-                                {% if menu_access.get('ebook_library', true) %}<a href="{{ url_for('ebook.library') }}"><i class="fa-solid fa-book-open-reader"></i>e리플렛</a>{% endif %}
-                                {% if menu_access.get('parent_notifications', false) %}<a href="/parent-notifications"><i class="fa-solid fa-bell"></i>학부모알림전송</a>{% endif %}
                                 {% if menu_access.get('ai_agent_main', true) %}<a href="{{ url_for('ai_agent.index') }}"><i class="fa-solid fa-robot"></i>AI에이전트</a>{% endif %}
                             </div>
                         </li>

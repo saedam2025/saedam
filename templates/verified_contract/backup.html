@@ -36,7 +36,7 @@
 
 <div class="vcb-wrap">
     <div class="vcb-head">
-        <h2><i class="fa-solid fa-box-archive"></i>전체 백업 나눠받기</h2>
+        <h2><i class="fa-solid fa-box-archive"></i>{{ vc_kind_label }} 전체 백업 나눠받기</h2>
         <p>한 번에 받으면 파일이 커서 네트워크가 끊길 수 있어, <b>{{ chunk_size }}개씩</b> 나누어 내려받습니다.<br>
         아래 링크를 위에서부터 하나씩 눌러 저장하세요. 계약리스트(엑셀)는 1부에 함께 들어 있고, 따로 받으실 수도 있습니다.</p>
     </div>
@@ -53,7 +53,7 @@
         {% for size in chunk_sizes %}
         <a class="vcb-size {% if size==chunk_size %}on{% endif %}" href="?size={{ size }}">{{ size }}개씩</a>
         {% endfor %}
-        <a class="vcbtn vcbtn--solid" style="margin-left:auto;text-decoration:none" href="/verified-contract/admin/backup/list">
+        <a class="vcbtn vcbtn--solid" style="margin-left:auto;text-decoration:none" href="/verified-contract/{{ vc_kind }}/admin/backup/list">
             <i class="fa-solid fa-file-excel"></i>계약리스트만 받기</a>
     </div>
 
@@ -68,7 +68,7 @@
                 <td>{{ part.count }}개{% if part.index==1 %}<span class="vcb-tag">+ 계약리스트</span>{% endif %}</td>
                 <td>{{ part.size_text }}</td>
                 <td><a class="vcbtn vcbtn--solid" style="text-decoration:none"
-                       href="/verified-contract/admin/backup/part?size={{ chunk_size }}&part={{ part.index }}">
+                       href="/verified-contract/{{ vc_kind }}/admin/backup/part?size={{ chunk_size }}&part={{ part.index }}">
                     <i class="fa-solid fa-download"></i>내려받기</a></td>
             </tr>
         {% endfor %}
@@ -79,7 +79,7 @@
     {% endif %}
 
     <div class="vcb-foot">
-        <a class="vcbtn vcbtn--solid" style="text-decoration:none" href="/verified-contract/admin">
+        <a class="vcbtn vcbtn--solid" style="text-decoration:none" href="/verified-contract/{{ vc_kind }}/admin">
             <i class="fa-solid fa-arrow-left"></i>관리자 페이지로 돌아가기</a>
         <button type="button" class="vcbtn vcbtn--line" onclick="toggleDiagnostics()">진단 정보 보기</button>
     </div>
