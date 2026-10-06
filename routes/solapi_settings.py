@@ -9,6 +9,7 @@ import json
 import os
 import re
 import secrets
+import time
 from datetime import datetime, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -32,6 +33,13 @@ DEFAULT_SENDER_NAME = "새담"
 SMS_BYTE_LIMIT = 90
 # 한 번의 send-many 요청에 담을 최대 건수.
 BULK_CHUNK_SIZE = 100
+# 설문조사 링크 알림톡 기본값(카카오 채널·승인 템플릿). 통합관리 > 솔라피설정에서 바꿀 수 있다.
+SURVEY_KAKAO_PF_ID = "KA01PF260904081609259ib9u2XiMmdC"
+SURVEY_KAKAO_TEMPLATE_ID = "KA01TP260928063952776ZNYzvHisk7Z"
+SOLAPI_TEMPLATE_URL = "https://api.solapi.com/kakao/v2/templates/{template_id}"
+# 템플릿 조회 결과를 잠시 보관해 미리보기·발송 때마다 API를 부르지 않게 한다.
+TEMPLATE_CACHE_SECONDS = 600
+_TEMPLATE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 
 
 def _fernet() -> Fernet:
@@ -131,6 +139,8 @@ def _environment_settings() -> dict[str, str]:
         "from_number": re.sub(r"\D", "", str(os.environ.get("SOLAPI_FROM", ""))),
         "public_origin": str(os.environ.get("PUBLIC_ORIGIN", "")).strip().rstrip("/"),
         "sender_name": str(os.environ.get("SOLAPI_SENDER_NAME", "")).strip(),
+        "survey_pf_id": str(os.environ.get("SOLAPI_SURVEY_PF_ID", "")).strip(),
+        "survey_template_id": str(os.environ.get("SOLAPI_SURVEY_TEMPLATE_ID", "")).strip(),
     }
 
 
@@ -178,6 +188,14 @@ def get_settings(conn=None) -> dict[str, Any]:
         "sender_name": str(
             store.get("sender_name") or environment["sender_name"] or DEFAULT_SENDER_NAME
         ),
+        "survey_pf_id": str(
+            store.get("survey_pf_id") or environment["survey_pf_id"] or SURVEY_KAKAO_PF_ID
+        ).strip(),
+        "survey_template_id": str(
+            store.get("survey_template_id")
+            or environment["survey_template_id"]
+            or SURVEY_KAKAO_TEMPLATE_ID
+        ).strip(),
         "updated_by": str(store.get("updated_by") or ""),
         "updated_at": str(store.get("updated_at") or ""),
     }
@@ -191,7 +209,10 @@ def get_settings(conn=None) -> dict[str, Any]:
             "from_number",
         )
     )
-    configured_from_env = any(environment.values())
+    configured_from_env = any(
+        value for key, value in environment.items()
+        if key not in {"survey_pf_id", "survey_template_id"}
+    )
     result["source"] = (
         "database" if configured_from_db else "environment" if configured_from_env else "none"
     )
@@ -202,6 +223,10 @@ def get_settings(conn=None) -> dict[str, Any]:
     # 설문조사 URL 문자는 알림톡 템플릿 없이 API 키·시크릿·발신번호만으로 보낸다.
     result["sms_configured"] = all(
         result.get(key) for key in ("api_key", "api_secret", "from_number")
+    )
+    # 설문조사 알림톡은 문자 설정에 설문 전용 채널 ID·템플릿 ID가 더해져야 한다.
+    result["survey_kakao_configured"] = bool(
+        result["sms_configured"] and result["survey_pf_id"] and result["survey_template_id"]
     )
     return result
 
@@ -223,6 +248,9 @@ def settings_for_view() -> dict[str, Any]:
         "source": settings.get("source", "none"),
         "configured": bool(settings.get("configured")),
         "sms_configured": bool(settings.get("sms_configured")),
+        "survey_pf_id": settings.get("survey_pf_id", ""),
+        "survey_template_id": settings.get("survey_template_id", ""),
+        "survey_kakao_configured": bool(settings.get("survey_kakao_configured")),
     }
 
 
@@ -236,6 +264,8 @@ def save_settings(
     actor: object,
     public_origin: object = None,
     sender_name: object = None,
+    survey_pf_id: object = None,
+    survey_template_id: object = None,
     clear_credentials: bool = False,
 ) -> None:
     api_key_text = str(api_key or "").strip()
@@ -247,11 +277,17 @@ def save_settings(
     sender_text = (
         str(sender_name).strip()[:30] if sender_name is not None else None
     )
+    survey_pf_text = str(survey_pf_id).strip() if survey_pf_id is not None else None
+    survey_template_text = (
+        str(survey_template_id).strip() if survey_template_id is not None else None
+    )
 
     # 알림톡 항목은 문자 전용으로만 쓰는 설치본을 위해 선택 입력으로 둔다.
     for label, value, maximum in (
         ("SOLAPI PF ID", pf_id_text, 120),
         ("SOLAPI 템플릿 ID", template_id_text, 120),
+        ("설문조사 알림톡 채널 ID", survey_pf_text or "", 120),
+        ("설문조사 알림톡 템플릿 ID", survey_template_text or "", 120),
     ):
         if value and (len(value) > maximum or re.search(r"\s", value)):
             raise ValueError(f"{label} 값을 확인해 주세요.")
@@ -300,6 +336,12 @@ def save_settings(
             store["public_origin"] = origin_text
         if sender_text is not None:
             store["sender_name"] = sender_text
+        # 비워 두면 저장값을 지워 코드에 들어 있는 기본 채널·템플릿으로 돌아간다.
+        if survey_pf_text is not None:
+            store["survey_pf_id"] = survey_pf_text
+        if survey_template_text is not None:
+            store["survey_template_id"] = survey_template_text
+            _TEMPLATE_CACHE.clear()
         conn.execute(
             """
             INSERT INTO admin_settings (key, value, updated_at)
@@ -700,6 +742,13 @@ def send_bulk_text(
             }
         prepared.append(row)
 
+    return _dispatch_prepared(prepared, active)
+
+
+def _dispatch_prepared(
+    prepared: list[dict[str, Any]], active: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """payload가 준비된 행을 BULK_CHUNK_SIZE씩 접수하고 결과를 행에 기록한다."""
     sendable = [row for row in prepared if row.get("payload")]
     for start in range(0, len(sendable), BULK_CHUNK_SIZE):
         chunk = sendable[start:start + BULK_CHUNK_SIZE]
@@ -714,3 +763,211 @@ def send_bulk_text(
     for row in prepared:
         row.pop("payload", None)
     return prepared
+
+
+# ---------------------------------------------------------------------------
+# 카카오 알림톡 템플릿 조회 · 대량 발송 (설문조사)
+# ---------------------------------------------------------------------------
+_VARIABLE_PATTERN = re.compile(r"#\{([^{}#]{1,40})\}")
+# 변수가 들어갈 수 있는 템플릿 항목. comments(검수 의견) 등은 제외한다.
+_TEMPLATE_TEXT_FIELDS = (
+    "content", "emphasizeTitle", "emphasizeSubtitle", "header", "extra", "ad",
+    "buttons", "quickReplies", "highlight", "item",
+)
+
+
+def _collect_strings(value: object, sink: list[str]) -> None:
+    if isinstance(value, str):
+        sink.append(value)
+    elif isinstance(value, dict):
+        for item in value.values():
+            _collect_strings(item, sink)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _collect_strings(item, sink)
+
+
+def template_variables(template: dict[str, Any]) -> list[dict[str, Any]]:
+    """템플릿에서 #{변수} 목록을 등장 순서대로 뽑는다.
+
+    버튼 주소가 https://#{url} 처럼 스킴 뒤에 변수를 두는 경우 그 변수에는
+    https:// 를 뺀 주소를 넣어야 하므로 strip_scheme 표시를 함께 돌려준다.
+    """
+    texts: list[str] = []
+    for field in _TEMPLATE_TEXT_FIELDS:
+        _collect_strings(template.get(field), texts)
+    for item in template.get("variables") or []:
+        name = item.get("name") if isinstance(item, dict) else item
+        if name:
+            texts.append(str(name))
+    joined = "\n".join(texts)
+
+    ordered: list[str] = []
+    for match in _VARIABLE_PATTERN.finditer(joined):
+        name = match.group(1).strip()
+        if name and name not in ordered:
+            ordered.append(name)
+    return [
+        {
+            "name": name,
+            "key": f"#{{{name}}}",
+            "strip_scheme": bool(
+                re.search(r"https?://#\{" + re.escape(name) + r"\}", joined)
+            ),
+        }
+        for name in ordered
+    ]
+
+
+def _get_json(url: str, settings: dict[str, Any]) -> dict[str, Any]:
+    request_object = Request(
+        url,
+        method="GET",
+        headers={
+            "Authorization": _authorization(settings),
+            "User-Agent": "Saedam-Intranet/1.0",
+        },
+    )
+    try:
+        with urlopen(request_object, timeout=15) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        try:
+            detail = json.loads(exc.read().decode("utf-8"))
+            reason = detail.get("errorMessage") or detail.get("message") or "요청 거절"
+            code = detail.get("errorCode") or exc.code
+            reason = f"[{code}] {reason}"
+        except Exception:
+            reason = str(exc)
+        raise RuntimeError(f"SOLAPI 템플릿 조회 실패: {reason}") from exc
+    except (URLError, TimeoutError, OSError, ValueError) as exc:
+        raise RuntimeError(f"SOLAPI 서버 연결 실패: {exc}") from exc
+    if not isinstance(data, dict):
+        raise RuntimeError("SOLAPI 템플릿 응답 형식을 확인할 수 없습니다.")
+    return data
+
+
+def fetch_kakao_template(
+    template_id: object = None,
+    *,
+    settings: dict[str, Any] | None = None,
+    refresh: bool = False,
+) -> dict[str, Any]:
+    """솔라피에 등록된 알림톡 템플릿(본문·버튼·변수)을 조회한다."""
+    active = settings or get_settings()
+    if not all(active.get(key) for key in ("api_key", "api_secret")):
+        raise RuntimeError("SOLAPI API KEY·SECRET을 먼저 저장해 주세요.")
+    target = str(template_id or active.get("survey_template_id") or "").strip()
+    if not target or re.search(r"[^A-Za-z0-9_-]", target):
+        raise RuntimeError("알림톡 템플릿 ID를 확인해 주세요.")
+
+    cached = _TEMPLATE_CACHE.get(target)
+    if cached and not refresh and time.time() - cached[0] < TEMPLATE_CACHE_SECONDS:
+        return cached[1]
+
+    data = _get_json(SOLAPI_TEMPLATE_URL.format(template_id=target), active)
+    template = {
+        "template_id": str(data.get("templateId") or target),
+        "name": str(data.get("name") or ""),
+        "status": str(data.get("status") or ""),
+        "channel_id": str(data.get("channelId") or ""),
+        "content": str(data.get("content") or ""),
+        "emphasize_type": str(data.get("emphasizeType") or "NONE"),
+        "emphasize_title": str(data.get("emphasizeTitle") or ""),
+        "emphasize_subtitle": str(data.get("emphasizeSubtitle") or ""),
+        "header": str(data.get("header") or ""),
+        "extra": str(data.get("extra") or ""),
+        "buttons": [
+            {
+                "type": str(item.get("buttonType") or ""),
+                "name": str(item.get("buttonName") or ""),
+                "link_mo": str(item.get("linkMo") or ""),
+                "link_pc": str(item.get("linkPc") or ""),
+            }
+            for item in data.get("buttons") or []
+            if isinstance(item, dict)
+        ],
+        "variables": template_variables(data),
+    }
+    _TEMPLATE_CACHE[target] = (time.time(), template)
+    return template
+
+
+def fill_template_text(text: object, variables: dict[str, str]) -> str:
+    """미리보기용으로 템플릿 문구의 #{변수}를 실제 값으로 바꾼다."""
+    result = str(text or "")
+    for key, value in variables.items():
+        result = result.replace(key, str(value))
+    return result
+
+
+def send_bulk_alimtalk(
+    recipients: list[dict[str, Any]],
+    *,
+    pf_id: object = None,
+    template_id: object = None,
+    fallback: bool = True,
+    settings: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """카카오 알림톡을 여러 명에게 보내고 수신자별 접수 결과를 돌려준다.
+
+    recipients 각 항목은 {'to', 'variables': {'#{변수}': 값},
+    'fallback_text', 'fallback_subject'} 형태다. fallback=True이면 알림톡이
+    실패한 수신자에게 fallback_text를 문자(SMS/LMS)로 대신 보낸다.
+    반환값은 send_bulk_text와 같은 {'to', 'ok', 'message_id', 'error'} 목록이다.
+    """
+    active = settings or get_settings()
+    _require_complete(active, kakao=False)
+    channel = str(pf_id or active.get("survey_pf_id") or "").strip()
+    template = str(template_id or active.get("survey_template_id") or "").strip()
+    if not channel or not template:
+        raise RuntimeError("설문조사 알림톡 채널 ID·템플릿 ID가 설정되지 않았습니다.")
+
+    prepared: list[dict[str, Any]] = []
+    for entry in recipients:
+        entry = entry or {}
+        row: dict[str, Any] = {
+            "to": str(entry.get("to") or ""),
+            "ok": False,
+            "message_id": "",
+            "error": "",
+            "phone": "",
+        }
+        try:
+            row["phone"] = normalize_phone(row["to"], required=True)
+        except ValueError as exc:
+            row["error"] = str(exc)
+            prepared.append(row)
+            continue
+        variables = {
+            str(key): str(value if value is not None else "")
+            for key, value in (entry.get("variables") or {}).items()
+        }
+        payload: dict[str, Any] = {
+            "to": row["phone"],
+            "from": active["from_number"],
+            "type": "ATA",
+            "kakaoOptions": {
+                "pfId": channel,
+                "templateId": template,
+                "disableSms": not fallback,
+                "variables": variables,
+            },
+        }
+        fallback_text = str(entry.get("fallback_text") or "").strip()
+        if fallback and fallback_text:
+            # 템플릿에 저장된 대체문구는 제목이 비어 LMS 전환 시 1010으로 거절될 수 있어
+            # (전자계약 알림톡과 같은 이유) 제목이 있는 대체문자를 직접 실어 보낸다.
+            replacement: dict[str, Any] = {
+                "from": active["from_number"],
+                "text": fallback_text,
+            }
+            if message_byte_length(fallback_text) > SMS_BYTE_LIMIT:
+                replacement["subject"] = (
+                    str(entry.get("fallback_subject") or "").strip() or DEFAULT_SENDER_NAME
+                )[:40]
+            payload["replacements"] = [replacement]
+        row["payload"] = payload
+        prepared.append(row)
+
+    return _dispatch_prepared(prepared, active)

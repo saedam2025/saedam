@@ -334,11 +334,24 @@ def _get_leaflet(conn, ebook_id: int):
     return book
 
 
+def _publicly_visible(book) -> bool:
+    """강사 홍보 리플렛처럼 본사 승인이 필요한 리플렛은 승인 전에는 외부에 보이지 않는다.
+
+    승인 열(approval_status)이 없거나 'approved'면 예전처럼 공개하고,
+    인트라넷에 로그인한 직원은 승인 전에도 미리 볼 수 있다.
+    """
+    try:
+        status = str(book["approval_status"] or "approved")
+    except (IndexError, KeyError):
+        status = "approved"
+    return status == "approved" or _is_staff()
+
+
 def _get_shared_leaflet(conn, token: str):
     book = conn.execute(
         "SELECT * FROM ebooks WHERE share_token=? AND kind='leaflet'", (token,)
     ).fetchone()
-    if not book:
+    if not book or not _publicly_visible(book):
         abort(404)
     return book
 
@@ -665,7 +678,7 @@ def serve_cover(ebook_id):
     conn = get_db()
     try:
         book = conn.execute("SELECT * FROM ebooks WHERE id=?", (ebook_id,)).fetchone()
-        if not book:
+        if not book or not _publicly_visible(book):
             abort(404)
         cover_path = book["cover_path"]
     finally:
@@ -684,13 +697,15 @@ def serve_page_image(ebook_id, page_id):
     conn = get_db()
     try:
         row = conn.execute(
-            """SELECT p.image_path,p.image_filename FROM ebook_pages p
+            """SELECT p.image_path,p.image_filename,e.* FROM ebook_pages p
                JOIN ebooks e ON e.id=p.ebook_id
                WHERE p.id=? AND p.ebook_id=? AND e.kind='leaflet'""",
             (page_id, ebook_id),
         ).fetchone()
     finally:
         conn.close()
+    if row and not _publicly_visible(row):
+        abort(404)
     if not row or not row["image_path"] or not os.path.isfile(row["image_path"]):
         abort(404)
     return encrypted_response(

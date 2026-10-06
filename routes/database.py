@@ -55,6 +55,95 @@ def get_db():
     return conn
 
 
+# 증명서 발급관리는 강사 / 임직원 / 우수강사 세 메뉴가 서로 다른 테이블을 쓴다.
+# (예전 단일 테이블 certificate_requests 는 이관 후에도 백업용으로 그대로 둔다.)
+CERTIFICATE_REQUEST_TABLES = {
+    'instructor': 'instructor_certificate_requests',
+    'employee': 'employee_certificate_requests',
+    'excellent': 'excellent_certificate_requests',
+}
+CERTIFICATE_SPLIT_META_KEY = 'certificate_requests_split_v1'
+
+
+def _ensure_certificate_request_table(conn, table):
+    conn.execute(f'''
+        CREATE TABLE IF NOT EXISTS {table} (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            applied_date TEXT,
+            applicant_type TEXT,
+            certificate_type TEXT NOT NULL,
+            applicant_name TEXT NOT NULL,
+            resident_number TEXT,
+            home_address TEXT,
+            work_start_date TEXT,
+            work_end_date TEXT,
+            workplace TEXT,
+            subject_or_duty TEXT,
+            purpose TEXT,
+            position TEXT,
+            email TEXT,
+            status TEXT NOT NULL DEFAULT '대기',
+            issued_date TEXT,
+            issue_number TEXT,
+            termination_reason TEXT,
+            filename TEXT,
+            workgroup_id INTEGER,
+            company_id INTEGER,
+            workgroup_name TEXT NOT NULL DEFAULT '',
+            company_name TEXT NOT NULL DEFAULT '',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.execute(
+        f'CREATE INDEX IF NOT EXISTS idx_{table}_status ON {table}(status)'
+    )
+    conn.execute(
+        f'CREATE INDEX IF NOT EXISTS idx_{table}_name ON {table}(applicant_name)'
+    )
+
+
+_SPLIT_COPY_COLUMNS = (
+    'applied_date, applicant_type, certificate_type, applicant_name, '
+    'resident_number, home_address, work_start_date, work_end_date, '
+    'workplace, subject_or_duty, purpose, position, email, status, '
+    'issued_date, issue_number, termination_reason, filename, '
+    'workgroup_id, company_id, workgroup_name, company_name, '
+    'created_at, updated_at'
+)
+
+
+def split_certificate_requests(conn):
+    """예전 certificate_requests 를 강사/임직원/우수강사 테이블로 복사한다.
+
+    id를 그대로 유지하므로 우수강사 신청-명단그룹 연결도 같은 id로 옮겨진다.
+    원본 테이블은 지우지 않고, 이미 복사된 id는 건너뛰므로 여러 번 실행해도 안전하다.
+    """
+    excellent = "REPLACE(certificate_type, ' ', '')='우수강사인증서'"
+    selectors = {
+        'excellent': excellent,
+        'employee': f"NOT ({excellent}) AND COALESCE(applicant_type, '')='임직원'",
+        'instructor': f"NOT ({excellent}) AND COALESCE(applicant_type, '')<>'임직원'",
+    }
+    for kind, condition in selectors.items():
+        table = CERTIFICATE_REQUEST_TABLES[kind]
+        conn.execute(f'''
+            INSERT OR IGNORE INTO {table} (id, {_SPLIT_COPY_COLUMNS})
+            SELECT id, {_SPLIT_COPY_COLUMNS}
+            FROM certificate_requests WHERE {condition}
+        ''')
+    conn.execute('''
+        INSERT OR IGNORE INTO excellent_certificate_request_groups (
+            request_id, group_id, applicant_name,
+            resident_number_normalized, created_at
+        )
+        SELECT rg.request_id, rg.group_id, rg.applicant_name,
+               rg.resident_number_normalized, rg.created_at
+        FROM excellent_instructor_request_groups rg
+        JOIN excellent_certificate_requests r ON r.id=rg.request_id
+    ''')
+
+
 def ensure_certificate_schema(conn):
     """증명발급 신청을 saedam.db에 저장하기 위한 표준 스키마."""
     conn.execute('''
@@ -213,6 +302,34 @@ def ensure_certificate_schema(conn):
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    for request_table in CERTIFICATE_REQUEST_TABLES.values():
+        _ensure_certificate_request_table(conn, request_table)
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS excellent_certificate_request_groups (
+            request_id INTEGER NOT NULL,
+            group_id INTEGER NOT NULL,
+            applicant_name TEXT NOT NULL,
+            resident_number_normalized TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (request_id, group_id),
+            FOREIGN KEY (request_id) REFERENCES excellent_certificate_requests(id) ON DELETE CASCADE,
+            FOREIGN KEY (group_id) REFERENCES excellent_instructor_roster_groups(id)
+        )
+    ''')
+    conn.execute(
+        'CREATE INDEX IF NOT EXISTS idx_excellent_cert_request_group_identity '
+        'ON excellent_certificate_request_groups('
+        'group_id, applicant_name, resident_number_normalized)'
+    )
+    if not conn.execute(
+        'SELECT 1 FROM certificate_schema_meta WHERE key=?',
+        (CERTIFICATE_SPLIT_META_KEY,),
+    ).fetchone():
+        split_certificate_requests(conn)
+        conn.execute('''
+            INSERT INTO certificate_schema_meta (key, value, updated_at)
+            VALUES (?, 'complete', CURRENT_TIMESTAMP)
+        ''', (CERTIFICATE_SPLIT_META_KEY,))
     eligibility_columns = {
         row['name'] if hasattr(row, 'keys') else row[1]
         for row in conn.execute(
@@ -512,6 +629,8 @@ def migrate_legacy_certificates(conn):
             value=excluded.value,
             updated_at=CURRENT_TIMESTAMP
     ''', (migration_key, f'imported:{inserted_count}'))
+    # 방금 가져온 엑셀 행도 분리된 테이블로 옮긴다.
+    split_certificate_requests(conn)
     return inserted_count
 
 
@@ -1631,8 +1750,14 @@ def init_db():
         ''')
 
     migrate_legacy_certificates(conn)
-    from .verified_contract_repository import ensure_verified_contract_schema
+    from .verified_contract_repository import (
+        ensure_verified_contract_schema,
+        split_verified_contracts,
+    )
     ensure_verified_contract_schema(conn)
+    # 예전 통합 계약 테이블을 강사/임직원 테이블로 1회 복사한다(원본은 백업용으로 남김).
+    from .verified_contract import category_kind_of_type
+    split_verified_contracts(conn, category_kind_of_type())
     purge_legacy_contract_system(conn)
 
     tabs_count = c.execute("SELECT count(*) FROM gallery_tabs").fetchone()[0]

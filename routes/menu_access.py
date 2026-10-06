@@ -6,6 +6,16 @@ from .database import get_db
 from .organization import normalize_department
 
 
+DOCUMENT_KIND_MENUS = {
+    'instructor': 'document_instructor',
+    'employee': 'document_employee',
+    'excellent': 'document_excellent',
+}
+# 인증전자계약은 강사전자계약 / 임직원전자계약 두 메뉴로 나뉜다.
+VERIFIED_CONTRACT_KIND_MENUS = {
+    'instructor': 'verified_contract_instructor',
+    'employee': 'verified_contract_employee',
+}
 SCHOOL_DIRECTOR_SCOPE_SETTING = 'school_director_scope_enabled'
 # '본부전용' 메뉴 설정: 소속부서가 북부지점인 회원에게만 메뉴를 숨긴다.
 DEPARTMENT_BLOCK_LABEL = '본부전용'
@@ -70,8 +80,11 @@ MENU_GROUPS = (
         'default_max_level': 14,
         'children': (
             ('approval_main', '사내결재', 'fa-file-signature', 14),
-            ('verified_contract_admin', '인증전자계약관리', 'fa-file-signature', 2),
-            ('document_admin', '증명서 발급관리', 'fa-file-invoice', 14),
+            ('verified_contract_instructor', '강사전자계약', 'fa-file-signature', 2),
+            ('verified_contract_employee', '임직원전자계약', 'fa-file-contract', 2),
+            ('document_instructor', '강사증명 발급관리', 'fa-file-invoice', 14),
+            ('document_employee', '임직원증명 발급관리', 'fa-id-card', 14),
+            ('document_excellent', '우수강사인증서 관리', 'fa-award', 14),
             ('expense_main', '지출결의 관리', 'fa-receipt', 14),
         ),
     },
@@ -84,11 +97,6 @@ MENU_GROUPS = (
             ('school_workspace', '학교업무공간', 'fa-chalkboard-user', 14),
             ('school_tasks', '학교업무처리', 'fa-list-check', 14),
             ('school_calendar', '학교일정표', 'fa-calendar-week', 14),
-            ('school_survey', '설문조사', 'fa-square-poll-vertical', 14),
-            ('school_billing', '청구업무', 'fa-file-invoice-dollar', 5),
-            ('school_classroom_guide', '교실안내', 'fa-map-location-dot', 14),
-            ('school_classroom_guide_edit', '교실안내 - 배치도 편집·공유링크', 'fa-pen-ruler', 7),
-            ('school_student_attendance', '학생출석관리', 'fa-user-check', 7),
             ('school_center_boards', '[센터장] 일반 게시판 (9개 메뉴 일괄)', 'fa-table-list', 14),
             ('school_center_shared', '[센터장] 본부공지사항·자료실 - 접근', 'fa-door-open', 8),
             ('school_center_shared_read', '[센터장] 본부공지사항·자료실 - 읽기', 'fa-book-open', 8),
@@ -96,6 +104,22 @@ MENU_GROUPS = (
             ('school_center_shared_delete', '[센터장] 본부공지사항·자료실 - 삭제', 'fa-trash', 5),
             ('school_center_shared_comment', '[센터장] 본부공지사항·자료실 - 댓글', 'fa-comments', 8),
             ('school_center_event', '[센터장] 이벤트 탭', 'fa-gift', 14),
+        ),
+    },
+    {
+        'key': 'school_support_group',
+        'label': '학교지원',
+        'icon': 'fa-handshake-angle',
+        'default_max_level': 14,
+        'children': (
+            ('school_survey', '설문조사', 'fa-square-poll-vertical', 14),
+            ('school_classroom_guide', '교실안내', 'fa-map-location-dot', 14),
+            ('school_classroom_guide_edit', '교실안내 - 배치도 편집·공유링크', 'fa-pen-ruler', 7),
+            ('school_student_attendance', '학생출석관리', 'fa-user-check', 7),
+            ('ebook_library', 'e리플렛', 'fa-book-open-reader', 14),
+            ('parent_notifications', '학부모알림전송', 'fa-bell', 7),
+            ('school_billing', '청구업무', 'fa-file-invoice-dollar', 5),
+            ('school_instructor_hub', '강사통합지원', 'fa-chalkboard-user', 7),
         ),
     },
     {
@@ -108,8 +132,6 @@ MENU_GROUPS = (
             ('smart_document_main', '스마트 공문발송', 'fa-file-circle-check', 14),
             ('ai_mail_main', '스마트 메일 발송', 'fa-wand-magic-sparkles', 14),
             ('excel_generator', '입금용 엑셀 생성기', 'fa-file-excel', 14),
-            ('ebook_library', 'e리플렛', 'fa-book-open-reader', 14),
-            ('parent_notifications', '학부모알림전송', 'fa-bell', 7),
             ('ai_agent_main', 'AI에이전트', 'fa-robot', 14),
         ),
     },
@@ -209,6 +231,45 @@ def ensure_menu_access_schema(conn):
             'ADD COLUMN block_north_branch INTEGER NOT NULL DEFAULT 0'
         )
         conn.commit()
+    # 예전 '증명서 발급관리(document_admin)' 권한 설정은 분리된 세 메뉴가 처음에는
+    # 같은 값을 쓰도록 1회 승계한다(이후에는 메뉴별로 따로 조정할 수 있다).
+    conn.execute('''
+        INSERT OR IGNORE INTO menu_access_permissions (
+            menu_key, max_level, block_north_branch, updated_by
+        )
+        SELECT n.menu_key, p.max_level, p.block_north_branch, p.updated_by
+        FROM menu_access_permissions p
+        CROSS JOIN (
+            SELECT 'document_instructor' AS menu_key
+            UNION ALL SELECT 'document_employee'
+            UNION ALL SELECT 'document_excellent'
+        ) n
+        WHERE p.menu_key='document_admin'
+    ''')
+    # 예전 '인증전자계약관리(verified_contract_admin)' 권한도 두 메뉴가 같은 값으로 1회 승계한다.
+    conn.execute('''
+        INSERT OR IGNORE INTO menu_access_permissions (
+            menu_key, max_level, block_north_branch, updated_by
+        )
+        SELECT n.menu_key, p.max_level, p.block_north_branch, p.updated_by
+        FROM menu_access_permissions p
+        CROSS JOIN (
+            SELECT 'verified_contract_instructor' AS menu_key
+            UNION ALL SELECT 'verified_contract_employee'
+        ) n
+        WHERE p.menu_key='verified_contract_admin'
+    ''')
+    # 새 주메뉴 '학교지원'은 처음에는 '학교관리'와 같은 권한·본부전용 값을 1회 승계한다.
+    # (설문조사 등은 예전에 학교관리 주메뉴 권한을 따랐으므로 보이는 범위가 달라지지 않게 한다.)
+    conn.execute('''
+        INSERT OR IGNORE INTO menu_access_permissions (
+            menu_key, max_level, block_north_branch, updated_by
+        )
+        SELECT 'school_support_group', max_level, block_north_branch, updated_by
+        FROM menu_access_permissions
+        WHERE menu_key='school_group'
+    ''')
+    conn.commit()
 
 
 def school_director_scope_enabled(conn=None):
@@ -470,15 +531,16 @@ def resolve_request_menu(path, endpoint='', view_args=None):
         }:
             return 'organization_invite'
         return 'admin_people'
-    if path.startswith('/verified-contract/admin'):
-        return 'verified_contract_admin'
-    if path.startswith('/document/admin/settings') or path.startswith('/document/api/') \
-            or path.startswith('/document/company-seal') or path.startswith('/document/company-logo'):
-        return 'document_admin'
-    if path.startswith('/document/admin') or path.startswith('/document/generate') \
-            or path.startswith('/document/delete') or path.startswith('/document/send_simple_email') \
-            or path.startswith('/document/edit') or path.startswith('/document/pdf'):
-        return 'document_admin'
+    for contract_kind, contract_menu in VERIFIED_CONTRACT_KIND_MENUS.items():
+        if path.startswith(f'/verified-contract/{contract_kind}/admin'):
+            return contract_menu
+    # 예전 주소(/verified-contract/admin)는 접근 가능한 메뉴로 보내기만 하므로 라우트에서 검사한다.
+    # 증명서 발급관리는 강사 / 임직원 / 우수강사 세 메뉴로 완전히 분리돼 있다.
+    # 공통 설정 API(회사·작업그룹·발송계정)는 세 메뉴 중 하나라도 있으면 쓸 수 있어
+    # 라우트에서 직접 검사하므로 여기서는 메뉴를 지정하지 않는다.
+    for document_kind, document_menu in DOCUMENT_KIND_MENUS.items():
+        if path.startswith(f'/document/{document_kind}/'):
+            return document_menu
     if path.startswith('/approval'):
         return 'approval_main'
     # 강사용 전송페이지는 인트라넷 메뉴 레벨 대신 전용 비밀번호로 보호한다.
@@ -491,6 +553,11 @@ def resolve_request_menu(path, endpoint='', view_args=None):
     # 설문 응답 링크는 인트라넷 계정 없이 여는 공개 주소라 메뉴 권한을 적용하지 않는다.
     if path.startswith('/survey/r/'):
         return None
+    # 강사 포털(/teacher-hub)과 학부모 링크페이지(/school-link)는 계정 없이 여는 공개 주소다.
+    if path.startswith('/teacher-hub') or path.startswith('/school-link/'):
+        return None
+    if path.startswith('/instructor-hub'):
+        return 'school_instructor_hub'
     if path.startswith('/survey'):
         return 'school_survey'
     # 학교회원 포털은 인트라넷 계정이 아닌 별도 로그인으로 보호한다.

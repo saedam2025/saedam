@@ -718,7 +718,12 @@ def _personal_storage_usage(conn, logical_usage, storage_roots):
         add_file(row['owner'], row['thumb_name'], os.path.join(str(GALL2_ROOT), 'thumbnails'))
 
     try:
-        contract_rows = conn.execute('SELECT created_by owner, signature_filename, pdf_filename FROM verified_contracts').fetchall()
+        from .verified_contract_repository import CONTRACT_TABLES
+        contract_rows = []
+        for contract_table_name in CONTRACT_TABLES.values():
+            contract_rows += conn.execute(
+                f'SELECT created_by owner, signature_filename, pdf_filename FROM {contract_table_name}'
+            ).fetchall()
     except sqlite3.Error:
         contract_rows = []
     for row in contract_rows:
@@ -1664,6 +1669,8 @@ def save_solapi_settings_route():
             from_number=request.form.get('from_number'),
             public_origin=request.form.get('public_origin'),
             sender_name=request.form.get('sender_name'),
+            survey_pf_id=request.form.get('survey_pf_id'),
+            survey_template_id=request.form.get('survey_template_id'),
             actor=session.get('emp_no') or session.get('user_name') or 'admin',
             clear_credentials=request.form.get('clear_credentials') == '1',
         )

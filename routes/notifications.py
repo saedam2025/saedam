@@ -67,12 +67,18 @@ def widget_notifications():
         expense_wait_count = expense_wait[0] if expense_wait else 0
 
         # 증명서 발급 대기
-        certificate_wait = conn.execute("""
-            SELECT COUNT(*)
-            FROM certificate_requests
-            WHERE status = '대기'
-        """).fetchone()
-        cert_wait_count = certificate_wait[0] if certificate_wait else 0
+        # 강사 / 임직원 / 우수강사 증명서는 테이블이 분리돼 있어 모두 합산한다.
+        for cert_table in (
+            'instructor_certificate_requests',
+            'employee_certificate_requests',
+            'excellent_certificate_requests',
+        ):
+            try:
+                cert_wait_count += conn.execute(
+                    f"SELECT COUNT(*) FROM {cert_table} WHERE status = '대기'"
+                ).fetchone()[0]
+            except Exception:
+                pass
     except Exception as e:
         print("메인 DB 조회 오류:", e)
     finally:
@@ -81,8 +87,9 @@ def widget_notifications():
     # 2. 인증전자계약 미완료 건수 (saedam.db 통합 테이블)
     try:
         c_conn = get_db()
+        from .verified_contract_repository import contract_source
         c_row = c_conn.execute(
-            "SELECT COUNT(*) FROM verified_contracts "
+            f"SELECT COUNT(*) FROM {contract_source()} "
             "WHERE LOWER(COALESCE(status,'')) NOT IN ('completed','signed')"
         ).fetchone()
         contract_miss_count = c_row[0] if c_row else 0

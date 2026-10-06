@@ -37,6 +37,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    g,
     send_file,
     session,
     url_for,
@@ -54,7 +55,8 @@ from .payroll import (
     _smtp_login_for_sender,
     _verify_smtp_sender,
 )
-from .security import load_credential_secret, menu_permission_required
+from .menu_access import VERIFIED_CONTRACT_KIND_MENUS
+from .security import has_menu_permission, load_credential_secret, menu_permission_required
 from .storage import (
     APP_ROOT,
     COMPANY_STAMP_ROOT,
@@ -69,6 +71,9 @@ from .storage import (
     VERIFIED_TERMS_ROOT,
 )
 from .verified_contract_repository import (
+    CONTRACT_TABLES,
+    contract_table,
+    event_table,
     add_verified_contract_event,
     insert_verified_contract,
     update_verified_contract,
@@ -111,6 +116,14 @@ DEFAULT_CATEGORIES = [
     "원어민근로자",
     "원어민사업자",
 ]
+# 인증전자계약은 강사전자계약 / 임직원전자계약 두 메뉴로 나뉜다.
+# 계약구분(방과후강사 등)이 어느 쪽에 속하는지는 category_kinds.json에 저장하며,
+# 저장된 값이 없는 예전 계약구분은 아래 기본 분류를 따른다.
+VC_KIND_LABELS = {"instructor": "강사전자계약", "employee": "임직원전자계약"}
+VC_KIND_PREFIX = "/<any(instructor,employee):kind>"
+DEFAULT_EMPLOYEE_CATEGORIES = frozenset(
+    {"코디사업자", "코디근로자", "안전코디", "전담코디", "직원근로자", "직원사업자"}
+)
 MAX_COMPANY_PROFILES = 20
 # 이메일 인증번호 유효시간. 화면 안내·메일 본문·만료 판정이 모두 이 값을 따른다.
 OTP_VALID_MINUTES = 3
@@ -204,6 +217,7 @@ DEFAULTS_ROOT = APP_ROOT / "verified_contract_defaults"
 BUNDLED_TERMS_ROOT = APP_ROOT / "terms"
 VERIFIED_CATEGORIES_FILE = VERIFIED_CONTRACT_ROOT / "categories.json"
 VERIFIED_TITLES_FILE = VERIFIED_CONTRACT_ROOT / "contract_titles.json"
+VERIFIED_CATEGORY_KINDS_FILE = VERIFIED_CONTRACT_ROOT / "category_kinds.json"
 VERIFIED_COMPANY_FILE = VERIFIED_CONTRACT_ROOT / "company_settings.json"
 VERIFIED_MAIL_FILE = VERIFIED_CONTRACT_ROOT / "mail_settings.json"
 
@@ -445,7 +459,7 @@ def _verified_contract_security_headers(response):
     return response
 
 
-def _categories() -> list[str]:
+def _all_categories() -> list[str]:
     value = _json_file(VERIFIED_CATEGORIES_FILE, DEFAULT_CATEGORIES)
     if not isinstance(value, list):
         return DEFAULT_CATEGORIES.copy()
@@ -459,6 +473,72 @@ def _categories() -> list[str]:
         ):
             result.append(name)
     return result or DEFAULT_CATEGORIES.copy()
+
+
+def _category_kind_map() -> dict[str, str]:
+    value = _json_file(VERIFIED_CATEGORY_KINDS_FILE, {})
+    return value if isinstance(value, dict) else {}
+
+
+def _category_kind(name: str, kind_map: dict[str, str] | None = None) -> str:
+    saved = (kind_map if kind_map is not None else _category_kind_map()).get(name)
+    if saved in VC_KIND_LABELS:
+        return saved
+    return "employee" if name in DEFAULT_EMPLOYEE_CATEGORIES else "instructor"
+
+
+def _current_kind() -> str | None:
+    try:
+        return g.get("vc_kind")
+    except RuntimeError:  # 앱 컨텍스트 밖(스크립트·테스트)에서는 구분 없이 전체를 본다.
+        return None
+
+
+def _categories(kind: str | None = None) -> list[str]:
+    """계약구분 목록. kind를 주지 않으면 현재 메뉴(강사/임직원)의 구분만 돌려준다."""
+    kind = kind or _current_kind()
+    names = _all_categories()
+    if kind not in VC_KIND_LABELS:
+        return names
+    kind_map = _category_kind_map()
+    return [name for name in names if _category_kind(name, kind_map) == kind]
+
+
+def category_kind_of_type():
+    """계약구분 이름 -> 'instructor'|'employee' 판정 함수(예전 계약을 두 테이블로 나눌 때 사용)."""
+    kind_map = _category_kind_map()
+    return lambda name: _category_kind(str(name or ""), kind_map)
+
+
+def contract_types_for_kinds(kinds) -> list[str]:
+    """주어진 메뉴(강사/임직원)들에 속한 계약구분 이름 전체(다른 모듈에서 권한별 조회에 사용)."""
+    wanted = {kind for kind in kinds if kind in VC_KIND_LABELS}
+    kind_map = _category_kind_map()
+    return [name for name in _all_categories() if _category_kind(name, kind_map) in wanted]
+
+
+@verified_contract_bp.url_value_preprocessor
+def _pull_kind(endpoint, values):
+    if values and "kind" in values:
+        g.vc_kind = values.pop("kind")
+
+
+@verified_contract_bp.url_defaults
+def _fill_kind(endpoint, values):
+    from flask import current_app
+
+    if "kind" not in values and current_app.url_map.is_endpoint_expecting(endpoint, "kind"):
+        values["kind"] = g.get("vc_kind") or "instructor"
+
+
+def _kind_menu_required(view):
+    """주소의 강사/임직원 구분에 맞는 메뉴 권한을 검사한다."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        menu_key = VERIFIED_CONTRACT_KIND_MENUS[g.vc_kind]
+        return menu_permission_required(menu_key)(view)(*args, **kwargs)
+
+    return wrapped
 
 
 def _titles() -> dict[str, str]:
@@ -789,10 +869,16 @@ def _external_url(token: str) -> str:
 
 
 def _load_by_token(conn, token: str):
-    return conn.execute(
-        "SELECT * FROM verified_contracts WHERE invitation_token_hash=?",
-        (_token_hash(token),),
-    ).fetchone()
+    """공개 서명 링크의 계약을 찾는다. 강사/임직원 테이블을 모두 찾아 이후 처리가 같은 테이블을 쓰게 한다."""
+    token_hash = _token_hash(token)
+    for kind, table in CONTRACT_TABLES.items():
+        row = conn.execute(
+            f"SELECT * FROM {table} WHERE invitation_token_hash=?", (token_hash,)
+        ).fetchone()
+        if row:
+            g.vc_kind = kind
+            return row
+    return None
 
 
 def _contract_available(row) -> tuple[bool, str]:
@@ -1178,7 +1264,16 @@ def _resolve_company_snapshot(value: object) -> dict:
 
 
 @verified_contract_bp.route("/admin")
-@menu_permission_required("verified_contract_admin")
+def legacy_admin_page():
+    """예전 인증전자계약관리 주소: 접근할 수 있는 첫 메뉴(강사 → 임직원)로 보낸다."""
+    for kind, menu_key in VERIFIED_CONTRACT_KIND_MENUS.items():
+        if session.get("emp_no") and has_menu_permission(menu_key):
+            return redirect(url_for("verified_contract.admin_page", kind=kind))
+    return menu_permission_required("verified_contract_instructor")(lambda: "")()
+
+
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin")
+@_kind_menu_required
 def admin_page():
     page = max(1, request.args.get("page", 1, type=int))
     status_filter = str(request.args.get("status", "")).strip()
@@ -1239,8 +1334,8 @@ def admin_page():
     try:
         now_text = _iso()
         expired_rows = conn.execute(
-            """
-            SELECT id FROM verified_contracts
+            f"""
+            SELECT id FROM {contract_table()}
             WHERE status='pending' AND invitation_expires_at < ?
             """,
             (now_text,),
@@ -1253,19 +1348,19 @@ def admin_page():
         counts = {
             row["status"]: row["count"]
             for row in conn.execute(
-                "SELECT status, COUNT(*) AS count FROM verified_contracts GROUP BY status"
+                f"SELECT status, COUNT(*) AS count FROM {contract_table()} GROUP BY status"
             ).fetchall()
         }
         filter_values = conn.execute(
-            """
+            f"""
             SELECT DISTINCT substr(COALESCE(signed_at, created_at),1,4) AS year,
                             school_name, department
-            FROM verified_contracts
+            FROM {contract_table()}
             """
         ).fetchall()
         total = int(
             conn.execute(
-                f"SELECT COUNT(*) FROM verified_contracts {where_sql}",
+                f"SELECT COUNT(*) FROM {contract_table()} {where_sql}",
                 params,
             ).fetchone()[0]
         )
@@ -1273,7 +1368,7 @@ def admin_page():
         per_page = 50
         rows = conn.execute(
             f"""
-            SELECT * FROM verified_contracts
+            SELECT * FROM {contract_table()}
             {where_sql}
             ORDER BY {sort_column} {sort_dir_sql}, id DESC LIMIT ? OFFSET ?
             """,
@@ -1287,9 +1382,9 @@ def admin_page():
                 dup_row["department"],
             ): dup_row["cnt"]
             for dup_row in conn.execute(
-                """
+                f"""
                 SELECT signer_name, contract_type, school_name, department, COUNT(*) AS cnt
-                FROM verified_contracts
+                FROM {contract_table()}
                 WHERE status NOT IN ('voided','superseded','revoked')
                 GROUP BY signer_name, contract_type, school_name, department
                 HAVING COUNT(*) > 1
@@ -1331,6 +1426,8 @@ def admin_page():
         query=query,
         categories=_categories(),
         categories_list=_categories(),
+        vc_kind=_current_kind(),
+        vc_kind_label=VC_KIND_LABELS[_current_kind()],
         years=years,
         schools=schools,
         depts=departments,
@@ -1344,8 +1441,8 @@ def admin_page():
     )
 
 
-@verified_contract_bp.route("/admin/settings")
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/settings")
+@_kind_menu_required
 def settings_page():
     """계약 목록과 분리된 인증계약 양식·발송 리소스 관리 화면."""
     companies = _company_settings()
@@ -1360,6 +1457,8 @@ def settings_page():
     return render_template(
         "verified_contract/settings.html",
         categories_list=_categories(),
+        vc_kind=_current_kind(),
+        vc_kind_label=VC_KIND_LABELS[_current_kind()],
         template_variables=TEMPLATE_VARIABLES,
         companies=companies,
         mail_senders=mail_senders,
@@ -1370,9 +1469,9 @@ def settings_page():
 
 
 @verified_contract_bp.route(
-    "/admin/settings/company/<string:profile_id>/<string:asset_kind>"
+    VC_KIND_PREFIX + "/admin/settings/company/<string:profile_id>/<string:asset_kind>"
 )
-@menu_permission_required("verified_contract_admin")
+@_kind_menu_required
 def company_asset(profile_id: str, asset_kind: str):
     """회사관리 카드에서 암호화된 로고·도장을 안전하게 미리보기한다."""
     if asset_kind not in {"logo", "stamp"}:
@@ -1405,8 +1504,8 @@ def company_asset(profile_id: str, asset_kind: str):
     )
 
 
-@verified_contract_bp.route("/admin/create", methods=["POST"])
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/create", methods=["POST"])
+@_kind_menu_required
 @_csrf_required
 def create_contract():
     data = request.get_json(silent=True) or {}
@@ -1457,8 +1556,8 @@ def create_contract():
     conn = get_db()
     try:
         duplicate_rows = conn.execute(
-            """
-            SELECT id FROM verified_contracts
+            f"""
+            SELECT id FROM {contract_table()}
             WHERE signer_name=? AND contract_type=? AND school_name=? AND department=?
               AND status NOT IN ('voided','superseded','revoked')
             """,
@@ -1500,7 +1599,7 @@ def create_contract():
         _record_event(conn, contract_id, "CREATED", {"expires_days": expires_days})
         conn.commit()
         row = conn.execute(
-            "SELECT * FROM verified_contracts WHERE id=?", (contract_id,)
+            f"SELECT * FROM {contract_table()} WHERE id=?", (contract_id,)
         ).fetchone()
     except Exception:
         conn.rollback()
@@ -1721,8 +1820,8 @@ def _excel_download(*, include_samples: bool, filename: str):
     )
 
 
-@verified_contract_bp.route("/admin/excel-template")
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/excel-template")
+@_kind_menu_required
 def download_excel_template():
     """현재 등록 열 구성을 반영한 빈 업로드 양식을 요청 시 생성한다."""
     return _excel_download(
@@ -1731,8 +1830,8 @@ def download_excel_template():
     )
 
 
-@verified_contract_bp.route("/admin/sample-excel")
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/sample-excel")
+@_kind_menu_required
 def download_sample_excel():
     """Render 배포 환경에서도 요청할 때마다 최신 열 구성으로 샘플을 자동 생성한다."""
     return _excel_download(
@@ -1741,8 +1840,8 @@ def download_sample_excel():
     )
 
 
-@verified_contract_bp.route("/admin/upload-excel", methods=["POST"])
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/upload-excel", methods=["POST"])
+@_kind_menu_required
 @_csrf_required
 def upload_excel():
     uploaded = request.files.get("excel_file")
@@ -1766,9 +1865,9 @@ def upload_excel():
     conn = get_db()
     try:
         for existing in conn.execute(
-            """
+            f"""
             SELECT contract_type, signer_name, signer_email, signer_phone, school_name, department
-            FROM verified_contracts WHERE status IN ('draft','pending')
+            FROM {contract_table()} WHERE status IN ('draft','pending')
             """
         ).fetchall():
             existing_keys.add(
@@ -1929,8 +2028,8 @@ def upload_excel():
     )
 
 
-@verified_contract_bp.route("/admin/bulk-send", methods=["POST"])
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/bulk-send", methods=["POST"])
+@_kind_menu_required
 @_csrf_required
 def bulk_send_invitations():
     data = request.get_json(silent=True) or {}
@@ -1948,7 +2047,7 @@ def bulk_send_invitations():
     queued = []
     try:
         rows = conn.execute(
-            f"SELECT * FROM verified_contracts WHERE id IN ({placeholders}) ORDER BY id",
+            f"SELECT * FROM {contract_table()} WHERE id IN ({placeholders}) ORDER BY id",
             ids,
         ).fetchall()
         for row in rows:
@@ -2128,8 +2227,8 @@ def bulk_send_invitations():
     )
 
 
-@verified_contract_bp.route("/admin/bulk-revoke", methods=["POST"])
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/bulk-revoke", methods=["POST"])
+@_kind_menu_required
 @_csrf_required
 def bulk_revoke():
     try:
@@ -2142,7 +2241,7 @@ def bulk_revoke():
     conn = get_db()
     try:
         rows = conn.execute(
-            f"SELECT id, status FROM verified_contracts WHERE id IN ({placeholders})",
+            f"SELECT id, status FROM {contract_table()} WHERE id IN ({placeholders})",
             ids,
         ).fetchall()
         changed = 0
@@ -2158,8 +2257,8 @@ def bulk_revoke():
     return jsonify({"status": "success", "message": f"{changed}건의 계약 링크를 취소했습니다."})
 
 
-@verified_contract_bp.route("/admin/bulk-delete", methods=["POST"])
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/bulk-delete", methods=["POST"])
+@_kind_menu_required
 @_csrf_required
 def bulk_delete():
     try:
@@ -2172,14 +2271,14 @@ def bulk_delete():
     conn = get_db()
     try:
         rows = conn.execute(
-            f"SELECT id, pdf_filename, signature_filename FROM verified_contracts WHERE id IN ({placeholders})",
+            f"SELECT id, pdf_filename, signature_filename FROM {contract_table()} WHERE id IN ({placeholders})",
             ids,
         ).fetchall()
         for row in rows:
             delete_file(VERIFIED_CONTRACTS_ROOT / os.path.basename(row["pdf_filename"] or ""))
             delete_file(VERIFIED_SIGNATURE_ROOT / os.path.basename(row["signature_filename"] or ""))
-        conn.execute(f"DELETE FROM verified_contract_events WHERE contract_id IN ({placeholders})", ids)
-        conn.execute(f"DELETE FROM verified_contracts WHERE id IN ({placeholders})", ids)
+        conn.execute(f"DELETE FROM {event_table()} WHERE contract_id IN ({placeholders})", ids)
+        conn.execute(f"DELETE FROM {contract_table()} WHERE id IN ({placeholders})", ids)
         conn.commit()
         deleted = len(rows)
     finally:
@@ -2187,8 +2286,8 @@ def bulk_delete():
     return jsonify({"status": "success", "message": f"{deleted}건의 계약 등록정보와 계약서 파일을 완전히 삭제했습니다."})
 
 
-@verified_contract_bp.route("/admin/bulk-void", methods=["POST"])
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/bulk-void", methods=["POST"])
+@_kind_menu_required
 @_csrf_required
 def bulk_void():
     data = request.get_json(silent=True) or {}
@@ -2208,7 +2307,7 @@ def bulk_void():
     conn = get_db()
     try:
         rows = conn.execute(
-            f"SELECT * FROM verified_contracts WHERE id IN ({placeholders})",
+            f"SELECT * FROM {contract_table()} WHERE id IN ({placeholders})",
             ids,
         ).fetchall()
         processed = 0
@@ -2275,8 +2374,8 @@ def _pdf_first_pages(data: bytes, limit: int) -> bytes:
         return data
 
 
-@verified_contract_bp.route("/admin/download-selected")
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/download-selected")
+@_kind_menu_required
 def download_selected():
     try:
         ids = sorted({int(value) for value in request.args.get("ids", "").split(",") if value})
@@ -2290,7 +2389,7 @@ def download_selected():
         rows = conn.execute(
             f"""
             SELECT id, signer_name, pdf_filename
-            FROM verified_contracts
+            FROM {contract_table()}
             WHERE id IN ({placeholders}) AND status='completed'
             ORDER BY id
             """,
@@ -2341,10 +2440,10 @@ BACKUP_LIST_FILENAME = "인증전자계약_계약리스트.xlsx"
 
 
 def _backup_rows(conn):
-    """완료된 계약을 번호 순으로 모은다. 파일이 없는 건도 함께 돌려준다."""
+    """현재 메뉴(강사/임직원)의 완료된 계약을 번호 순으로 모은다. 파일이 없는 건도 함께 돌려준다."""
     rows = conn.execute(
-        """
-        SELECT * FROM verified_contracts
+        f"""
+        SELECT * FROM {contract_table()}
         WHERE status='completed'
         ORDER BY id
         """
@@ -2438,8 +2537,8 @@ def _contract_list_bytes(entries) -> bytes:
     return memory.getvalue()
 
 
-@verified_contract_bp.route("/admin/backup")
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/backup")
+@_kind_menu_required
 def backup_page():
     """완료 계약서를 한 번에 받으면 파일이 너무 커서, 번호순으로 나눠 받는 화면."""
     chunk_size = _backup_chunk_size(request.args.get("size"))
@@ -2473,11 +2572,13 @@ def backup_page():
         total_size_text=_human_size(total_bytes),
         list_count=len(entries),
         storage_path=str(VERIFIED_CONTRACTS_ROOT),
+        vc_kind=_current_kind(),
+        vc_kind_label=VC_KIND_LABELS[_current_kind()],
     )
 
 
-@verified_contract_bp.route("/admin/backup/list")
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/backup/list")
+@_kind_menu_required
 def backup_contract_list():
     conn = get_db()
     try:
@@ -2494,8 +2595,8 @@ def backup_contract_list():
     )
 
 
-@verified_contract_bp.route("/admin/backup/part")
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/backup/part")
+@_kind_menu_required
 def backup_part():
     chunk_size = _backup_chunk_size(request.args.get("size"))
     part = max(1, request.args.get("part", 1, type=int))
@@ -2534,8 +2635,8 @@ def backup_part():
     )
 
 
-@verified_contract_bp.route("/admin/<int:contract_id>/resend", methods=["POST"])
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/<int:contract_id>/resend", methods=["POST"])
+@_kind_menu_required
 @_csrf_required
 def resend_invitation(contract_id: int):
     token = secrets.token_urlsafe(32)
@@ -2543,7 +2644,7 @@ def resend_invitation(contract_id: int):
     conn = get_db()
     try:
         row = conn.execute(
-            "SELECT * FROM verified_contracts WHERE id=?", (contract_id,)
+            f"SELECT * FROM {contract_table()} WHERE id=?", (contract_id,)
         ).fetchone()
         if not row:
             return jsonify({"status": "error", "message": "계약을 찾을 수 없습니다."}), 404
@@ -2569,7 +2670,7 @@ def resend_invitation(contract_id: int):
         )
         conn.commit()
         row = conn.execute(
-            "SELECT * FROM verified_contracts WHERE id=?", (contract_id,)
+            f"SELECT * FROM {contract_table()} WHERE id=?", (contract_id,)
         ).fetchone()
     finally:
         conn.close()
@@ -2625,14 +2726,14 @@ def resend_invitation(contract_id: int):
     )
 
 
-@verified_contract_bp.route("/admin/<int:contract_id>/revoke", methods=["POST"])
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/<int:contract_id>/revoke", methods=["POST"])
+@_kind_menu_required
 @_csrf_required
 def revoke_contract(contract_id: int):
     conn = get_db()
     try:
         row = conn.execute(
-            "SELECT status FROM verified_contracts WHERE id=?", (contract_id,)
+            f"SELECT status FROM {contract_table()} WHERE id=?", (contract_id,)
         ).fetchone()
         if not row:
             return jsonify({"status": "error", "message": "계약을 찾을 수 없습니다."}), 404
@@ -2646,18 +2747,18 @@ def revoke_contract(contract_id: int):
     return jsonify({"status": "success", "message": "계약 링크를 취소했습니다."})
 
 
-@verified_contract_bp.route("/admin/<int:contract_id>/evidence")
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/<int:contract_id>/evidence")
+@_kind_menu_required
 def evidence(contract_id: int):
     conn = get_db()
     try:
         row = conn.execute(
-            "SELECT * FROM verified_contracts WHERE id=?", (contract_id,)
+            f"SELECT * FROM {contract_table()} WHERE id=?", (contract_id,)
         ).fetchone()
         events = conn.execute(
-            """
+            f"""
             SELECT event_type, event_at, ip_address, user_agent, details_json
-            FROM verified_contract_events WHERE contract_id=? ORDER BY id
+            FROM {event_table()} WHERE contract_id=? ORDER BY id
             """,
             (contract_id,),
         ).fetchall()
@@ -2682,13 +2783,13 @@ def evidence(contract_id: int):
     )
 
 
-@verified_contract_bp.route("/admin/<int:contract_id>/download")
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/<int:contract_id>/download")
+@_kind_menu_required
 def admin_download(contract_id: int):
     conn = get_db()
     try:
         row = conn.execute(
-            "SELECT pdf_filename FROM verified_contracts WHERE id=?", (contract_id,)
+            f"SELECT pdf_filename FROM {contract_table()} WHERE id=?", (contract_id,)
         ).fetchone()
     finally:
         conn.close()
@@ -2700,14 +2801,14 @@ def admin_download(contract_id: int):
     return encrypted_response(path, path.name, as_attachment=True, mimetype='application/pdf')
 
 
-@verified_contract_bp.route("/admin/<int:contract_id>/preview")
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/<int:contract_id>/preview")
+@_kind_menu_required
 def admin_preview(contract_id: int):
     """계약자에게 실제로 발송되기 전, 등록된 정보로 채워질 계약서를 미리 확인한다."""
     conn = get_db()
     try:
         row = conn.execute(
-            "SELECT * FROM verified_contracts WHERE id=?", (contract_id,)
+            f"SELECT * FROM {contract_table()} WHERE id=?", (contract_id,)
         ).fetchone()
     finally:
         conn.close()
@@ -2795,8 +2896,8 @@ def admin_preview(contract_id: int):
     return html
 
 
-@verified_contract_bp.route("/admin/terms")
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/terms")
+@_kind_menu_required
 def get_terms():
     contract_type = str(request.args.get("type", "")).strip()
     if contract_type not in _categories():
@@ -2814,8 +2915,8 @@ def get_terms():
     )
 
 
-@verified_contract_bp.route("/admin/terms", methods=["POST"])
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/terms", methods=["POST"])
+@_kind_menu_required
 @_csrf_required
 def save_terms():
     data = request.get_json(silent=True) or {}
@@ -2838,16 +2939,18 @@ def save_terms():
     return jsonify({"status": "success", "message": "인증전자계약 전용 양식을 저장했습니다."})
 
 
-@verified_contract_bp.route("/admin/categories", methods=["GET", "POST"])
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/categories", methods=["GET", "POST"])
+@_kind_menu_required
 def add_category():
     if request.method == "GET":
         return jsonify({"status": "success", "categories": _categories()})
+    kind = _current_kind()
     supplied = request.headers.get("X-CSRF-Token") or ""
     expected = session.get("verified_contract_csrf", "")
     if not expected or not supplied or not hmac.compare_digest(str(expected), str(supplied)):
         return jsonify({"status": "error", "message": "보안 확인값이 만료되었습니다."}), 403
     data = request.get_json(silent=True) or {}
+    all_categories = _all_categories()
     categories = _categories()
     if isinstance(data.get("categories"), list):
         requested = []
@@ -2859,6 +2962,9 @@ def add_category():
                 or any(character in name for character in '\\/:*?"<>|')
             ):
                 return jsonify({"status": "error", "message": f"사용할 수 없는 계약구분: {name}"}), 400
+            if name in all_categories and name not in categories:
+                other = VC_KIND_LABELS["employee" if kind == "instructor" else "instructor"]
+                return jsonify({"status": "error", "message": f"'{name}'은(는) {other}에서 이미 사용 중인 계약구분입니다."}), 400
             if name not in requested:
                 requested.append(name)
         if not requested:
@@ -2870,7 +2976,7 @@ def add_category():
                 used = {
                     row["contract_type"]
                     for row in conn.execute(
-                        "SELECT DISTINCT contract_type FROM verified_contracts"
+                        f"SELECT DISTINCT contract_type FROM {contract_table()}"
                     ).fetchall()
                 }
             finally:
@@ -2883,26 +2989,39 @@ def add_category():
                         "message": "계약 기록이 있는 구분은 삭제할 수 없습니다: " + ", ".join(blocked),
                     }
                 ), 400
+        # 다른 메뉴의 계약구분은 그대로 두고 현재 메뉴의 구분만 바꾼다.
+        kind_map = _category_kind_map()
+        others = [name for name in all_categories if name not in categories]
+        for name in requested:
+            kind_map[name] = kind
+        for name in removed:
+            kind_map.pop(name, None)
         categories = requested
         for name in categories:
             (VERIFIED_TERMS_ROOT / f"{name}.txt").touch(exist_ok=True)
             (VERIFIED_TERMS_ROOT / f"{name}2.txt").touch(exist_ok=True)
-        _save_json(VERIFIED_CATEGORIES_FILE, categories)
+        _save_json(VERIFIED_CATEGORIES_FILE, others + categories)
+        _save_json(VERIFIED_CATEGORY_KINDS_FILE, kind_map)
         return jsonify({"status": "success", "message": "계약구분을 저장했습니다.", "categories": categories})
 
     name = str(data.get("name", "")).strip()
     if not name or len(name) > 40 or any(character in name for character in '\\/:*?"<>|'):
         return jsonify({"status": "error", "message": "사용할 수 없는 계약구분 이름입니다."}), 400
+    if name in all_categories and name not in categories:
+        return jsonify({"status": "error", "message": "다른 전자계약 메뉴에서 이미 사용 중인 계약구분입니다."}), 400
     if name not in categories:
         categories.append(name)
-        _save_json(VERIFIED_CATEGORIES_FILE, categories)
+        kind_map = _category_kind_map()
+        kind_map[name] = kind
+        _save_json(VERIFIED_CATEGORIES_FILE, all_categories + [name])
+        _save_json(VERIFIED_CATEGORY_KINDS_FILE, kind_map)
         (VERIFIED_TERMS_ROOT / f"{name}.txt").touch(exist_ok=True)
         (VERIFIED_TERMS_ROOT / f"{name}2.txt").touch(exist_ok=True)
     return jsonify({"status": "success", "message": "새 계약구분을 추가했습니다.", "categories": categories})
 
 
-@verified_contract_bp.route("/admin/settings/mail", methods=["POST"])
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/settings/mail", methods=["POST"])
+@_kind_menu_required
 @_csrf_required
 def save_mail_settings():
     """발송계정 자체는 스마트명세서와 공유하는 /payroll/api/senders에서 등록·수정·연결테스트하고,
@@ -2932,8 +3051,8 @@ def save_mail_settings():
     )
 
 
-@verified_contract_bp.route("/admin/settings/company", methods=["POST"])
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/settings/company", methods=["POST"])
+@_kind_menu_required
 @_csrf_required
 def save_company_settings():
     settings = _company_settings()
@@ -3358,8 +3477,8 @@ def _preview_font_css() -> str:
     return "\n".join(rules)
 
 
-@verified_contract_bp.route("/admin/pdf-font/<string:weight>")
-@menu_permission_required("verified_contract_admin")
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/pdf-font/<string:weight>")
+@_kind_menu_required
 def pdf_font_file(weight: str):
     path = _pdf_font_path(weight)
     if not path:
@@ -3619,7 +3738,7 @@ def complete_contract(token: str):
     conn = get_db()
     try:
         current = conn.execute(
-            "SELECT status FROM verified_contracts WHERE id=?", (row["id"],)
+            f"SELECT status FROM {contract_table()} WHERE id=?", (row["id"],)
         ).fetchone()
         if not current or current["status"] != "pending":
             delete_file(pdf_path)
@@ -3668,6 +3787,12 @@ def complete_contract(token: str):
         raise
     finally:
         conn.close()
+
+    # 강사 전자계약이면 강사통합지원 접속 계정(링크·비밀번호)을 자동으로 만든다. 실패해도 계약은 완료된다.
+    if g.get("vc_kind") == "instructor":
+        from .instructor_hub import on_instructor_contract_completed
+
+        on_instructor_contract_completed(row, phone)
 
     signer_email = str(row["signer_email"] or "").strip().lower()
     try:

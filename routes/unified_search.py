@@ -224,32 +224,44 @@ def _search_approvals(conn, like, access):
     return output
 
 
+# 증명서 발급관리는 강사 / 임직원 / 우수강사 세 메뉴·테이블로 분리돼 있다.
+CERTIFICATE_SEARCH_SOURCES = (
+    ("instructor", "document_instructor", "instructor_certificate_requests", "강사증명"),
+    ("employee", "document_employee", "employee_certificate_requests", "임직원증명"),
+    ("excellent", "document_excellent", "excellent_certificate_requests", "우수강사인증서"),
+)
+
+
 def _search_certificates(conn, like, access, query):
-    if not access.get("document_admin", False) or not _table_exists(conn, "certificate_requests"):
-        return []
-    rows = conn.execute(
-        """
-        SELECT id, certificate_type, applicant_name, workplace, subject_or_duty,
-               purpose, position, status, applied_date, company_name, workgroup_name
-        FROM certificate_requests
-        WHERE applicant_name LIKE ? ESCAPE '\\' OR certificate_type LIKE ? ESCAPE '\\'
-           OR workplace LIKE ? ESCAPE '\\' OR subject_or_duty LIKE ? ESCAPE '\\'
-           OR purpose LIKE ? ESCAPE '\\' OR position LIKE ? ESCAPE '\\'
-           OR company_name LIKE ? ESCAPE '\\' OR workgroup_name LIKE ? ESCAPE '\\'
-        ORDER BY id DESC LIMIT ?
-        """,
-        (*([like] * 8), PER_SOURCE_LIMIT),
-    ).fetchall()
-    url = "/document/admin?" + urlencode({"search": query})
-    return [
-        _result(
-            "certificate", "증명서 발급", "fa-file-invoice", f"{row['applicant_name']} · {row['certificate_type']}",
-            " · ".join(filter(None, [row["workplace"], row["subject_or_duty"], row["purpose"]])),
-            f"{row['company_name'] or row['workgroup_name'] or '증명발급'} · {row['status']}", url,
-            date=row["applied_date"],
+    output = []
+    for kind, menu_key, table, label in CERTIFICATE_SEARCH_SOURCES:
+        if not access.get(menu_key, False) or not _table_exists(conn, table):
+            continue
+        rows = conn.execute(
+            f"""
+            SELECT id, certificate_type, applicant_name, workplace, subject_or_duty,
+                   purpose, position, status, applied_date, company_name, workgroup_name
+            FROM {table}
+            WHERE applicant_name LIKE ? ESCAPE '\\' OR certificate_type LIKE ? ESCAPE '\\'
+               OR workplace LIKE ? ESCAPE '\\' OR subject_or_duty LIKE ? ESCAPE '\\'
+               OR purpose LIKE ? ESCAPE '\\' OR position LIKE ? ESCAPE '\\'
+               OR company_name LIKE ? ESCAPE '\\' OR workgroup_name LIKE ? ESCAPE '\\'
+            ORDER BY id DESC LIMIT ?
+            """,
+            (*([like] * 8), PER_SOURCE_LIMIT),
+        ).fetchall()
+        url = f"/document/{kind}/admin?" + urlencode({"search": query})
+        output.extend(
+            _result(
+                "certificate", f"{label} 발급관리", "fa-file-invoice",
+                f"{row['applicant_name']} · {row['certificate_type']}",
+                " · ".join(filter(None, [row["workplace"], row["subject_or_duty"], row["purpose"]])),
+                f"{row['company_name'] or row['workgroup_name'] or '증명발급'} · {row['status']}", url,
+                date=row["applied_date"],
+            )
+            for row in rows
         )
-        for row in rows
-    ]
+    return output[:PER_SOURCE_LIMIT]
 
 
 def _search_expenses(conn, like, access):
@@ -495,17 +507,25 @@ def _search_owner_work(conn, like, access):
 
 def _search_contracts(conn, like, access, query):
     output = []
-    if access.get("verified_contract_admin", False) and _table_exists(conn, "verified_contracts"):
+    # 강사전자계약 / 임직원전자계약 메뉴 권한이 있는 쪽의 계약구분만 검색한다.
+    from .menu_access import VERIFIED_CONTRACT_KIND_MENUS
+    from .verified_contract_repository import CONTRACT_TABLES
+
+    allowed_kinds = [kind for kind, menu in VERIFIED_CONTRACT_KIND_MENUS.items() if access.get(menu, False)]
+    for kind in allowed_kinds:
+        if not _table_exists(conn, CONTRACT_TABLES[kind]):
+            continue
         rows = conn.execute(
-            """
+            f"""
             SELECT id, contract_type, school_name, department, signer_name, status, title_snapshot, updated_at
-            FROM verified_contracts WHERE contract_type LIKE ? ESCAPE '\\' OR school_name LIKE ? ESCAPE '\\'
-              OR department LIKE ? ESCAPE '\\' OR signer_name LIKE ? ESCAPE '\\' OR title_snapshot LIKE ? ESCAPE '\\'
+            FROM {CONTRACT_TABLES[kind]} WHERE (
+              contract_type LIKE ? ESCAPE '\\' OR school_name LIKE ? ESCAPE '\\'
+              OR department LIKE ? ESCAPE '\\' OR signer_name LIKE ? ESCAPE '\\' OR title_snapshot LIKE ? ESCAPE '\\')
             ORDER BY updated_at DESC, id DESC LIMIT ?
             """,
             (*([like] * 5), PER_SOURCE_LIMIT),
         ).fetchall()
-        output.extend(_result("contract", "인증전자계약", "fa-file-signature", r["title_snapshot"] or f"{r['signer_name']} 계약", f"{r['school_name']} · {r['department']}", f"{r['contract_type']} · {r['status']}", "/verified-contract/admin?" + urlencode({"q": query}), date=r["updated_at"]) for r in rows)
+        output.extend(_result("contract", "전자계약", "fa-file-signature", r["title_snapshot"] or f"{r['signer_name']} 계약", f"{r['school_name']} · {r['department']}", f"{r['contract_type']} · {r['status']}", f"/verified-contract/{kind}/admin?" + urlencode({"q": query}), date=r["updated_at"]) for r in rows)
     # 기존 계약 테이블은 오래된 인코딩 컬럼이 섞일 수 있어 개인식별번호 등
     # 원본 행을 일반 검색에 노출하지 않는다. 인증전자계약의 안전한 표시 필드만 사용한다.
     return output[:PER_SOURCE_LIMIT]

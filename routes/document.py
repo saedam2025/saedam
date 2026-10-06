@@ -10,6 +10,7 @@ import base64
 import mimetypes
 import tempfile
 import re
+from functools import wraps
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, flash, abort
@@ -21,10 +22,12 @@ from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from .ai_mail import _csrf_required, _csrf_token, _owner_emp_no
 from .database import (
+    CERTIFICATE_REQUEST_TABLES,
     ensure_certificate_schema,
     get_db,
     migrate_legacy_certificates,
 )
+from .menu_access import DOCUMENT_KIND_MENUS
 from .payroll import (
     _ensure_sender_schema,
     _payroll_sender_dict,
@@ -32,7 +35,7 @@ from .payroll import (
     _smtp_login_for_sender,
     _verify_smtp_sender,
 )
-from .security import menu_permission_required
+from .security import _permission_denied, has_menu_permission
 from .storage import APP_ROOT, DATA_ROOT
 from .secure_files import (
     delete_file,
@@ -66,6 +69,105 @@ TEMPLATE_PATH = str(APP_ROOT / "templates" / "certificate" / "certificate_templa
 os.makedirs(PDF_FOLDER, exist_ok=True)
 os.makedirs(CERT_SEAL_FOLDER, exist_ok=True)
 os.makedirs(CERT_LOGO_FOLDER, exist_ok=True)
+
+# --- [증명서 발급관리 3분리: 강사 / 임직원 / 우수강사] ---
+# 메뉴·신청 링크·DB 테이블을 종류별로 완전히 나눠 운영한다.
+CERT_KINDS = {
+    'instructor': {
+        'label': '강사증명 발급관리',
+        'title': '강사 증명서 발급 관리 시스템',
+        'short': '강사 증명서',
+        'table': CERTIFICATE_REQUEST_TABLES['instructor'],
+        'applicant_type': '강사',
+        'menu_key': DOCUMENT_KIND_MENUS['instructor'],
+        'allow_column': 'allow_instructor',
+        'apply_endpoint': 'document.apply',
+        'role_label': '강사님',
+    },
+    'employee': {
+        'label': '임직원증명 발급관리',
+        'title': '임직원 증명서 발급 관리 시스템',
+        'short': '임직원 증명서',
+        'table': CERTIFICATE_REQUEST_TABLES['employee'],
+        'applicant_type': '임직원',
+        'menu_key': DOCUMENT_KIND_MENUS['employee'],
+        'allow_column': 'allow_employee',
+        'apply_endpoint': 'document.apply2',
+        'role_label': '임직원',
+    },
+    'excellent': {
+        'label': '우수강사인증서 관리',
+        'title': '우수강사인증서 관리 시스템',
+        'short': '우수강사인증서',
+        'table': CERTIFICATE_REQUEST_TABLES['excellent'],
+        'applicant_type': '강사',
+        'menu_key': DOCUMENT_KIND_MENUS['excellent'],
+        'allow_column': 'allow_excellent_instructor',
+        'apply_endpoint': 'document.apply_excellent',
+        'role_label': '강사님',
+    },
+}
+KIND_ROUTE = '<any(instructor,employee,excellent):kind>'
+EXCELLENT_REQUEST_GROUPS = 'excellent_certificate_request_groups'
+
+
+def _cert_kind(kind):
+    config = CERT_KINDS.get(kind)
+    if not config:
+        abort(404)
+    return config
+
+
+def cert_kind_required(view):
+    """URL의 kind에 해당하는 메뉴(강사/임직원/우수강사) 권한만 허용한다."""
+    @wraps(view)
+    def wrapped(kind, *args, **kwargs):
+        config = _cert_kind(kind)
+        if not session.get('emp_no'):
+            return _permission_denied(401)
+        if not has_menu_permission(config['menu_key']):
+            return _permission_denied(403)
+        return view(kind, *args, **kwargs)
+    return wrapped
+
+
+def fixed_kind_required(kind):
+    """kind가 URL에 없는 고정 경로(우수강사 명단 API 등)용 메뉴 권한 검사."""
+    menu_key = _cert_kind(kind)['menu_key']
+
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            if not session.get('emp_no'):
+                return _permission_denied(401)
+            if not has_menu_permission(menu_key):
+                return _permission_denied(403)
+            return view(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
+def any_certificate_menu_required(view):
+    """공통 설정(회사·작업그룹·발송계정)은 세 메뉴 중 하나만 있어도 쓸 수 있다."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get('emp_no'):
+            return _permission_denied(401)
+        if not any(
+            has_menu_permission(config['menu_key']) for config in CERT_KINDS.values()
+        ):
+            return _permission_denied(403)
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def _allowed_certificate_kinds():
+    """현재 로그인한 사용자가 접근할 수 있는 증명서 메뉴 목록."""
+    return [
+        kind for kind, config in CERT_KINDS.items()
+        if has_menu_permission(config['menu_key'])
+    ]
+
 
 ADMIN_NOTIFICATION_EMAIL = "edu197@naver.com"
 CERTIFICATE_FORM_PASSWORD = "0070"
@@ -260,7 +362,10 @@ def _certificate_record(row):
     return result
 
 
-def _insert_certificate_request(form_data, conn=None, commit=True):
+def _insert_certificate_request(form_data, kind, conn=None, commit=True):
+    config = _cert_kind(kind)
+    # 신청 화면 종류에 맞는 신청구분으로 고정해 다른 메뉴 데이터가 섞이지 않게 한다.
+    form_data = {**form_data, '신청구분': config['applicant_type']}
     values = {
         field: _clean_certificate_value(form_data.get(field, ''))
         for field in CERTIFICATE_FIELD_MAP
@@ -269,8 +374,8 @@ def _insert_certificate_request(form_data, conn=None, commit=True):
     if owns_connection:
         conn = get_db()
     try:
-        cursor = conn.execute('''
-            INSERT INTO certificate_requests (
+        cursor = conn.execute(f'''
+            INSERT INTO {config['table']} (
                 applied_date, applicant_type, certificate_type,
                 applicant_name, resident_number, home_address,
                 work_start_date, work_end_date, workplace,
@@ -389,6 +494,27 @@ def _excellent_roster_summary(conn):
     return dict(row)
 
 
+SSN_VIEW_MAX_LEVEL = 3
+
+
+def can_view_full_resident_number():
+    """주민번호 전체 보기는 레벨 3 이상(숫자 3 이하)과 admin만 허용한다."""
+    if str(session.get('emp_no') or '').lower() == 'admin'             or str(session.get('user_name') or '').lower() == 'admin':
+        return True
+    try:
+        return int(session.get('user_level', 99)) <= SSN_VIEW_MAX_LEVEL
+    except (TypeError, ValueError):
+        return False
+
+
+def _mask_resident_display(value):
+    """뒷자리는 첫째 자리만 남기고 가린다. 예: 900101-1******"""
+    digits = _normalize_resident_number(value)
+    if len(digits) < 7:
+        return '*' * len(digits)
+    return f'{digits[:6]}-{digits[6]}' + '*' * (len(digits) - 7)
+
+
 def _masked_resident_number(value):
     digits = _normalize_resident_number(value)
     if len(digits) != 13:
@@ -432,7 +558,7 @@ def apply(token=None):
                 form_data['_workgroup_name'] = workgroup['name']
                 form_data['_company_name'] = workgroup['company_name']
 
-            _insert_certificate_request(form_data)
+            _insert_certificate_request(form_data, 'instructor')
 
             send_admin_alert(
                 form_data['성명'], form_data['증명서종류'], role="강사님",
@@ -489,7 +615,7 @@ def apply2(token=None):
                 form_data['_workgroup_name'] = workgroup['name']
                 form_data['_company_name'] = workgroup['company_name']
 
-            _insert_certificate_request(form_data)
+            _insert_certificate_request(form_data, 'employee')
 
             # 관리자 알림 시 임직원임을 명시
             send_admin_alert(
@@ -581,13 +707,12 @@ def apply_excellent(token):
             group_placeholders = ','.join('?' for _ in selected_group_ids)
             duplicate = conn.execute(f'''
                 SELECT rg.group_id, g.name, r.status
-                FROM excellent_instructor_request_groups rg
-                JOIN certificate_requests r ON r.id=rg.request_id
+                FROM excellent_certificate_request_groups rg
+                JOIN excellent_certificate_requests r ON r.id=rg.request_id
                 JOIN excellent_instructor_roster_groups g ON g.id=rg.group_id
                 WHERE rg.applicant_name=?
                   AND rg.resident_number_normalized=?
                   AND rg.group_id IN ({group_placeholders})
-                  AND REPLACE(r.certificate_type, ' ', '')='우수강사인증서'
                 ORDER BY CASE WHEN r.status='발급완료' THEN 0 ELSE 1 END, r.id DESC
                 LIMIT 1
             ''', (
@@ -629,10 +754,10 @@ def apply_excellent(token):
             form_data.pop('종료일선택', None)
             form_data.pop('대상항목', None)
             request_id = _insert_certificate_request(
-                form_data, conn=conn, commit=False,
+                form_data, 'excellent', conn=conn, commit=False,
             )
             conn.executemany('''
-                INSERT INTO excellent_instructor_request_groups (
+                INSERT INTO excellent_certificate_request_groups (
                     request_id, group_id, applicant_name,
                     resident_number_normalized
                 ) VALUES (?, ?, ?, ?)
@@ -706,13 +831,12 @@ def lookup_excellent_instructor(token):
         history_rows = conn.execute('''
             SELECT rg.group_id, r.id AS request_id, r.status AS request_status,
                    r.applied_date, r.issued_date, r.issue_number
-            FROM excellent_instructor_request_groups rg
-            JOIN certificate_requests r ON r.id=rg.request_id
+            FROM excellent_certificate_request_groups rg
+            JOIN excellent_certificate_requests r ON r.id=rg.request_id
             JOIN excellent_instructor_roster_groups g ON g.id=rg.group_id
             WHERE rg.applicant_name=?
               AND rg.resident_number_normalized=?
               AND g.company_id=?
-              AND REPLACE(r.certificate_type, ' ', '')='우수강사인증서'
             ORDER BY CASE WHEN r.status='발급완료' THEN 0 ELSE 1 END,
                      r.id DESC
         ''', (
@@ -779,12 +903,22 @@ def lookup_excellent_instructor(token):
 
 # --- [내부 라우트: 관리자용] ---
 @document_bp.route('/admin')
-@menu_permission_required("document_admin")
-def admin_list():
-    """인트라넷 관리자용 신청 현황 목록 (페이징 및 검색 추가)"""
+def admin_index():
+    """예전 주소(/document/admin)는 사용자가 쓸 수 있는 첫 증명서 메뉴로 보낸다."""
     if 'emp_no' not in session:
         return redirect(url_for('login_page'))
-    
+    allowed = _allowed_certificate_kinds()
+    if not allowed:
+        return _permission_denied(403)
+    return redirect(url_for('document.admin_list', kind=allowed[0]))
+
+
+@document_bp.route(f'/{KIND_ROUTE}/admin')
+@cert_kind_required
+def admin_list(kind):
+    """증명서 종류(강사/임직원/우수강사)별 신청 현황 목록 (페이징 및 검색)"""
+    config = _cert_kind(kind)
+    table = config['table']
     ensure_db_initialized()
     page = request.args.get('page', 1, type=int)
     per_page = 10
@@ -805,20 +939,22 @@ def admin_list():
 
     conn = get_db()
     try:
-        stats = conn.execute('''
-            SELECT
-                COUNT(*) AS total,
-                SUM(CASE WHEN status='대기' THEN 1 ELSE 0 END) AS pending,
-                SUM(CASE WHEN REPLACE(certificate_type, ' ', '')='경력증명서' THEN 1 ELSE 0 END) AS career,
-                SUM(CASE WHEN REPLACE(certificate_type, ' ', '')='재직증명서' THEN 1 ELSE 0 END) AS employment,
-                SUM(CASE WHEN REPLACE(certificate_type, ' ', '')='해촉증명서' THEN 1 ELSE 0 END) AS dismissal,
-                SUM(CASE WHEN REPLACE(certificate_type, ' ', '')='강사활동증명서' THEN 1 ELSE 0 END) AS activity,
-                SUM(CASE WHEN REPLACE(certificate_type, ' ', '')='강사해촉증명서' THEN 1 ELSE 0 END) AS instructor_dismissal,
-                SUM(CASE WHEN REPLACE(certificate_type, ' ', '')='우수강사인증서' THEN 1 ELSE 0 END) AS excellent
-            FROM certificate_requests
+        stats = conn.execute(f'''
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN status='대기' THEN 1 ELSE 0 END) AS pending
+            FROM {table}
         ''').fetchone()
+        type_counts = [
+            (row['type_name'], int(row['count']))
+            for row in conn.execute(f'''
+                SELECT REPLACE(certificate_type, ' ', '') AS type_name,
+                       COUNT(*) AS count
+                FROM {table}
+                GROUP BY type_name ORDER BY count DESC, type_name
+            ''').fetchall()
+        ]
         filtered_count = int(conn.execute(
-            f'SELECT COUNT(*) FROM certificate_requests {where_sql}',
+            f'SELECT COUNT(*) FROM {table} {where_sql}',
             where_params,
         ).fetchone()[0])
         total_pages = (filtered_count + per_page - 1) // per_page
@@ -829,7 +965,7 @@ def admin_list():
         offset = (page - 1) * per_page
         rows = conn.execute(
             f'''
-                SELECT * FROM certificate_requests
+                SELECT * FROM {table}
                 {where_sql}
                 ORDER BY id DESC
                 LIMIT ? OFFSET ?
@@ -837,13 +973,19 @@ def admin_list():
             [*where_params, per_page, offset],
         ).fetchall()
         paginated_submissions = [_certificate_record(row) for row in rows]
-        workgroups = conn.execute('''
+        show_full_ssn = can_view_full_resident_number()
+        for record in paginated_submissions:
+            full_ssn = record['주민번호']
+            record['주민번호_가림'] = _mask_resident_display(full_ssn)
+            # 권한이 없으면 전체 번호를 화면(HTML)에 아예 싣지 않는다.
+            record['주민번호'] = full_ssn if show_full_ssn else record['주민번호_가림']
+        workgroups = conn.execute(f'''
             SELECT w.id, w.name, w.company_id, w.sender_id, w.access_token,
                    w.allow_instructor, w.allow_employee,
                    w.allow_excellent_instructor, c.company_name
             FROM certificate_workgroups w
             JOIN certificate_companies c ON c.id=w.company_id
-            WHERE w.is_active=1 AND c.is_active=1
+            WHERE w.is_active=1 AND c.is_active=1 AND w.{config['allow_column']}=1
             ORDER BY c.company_name, w.name
         ''').fetchall()
     finally:
@@ -853,17 +995,15 @@ def admin_list():
     current_block = (page - 1) // block_size + 1
     start_page = (current_block - 1) * block_size + 1
     end_page = min(start_page + block_size - 1, total_pages)
-    
-    return render_template('certificate/admin.html', 
+
+    return render_template('certificate/admin.html',
+                           kind=kind,
+                           kind_config=config,
                            submissions=paginated_submissions,
                            total=int(stats['total'] or 0),
                            pending=int(stats['pending'] or 0),
-                           count_career=int(stats['career'] or 0),
-                           count_employment=int(stats['employment'] or 0),
-                           count_dismissal=int(stats['dismissal'] or 0),
-                           count_activity=int(stats['activity'] or 0),
-                           count_inst_dismissal=int(stats['instructor_dismissal'] or 0),
-                           count_excellent=int(stats['excellent'] or 0),
+                           type_counts=type_counts,
+                           can_view_ssn=show_full_ssn,
                            page=page,
                            total_pages=total_pages,
                            start_page=start_page,
@@ -871,7 +1011,8 @@ def admin_list():
                            workgroups=[dict(row) for row in workgroups])
 
 
-def _workgroup_bundle(conn, workgroup_id):
+def _workgroup_bundle(conn, workgroup_id, kind=None):
+    """작업그룹(회사·발송계정) 정보. kind를 주면 그 종류를 허용한 그룹만 돌려준다."""
     if not workgroup_id:
         return None
     row = conn.execute('''
@@ -881,51 +1022,47 @@ def _workgroup_bundle(conn, workgroup_id):
         JOIN certificate_companies c ON c.id=w.company_id
         WHERE w.id=? AND w.is_active=1 AND c.is_active=1
     ''', (int(workgroup_id),)).fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    if kind and not row[CERT_KINDS[kind]['allow_column']]:
+        return None
+    return dict(row)
 
-@document_bp.route('/generate/<int:idx>')
-@menu_permission_required("document_admin")
-def generate_certificate(idx):
+@document_bp.route(f'/{KIND_ROUTE}/generate/<int:idx>')
+@cert_kind_required
+def generate_certificate(kind, idx):
     """관리자가 발급 버튼을 눌렀을 때 실행"""
-    if 'emp_no' not in session: return abort(403)
-    
+    config = _cert_kind(kind)
+    back = redirect(url_for('document.admin_list', kind=kind))
+
     conn = None
     pdf_path = None
     try:
         conn = get_db()
         row = conn.execute(
-            'SELECT * FROM certificate_requests WHERE id=?',
+            f"SELECT * FROM {config['table']} WHERE id=?",
             (idx,),
         ).fetchone()
         if not row:
             flash("데이터를 찾을 수 없습니다.")
-            return redirect(url_for('document.admin_list'))
+            return back
 
         record = _certificate_record(row)
         if record['상태'] == '발급완료':
             flash("이미 발급이 완료된 요청입니다.")
-            return redirect(url_for('document.admin_list'))
+            return back
 
         selected_group_id = request.args.get('workgroup_id', type=int) or record.get('작업그룹ID')
-        bundle = _workgroup_bundle(conn, selected_group_id)
+        bundle = _workgroup_bundle(conn, selected_group_id, kind)
         configured_group_count = int(conn.execute(
-            'SELECT COUNT(*) FROM certificate_workgroups WHERE is_active=1'
+            f"SELECT COUNT(*) FROM certificate_workgroups WHERE is_active=1 AND {config['allow_column']}=1"
         ).fetchone()[0])
+        if selected_group_id and not bundle:
+            flash(f"선택한 작업그룹은 {config['short']} 발급을 허용하지 않거나 사용할 수 없습니다.")
+            return back
         if configured_group_count and not bundle:
-            flash('발송할 작업그룹(회사·발송계정)을 먼저 선택해 주세요.')
-            return redirect(url_for('document.admin_list'))
-        if bundle:
-            applicant_type = record.get('신청구분', '')
-            is_excellent = record.get('증명서종류') == '우수강사인증서'
-            if is_excellent and not bundle.get('allow_excellent_instructor'):
-                flash('선택한 작업그룹은 우수강사인증서 발급을 허용하지 않습니다.')
-                return redirect(url_for('document.admin_list'))
-            if applicant_type == '강사' and not is_excellent and not bundle.get('allow_instructor'):
-                flash('선택한 작업그룹은 강사 증명서 발급을 허용하지 않습니다.')
-                return redirect(url_for('document.admin_list'))
-            if applicant_type == '임직원' and not bundle.get('allow_employee'):
-                flash('선택한 작업그룹은 임직원 증명서 발급을 허용하지 않습니다.')
-                return redirect(url_for('document.admin_list'))
+            flash(f"발송할 작업그룹(회사·발송계정)을 먼저 선택해 주세요. ({config['short']}을(를) 허용한 작업그룹만 선택할 수 있습니다.)")
+            return back
 
         sender = None
         if bundle and bundle.get('sender_id'):
@@ -936,14 +1073,14 @@ def generate_certificate(idx):
             sender = dict(sender_row) if sender_row else None
             if not sender:
                 flash('작업그룹에 연결된 발송계정을 사용할 수 없습니다. 작업그룹 설정을 확인해 주세요.')
-                return redirect(url_for('document.admin_list'))
+                return back
 
         issue_no = get_next_issue_number()
         pdf_path = create_pdf_file(record, issue_no, company=bundle)
-        
+
         # 메일 발송 전 DB 상태를 먼저 업데이트하여 발급 자체는 보존한다.
-        conn.execute('''
-            UPDATE certificate_requests
+        conn.execute(f'''
+            UPDATE {config['table']}
             SET status='발급완료',
                 issued_date=?,
                 issue_number=?,
@@ -972,12 +1109,12 @@ def generate_certificate(idx):
             sender=sender,
             company=bundle,
         )
-        
+
         if mail_success:
             flash(f"{record['성명']} 님께 증명서 발송을 완료했습니다.")
         else:
             flash(f"발급은 완료되었으나, 메일 전송이 실패했습니다.\n사유: {err_msg}")
-            
+
     except Exception as e:
         if pdf_path:
             delete_file(pdf_path)
@@ -985,8 +1122,8 @@ def generate_certificate(idx):
     finally:
         if conn is not None:
             conn.close()
-        
-    return redirect(url_for('document.admin_list'))
+
+    return back
 
 # --- [보조 기능 함수들] ---
 def create_pdf_file(row, issue_no, company=None):
@@ -1162,7 +1299,8 @@ def send_admin_alert(name, cert_type, role="강사님", sender_id=None, company_
         pass
 
 
-def _certificate_settings_payload():
+def _certificate_settings_payload(kind):
+    config = _cert_kind(kind)
     conn = get_db()
     try:
         ensure_certificate_schema(conn)
@@ -1175,14 +1313,14 @@ def _certificate_settings_payload():
             WHERE c.is_active=1
             ORDER BY c.updated_at DESC, c.id DESC
         ''').fetchall()
-        workgroups = conn.execute('''
+        workgroups = conn.execute(f'''
             SELECT w.*, c.company_name, c.representative_name,
                    s.label AS sender_label, s.email AS sender_email,
                    COALESCE(s.provider, 'gmail') AS sender_provider
             FROM certificate_workgroups w
             JOIN certificate_companies c ON c.id=w.company_id
             LEFT JOIN ai_mail_senders s ON s.id=w.sender_id
-            WHERE w.is_active=1 AND c.is_active=1
+            WHERE w.is_active=1 AND c.is_active=1 AND w.{config['allow_column']}=1
             ORDER BY w.updated_at DESC, w.id DESC
         ''').fetchall()
         senders = conn.execute('''
@@ -1190,7 +1328,9 @@ def _certificate_settings_payload():
             WHERE owner_emp_no=? AND is_active=1
             ORDER BY updated_at DESC, id DESC
         ''', (_owner_emp_no(),)).fetchall()
-        excellent_roster_summary = _excellent_roster_summary(conn)
+        excellent_roster_summary = (
+            _excellent_roster_summary(conn) if kind == 'excellent' else {}
+        )
         company_items = []
         for row in companies:
             item = dict(row)
@@ -1213,11 +1353,8 @@ def _certificate_settings_payload():
         for row in workgroups:
             item = dict(row)
             token = item['access_token']
-            item['instructor_path'] = url_for('document.apply', token=token)
-            item['employee_path'] = url_for('document.apply2', token=token)
-            item['excellent_instructor_path'] = url_for(
-                'document.apply_excellent', token=token,
-            )
+            # 이 메뉴의 신청 링크만 보여준다.
+            item['apply_path'] = url_for(config['apply_endpoint'], token=token)
             group_items.append(item)
         return {
             'companies': company_items,
@@ -1230,20 +1367,22 @@ def _certificate_settings_payload():
         conn.close()
 
 
-@document_bp.route('/admin/settings')
-@menu_permission_required("document_admin")
-def certificate_settings():
-    return render_template('certificate/settings.html')
+@document_bp.route(f'/{KIND_ROUTE}/settings')
+@cert_kind_required
+def certificate_settings(kind):
+    return render_template(
+        'certificate/settings.html', kind=kind, kind_config=_cert_kind(kind),
+    )
 
 
-@document_bp.route('/api/settings')
-@menu_permission_required("document_admin")
-def certificate_settings_api():
-    return jsonify({'status': 'success', **_certificate_settings_payload()})
+@document_bp.route(f'/{KIND_ROUTE}/api/settings')
+@cert_kind_required
+def certificate_settings_api(kind):
+    return jsonify({'status': 'success', **_certificate_settings_payload(kind)})
 
 
-@document_bp.get('/api/excellent-instructor-groups')
-@menu_permission_required("document_admin")
+@document_bp.get('/excellent/api/groups')
+@fixed_kind_required('excellent')
 def excellent_instructor_groups_api():
     conn = get_db()
     try:
@@ -1295,8 +1434,8 @@ def excellent_instructor_groups_api():
     })
 
 
-@document_bp.get('/api/excellent-instructor-groups/<int:group_id>/members')
-@menu_permission_required("document_admin")
+@document_bp.get('/excellent/api/groups/<int:group_id>/members')
+@fixed_kind_required('excellent')
 def excellent_instructor_group_members_api(group_id):
     page = max(request.args.get('page', 1, type=int), 1)
     per_page = 50
@@ -1332,22 +1471,20 @@ def excellent_instructor_group_members_api(group_id):
                    CASE
                      WHEN EXISTS (
                        SELECT 1
-                       FROM excellent_instructor_request_groups rg
-                       JOIN certificate_requests r ON r.id=rg.request_id
+                       FROM excellent_certificate_request_groups rg
+                       JOIN excellent_certificate_requests r ON r.id=rg.request_id
                        WHERE rg.group_id=e.group_id
                          AND rg.applicant_name=e.applicant_name
                          AND rg.resident_number_normalized=e.resident_number_normalized
-                         AND REPLACE(r.certificate_type, ' ', '')='우수강사인증서'
                          AND r.status='발급완료'
                      ) THEN '발급완료'
                      WHEN EXISTS (
                        SELECT 1
-                       FROM excellent_instructor_request_groups rg
-                       JOIN certificate_requests r ON r.id=rg.request_id
+                       FROM excellent_certificate_request_groups rg
+                       JOIN excellent_certificate_requests r ON r.id=rg.request_id
                        WHERE rg.group_id=e.group_id
                          AND rg.applicant_name=e.applicant_name
                          AND rg.resident_number_normalized=e.resident_number_normalized
-                         AND REPLACE(r.certificate_type, ' ', '')='우수강사인증서'
                      ) THEN '신청중'
                      ELSE '미신청'
                    END AS application_status
@@ -1370,8 +1507,8 @@ def excellent_instructor_group_members_api(group_id):
     })
 
 
-@document_bp.route('/api/excellent-instructor-groups/<int:group_id>', methods=['PATCH', 'DELETE'])
-@menu_permission_required("document_admin")
+@document_bp.route('/excellent/api/groups/<int:group_id>', methods=['PATCH', 'DELETE'])
+@fixed_kind_required('excellent')
 @_csrf_required
 def update_excellent_instructor_group(group_id):
     conn = get_db()
@@ -1424,8 +1561,8 @@ def update_excellent_instructor_group(group_id):
         conn.close()
 
 
-@document_bp.route('/api/excellent-instructors/<int:member_id>', methods=['PATCH', 'DELETE'])
-@menu_permission_required("document_admin")
+@document_bp.route('/excellent/api/members/<int:member_id>', methods=['PATCH', 'DELETE'])
+@fixed_kind_required('excellent')
 @_csrf_required
 def update_excellent_instructor(member_id):
     conn = get_db()
@@ -1556,8 +1693,8 @@ def _parse_excellent_instructor_upload(uploaded):
     return records
 
 
-@document_bp.post('/api/excellent-instructors/preview')
-@menu_permission_required("document_admin")
+@document_bp.post('/excellent/api/members/preview')
+@fixed_kind_required('excellent')
 @_csrf_required
 def preview_excellent_instructors():
     try:
@@ -1580,8 +1717,8 @@ def preview_excellent_instructors():
     })
 
 
-@document_bp.route('/api/excellent-instructors/upload', methods=['POST'])
-@menu_permission_required("document_admin")
+@document_bp.route('/excellent/api/members/upload', methods=['POST'])
+@fixed_kind_required('excellent')
 @_csrf_required
 def upload_excellent_instructors():
     try:
@@ -1650,7 +1787,7 @@ def upload_excellent_instructors():
 
 
 @document_bp.route('/api/senders/<int:sender_id>', methods=['DELETE'])
-@menu_permission_required("document_admin")
+@any_certificate_menu_required
 @_csrf_required
 def delete_certificate_sender(sender_id):
     conn = get_db()
@@ -1730,7 +1867,7 @@ def _company_form_values(current=None):
 
 
 @document_bp.route('/api/companies', methods=['POST'])
-@menu_permission_required("document_admin")
+@any_certificate_menu_required
 @_csrf_required
 def create_certificate_company():
     values = None
@@ -1770,7 +1907,7 @@ def create_certificate_company():
 
 
 @document_bp.route('/api/companies/<int:company_id>', methods=['POST', 'PATCH', 'DELETE'])
-@menu_permission_required("document_admin")
+@any_certificate_menu_required
 @_csrf_required
 def update_certificate_company(company_id):
     conn = get_db()
@@ -1838,7 +1975,7 @@ def update_certificate_company(company_id):
 
 
 @document_bp.route('/company-seal/<int:company_id>')
-@menu_permission_required("document_admin")
+@any_certificate_menu_required
 def company_seal(company_id):
     conn = get_db()
     try:
@@ -1891,7 +2028,7 @@ def _json_bool(data, key, default=True):
 
 
 @document_bp.route('/api/workgroups', methods=['POST'])
-@menu_permission_required("document_admin")
+@any_certificate_menu_required
 @_csrf_required
 def create_certificate_workgroup():
     data = request.get_json(silent=True) or {}
@@ -1899,21 +2036,50 @@ def create_certificate_workgroup():
 
 
 @document_bp.route('/api/workgroups/<int:workgroup_id>', methods=['PATCH', 'PUT', 'DELETE'])
-@menu_permission_required("document_admin")
+@any_certificate_menu_required
 @_csrf_required
 def update_certificate_workgroup(workgroup_id):
     if request.method == 'DELETE':
+        # kind가 오면 그 메뉴(강사/임직원/우수강사)의 신청 링크만 끈다.
+        # 다른 메뉴가 계속 쓰는 작업그룹이면 유지하고, 모두 꺼지면 종료한다.
+        kind = request.args.get('kind', '')
         conn = get_db()
         try:
             ensure_certificate_schema(conn)
-            changed = conn.execute('''
+            row = conn.execute(
+                'SELECT * FROM certificate_workgroups WHERE id=? AND is_active=1',
+                (workgroup_id,),
+            ).fetchone()
+            if not row:
+                return jsonify({'status': 'error', 'message': '작업그룹을 찾을 수 없습니다.'}), 404
+            if kind in CERT_KINDS:
+                column = CERT_KINDS[kind]['allow_column']
+                conn.execute(
+                    f'UPDATE certificate_workgroups SET {column}=0, '
+                    'updated_at=CURRENT_TIMESTAMP WHERE id=?',
+                    (workgroup_id,),
+                )
+                remaining = conn.execute(
+                    'SELECT allow_instructor, allow_employee, allow_excellent_instructor '
+                    'FROM certificate_workgroups WHERE id=?',
+                    (workgroup_id,),
+                ).fetchone()
+                if not any(remaining):
+                    conn.execute(
+                        'UPDATE certificate_workgroups SET is_active=0 WHERE id=?',
+                        (workgroup_id,),
+                    )
+                conn.commit()
+                return jsonify({
+                    'status': 'success',
+                    'message': f"{CERT_KINDS[kind]['short']} 신청 링크를 종료했습니다.",
+                })
+            conn.execute('''
                 UPDATE certificate_workgroups
                 SET is_active=0, updated_at=CURRENT_TIMESTAMP
-                WHERE id=? AND is_active=1
-            ''', (workgroup_id,)).rowcount
+                WHERE id=?
+            ''', (workgroup_id,))
             conn.commit()
-            if not changed:
-                return jsonify({'status': 'error', 'message': '작업그룹을 찾을 수 없습니다.'}), 404
             return jsonify({'status': 'success', 'message': '작업그룹과 공개 신청 링크를 종료했습니다.'})
         finally:
             conn.close()
@@ -1924,19 +2090,12 @@ def _save_certificate_workgroup(workgroup_id, data):
     name = _clean_certificate_value(data.get('name'))
     company_id = data.get('company_id')
     sender_id = data.get('sender_id')
-    allow_instructor = _json_bool(data, 'allow_instructor')
-    allow_employee = _json_bool(data, 'allow_employee')
-    allow_excellent_instructor = _json_bool(
-        data, 'allow_excellent_instructor', default=False,
-    )
     if not name:
         return jsonify({'status': 'error', 'message': '작업그룹명을 입력해 주세요.'}), 400
     if not str(company_id or '').isdigit():
         return jsonify({'status': 'error', 'message': '발급 회사를 선택해 주세요.'}), 400
     if not str(sender_id or '').isdigit():
         return jsonify({'status': 'error', 'message': '발송계정을 선택해 주세요.'}), 400
-    if not allow_instructor and not allow_employee and not allow_excellent_instructor:
-        return jsonify({'status': 'error', 'message': '신청 대상 유형을 하나 이상 선택해 주세요.'}), 400
 
     conn = get_db()
     try:
@@ -1951,13 +2110,24 @@ def _save_certificate_workgroup(workgroup_id, data):
         ).fetchone()
         if not company or not sender:
             return jsonify({'status': 'error', 'message': '회사 또는 발송계정을 사용할 수 없습니다.'}), 400
+        existing = None
         if workgroup_id:
-            exists = conn.execute(
-                'SELECT id FROM certificate_workgroups WHERE id=? AND is_active=1',
+            existing = conn.execute(
+                'SELECT * FROM certificate_workgroups WHERE id=? AND is_active=1',
                 (workgroup_id,),
             ).fetchone()
-            if not exists:
+            if not existing:
                 return jsonify({'status': 'error', 'message': '작업그룹을 찾을 수 없습니다.'}), 404
+        # 요청에 없는 신청 유형은 기존 값을 유지한다(각 메뉴는 자기 유형만 보낸다).
+        flags = {}
+        for column in ('allow_instructor', 'allow_employee', 'allow_excellent_instructor'):
+            if column in data:
+                flags[column] = _json_bool(data, column, default=False)
+            else:
+                flags[column] = int(existing[column]) if existing else 0
+        if not any(flags.values()):
+            return jsonify({'status': 'error', 'message': '신청 대상 유형을 하나 이상 선택해 주세요.'}), 400
+        if existing:
             conn.execute('''
                 UPDATE certificate_workgroups
                 SET name=?, company_id=?, sender_id=?, allow_instructor=?,
@@ -1965,8 +2135,9 @@ def _save_certificate_workgroup(workgroup_id, data):
                     updated_at=CURRENT_TIMESTAMP
                 WHERE id=?
             ''', (
-                name, int(company_id), int(sender_id), allow_instructor,
-                allow_employee, allow_excellent_instructor, workgroup_id,
+                name, int(company_id), int(sender_id), flags['allow_instructor'],
+                flags['allow_employee'], flags['allow_excellent_instructor'],
+                workgroup_id,
             ))
             message = '작업그룹을 수정했습니다.'
         else:
@@ -1978,8 +2149,8 @@ def _save_certificate_workgroup(workgroup_id, data):
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 name, int(company_id), int(sender_id), secrets.token_urlsafe(18),
-                allow_instructor, allow_employee, allow_excellent_instructor,
-                _owner_emp_no(),
+                flags['allow_instructor'], flags['allow_employee'],
+                flags['allow_excellent_instructor'], _owner_emp_no(),
             ))
             workgroup_id = int(cursor.lastrowid)
             message = '작업그룹과 신청 링크를 생성했습니다.'
@@ -1994,18 +2165,18 @@ def _save_certificate_workgroup(workgroup_id, data):
     finally:
         conn.close()
 
-@document_bp.route('/pdf/<int:idx>')
-@menu_permission_required("document_admin")
-def serve_pdf(idx):
+@document_bp.route(f'/{KIND_ROUTE}/pdf/<int:idx>')
+@cert_kind_required
+def serve_pdf(kind, idx):
     """관리자 페이지에서 발급된 PDF를 개인정보 없는 URL로 제공한다."""
-    if 'emp_no' not in session: return abort(403)
+    config = _cert_kind(kind)
 
     conn = get_db()
     try:
         row = conn.execute(
-            '''
+            f'''
             SELECT filename
-            FROM certificate_requests
+            FROM {config['table']}
             WHERE id=? AND status='발급완료' AND filename IS NOT NULL
             ''',
             (idx,),
@@ -2026,22 +2197,22 @@ def serve_pdf(idx):
         as_attachment=False, mimetype='application/pdf'
     )
 
-@document_bp.route('/delete/<int:idx>')
-@menu_permission_required("document_admin")
-def delete_record(idx):
+@document_bp.route(f'/{KIND_ROUTE}/delete/<int:idx>')
+@cert_kind_required
+def delete_record(kind, idx):
     """신청 기록 및 파일 단건 삭제"""
-    if 'emp_no' not in session: return abort(403)
+    table = _cert_kind(kind)['table']
     conn = None
     try:
         conn = get_db()
         row = conn.execute(
-            'SELECT filename FROM certificate_requests WHERE id=?',
+            f'SELECT filename FROM {table} WHERE id=?',
             (idx,),
         ).fetchone()
         if row:
             filename = row['filename']
             conn.execute(
-                'DELETE FROM certificate_requests WHERE id=?',
+                f'DELETE FROM {table} WHERE id=?',
                 (idx,),
             )
             conn.commit()
@@ -2053,13 +2224,13 @@ def delete_record(idx):
     finally:
         if conn is not None:
             conn.close()
-    return redirect(url_for('document.admin_list'))
+    return redirect(url_for('document.admin_list', kind=kind))
 
-@document_bp.route('/delete_multiple', methods=['POST'])
-@menu_permission_required("document_admin")
-def delete_multiple():
+@document_bp.route(f'/{KIND_ROUTE}/delete_multiple', methods=['POST'])
+@cert_kind_required
+def delete_multiple(kind):
     """여러 건 동시 선택 삭제"""
-    if 'emp_no' not in session: return abort(403)
+    table = _cert_kind(kind)['table']
     conn = None
     try:
         selected_ids = [
@@ -2068,16 +2239,16 @@ def delete_multiple():
         ]
         if not selected_ids:
             flash("삭제할 항목이 선택되지 않았습니다.")
-            return redirect(url_for('document.admin_list'))
+            return redirect(url_for('document.admin_list', kind=kind))
 
         conn = get_db()
         placeholders = ','.join('?' for _ in selected_ids)
         rows = conn.execute(
-            f'SELECT id, filename FROM certificate_requests WHERE id IN ({placeholders})',
+            f'SELECT id, filename FROM {table} WHERE id IN ({placeholders})',
             selected_ids,
         ).fetchall()
         conn.execute(
-            f'DELETE FROM certificate_requests WHERE id IN ({placeholders})',
+            f'DELETE FROM {table} WHERE id IN ({placeholders})',
             selected_ids,
         )
         deleted_count = int(conn.execute('SELECT changes()').fetchone()[0])
@@ -2092,14 +2263,13 @@ def delete_multiple():
         if conn is not None:
             conn.close()
         
-    return redirect(url_for('document.admin_list'))
+    return redirect(url_for('document.admin_list', kind=kind))
 
 
 # 안내 메일 전송 기능 (admin.html 모달 전송용)
-@document_bp.route('/send_simple_email', methods=['POST'])
-@menu_permission_required("document_admin")
-def send_simple_email():
-    if 'emp_no' not in session: return abort(403)
+@document_bp.route(f'/{KIND_ROUTE}/send_simple_email', methods=['POST'])
+@cert_kind_required
+def send_simple_email(kind):
     
     to_email = request.form.get('email', '').strip()
     subject = request.form.get('subject', '')
@@ -2108,12 +2278,12 @@ def send_simple_email():
     
     if not to_email:
         flash("발송 실패: 수신자 이메일 주소를 확인해주세요.")
-        return redirect(url_for('document.admin_list'))
+        return redirect(url_for('document.admin_list', kind=kind))
         
     conn = get_db()
     try:
         ensure_certificate_schema(conn)
-        bundle = _workgroup_bundle(conn, workgroup_id)
+        bundle = _workgroup_bundle(conn, workgroup_id, kind)
         sender_row = None
         if bundle and bundle.get('sender_id'):
             sender_row = conn.execute(
@@ -2125,7 +2295,7 @@ def send_simple_email():
 
     if workgroup_id and (not bundle or not sender_row):
         flash('발송 실패: 선택한 작업그룹의 회사 또는 발송계정을 사용할 수 없습니다.')
-        return redirect(url_for('document.admin_list'))
+        return redirect(url_for('document.admin_list', kind=kind))
 
     if sender_row:
         try:
@@ -2138,12 +2308,12 @@ def send_simple_email():
             flash('이메일이 등록된 발송계정으로 전송되었습니다.')
         except Exception as exc:
             flash(f'메일 발송 실패: {str(exc)}')
-        return redirect(url_for('document.admin_list'))
+        return redirect(url_for('document.admin_list', kind=kind))
 
     email_addr, email_pw = get_email_credentials()
     if not email_addr or not email_pw:
         flash("발송 실패: 작업그룹 발송계정 또는 서버 환경변수가 설정되지 않았습니다.")
-        return redirect(url_for('document.admin_list'))
+        return redirect(url_for('document.admin_list', kind=kind))
         
     # [1차 시도] yagmail
     try:
@@ -2167,13 +2337,13 @@ def send_simple_email():
         except Exception as smtp_e:
             flash(f"메일 발송 완전 실패. 상세 원인:\n{str(smtp_e)}")
             
-    return redirect(url_for('document.admin_list'))
+    return redirect(url_for('document.admin_list', kind=kind))
 
-@document_bp.route('/edit', methods=['POST'])
-@menu_permission_required("document_admin")
-def edit_record_post():
+@document_bp.route(f'/{KIND_ROUTE}/edit', methods=['POST'])
+@cert_kind_required
+def edit_record_post(kind):
     """모달창에서 전송된 수정 데이터를 SQLite에 반영"""
-    if 'emp_no' not in session: return abort(403)
+    table = _cert_kind(kind)['table']
     
     conn = None
     try:
@@ -2186,20 +2356,25 @@ def edit_record_post():
         updates = []
         values = []
         for field in fields:
+            if field == '주민번호' and (
+                not can_view_full_resident_number()
+                or '*' in request.form.get(field, '')
+            ):
+                continue
             if field in request.form:
                 updates.append(f'{CERTIFICATE_FIELD_MAP[field]}=?')
                 values.append(_clean_certificate_value(request.form.get(field)))
 
         conn = get_db()
         exists = conn.execute(
-            'SELECT 1 FROM certificate_requests WHERE id=?',
+            f'SELECT 1 FROM {table} WHERE id=?',
             (idx,),
         ).fetchone()
         if exists and updates:
             values.append(idx)
             conn.execute(
                 f'''
-                    UPDATE certificate_requests
+                    UPDATE {table}
                     SET {', '.join(updates)}, updated_at=CURRENT_TIMESTAMP
                     WHERE id=?
                 ''',
@@ -2215,4 +2390,4 @@ def edit_record_post():
         if conn is not None:
             conn.close()
         
-    return redirect(url_for('document.admin_list'))
+    return redirect(url_for('document.admin_list', kind=kind))
