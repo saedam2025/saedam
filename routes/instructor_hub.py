@@ -395,6 +395,39 @@ def _save_photo(upload):
     return _store_jpeg(PHOTO_ROOT, 'photo', data)
 
 
+def _pdf_images(data, limit):
+    """PDF를 쪽마다 PIL 그림으로 바꾼다. pypdfium2를 먼저 쓰고, 없으면 PyMuPDF를 쓴다."""
+    images = []
+    if pdfium is not None:
+        document = pdfium.PdfDocument(BytesIO(data))
+        try:
+            for index in range(min(len(document), limit)):
+                page = document.get_page(index)
+                try:
+                    images.append(page.render(scale=PDF_DPI / 72).to_pil())
+                finally:
+                    page.close()
+        finally:
+            document.close()
+        return images
+    try:
+        import pymupdf
+    except ImportError:
+        try:
+            import fitz as pymupdf
+        except ImportError as exc:
+            raise RuntimeError('이 서버에서는 PDF를 변환할 수 없습니다. 그림 파일로 올려 주세요.') from exc
+    document = pymupdf.open(stream=data, filetype='pdf')
+    try:
+        for index in range(min(document.page_count, limit)):
+            pixmap = document[index].get_pixmap(dpi=PDF_DPI)
+            images.append(Image.frombytes('RGB', (pixmap.width, pixmap.height), pixmap.samples)
+                          if pixmap.n == 3 else Image.open(BytesIO(pixmap.tobytes('png'))))
+    finally:
+        document.close()
+    return images
+
+
 def _frames_from_uploads(uploads):
     """홍보 자료(이미지·PDF)를 쪽마다 JPEG로 바꾼다. 반환: [(jpeg, 가로, 세로, 이름)]."""
     uploads = [u for u in uploads if u and u.filename]
@@ -411,26 +444,15 @@ def _frames_from_uploads(uploads):
             jpeg, width, height = _jpeg(_open_image(data), PROMO_LONG_SIDE)
             frames.append((jpeg, width, height, name))
         elif extension == '.pdf':
-            if pdfium is None:
-                raise ValueError('이 서버에서는 PDF를 변환할 수 없습니다. 그림 파일로 올려 주세요.')
             try:
-                document = pdfium.PdfDocument(BytesIO(data))
+                pages = _pdf_images(data, MAX_PROMO_PAGES - len(frames))
+            except RuntimeError as exc:
+                raise ValueError(str(exc)) from exc
             except Exception as exc:
                 raise ValueError(f'‘{name}’은(는) 정상적인 PDF가 아닙니다.') from exc
-            try:
-                for index in range(len(document)):
-                    if len(frames) >= MAX_PROMO_PAGES:
-                        break
-                    page = document.get_page(index)
-                    try:
-                        scale = PDF_DPI / 72
-                        image = page.render(scale=scale).to_pil()
-                    finally:
-                        page.close()
-                    jpeg, width, height = _jpeg(image, PROMO_LONG_SIDE)
-                    frames.append((jpeg, width, height, f'{name} {index + 1}쪽'))
-            finally:
-                document.close()
+            for index, image in enumerate(pages, 1):
+                jpeg, width, height = _jpeg(image, PROMO_LONG_SIDE)
+                frames.append((jpeg, width, height, f'{name} {index}쪽'))
         else:
             raise ValueError(f'‘{name}’은(는) 올릴 수 없는 형식입니다. 그림(JPG·PNG 등)이나 PDF만 올려 주세요.')
         if len(frames) >= MAX_PROMO_PAGES:
