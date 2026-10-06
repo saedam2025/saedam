@@ -55,6 +55,7 @@ from routes.instructor_attendance import (
     init_instructor_attendance_schema,
     instructor_attendance_bp,
 )
+from routes.instructor_hub import instructor_hub_bp, init_instructor_hub_schema
 from routes.student_attendance import (
     init_student_attendance_schema,
     student_attendance_bp,
@@ -122,6 +123,7 @@ with app.app_context():
         init_classroom_guide_schema()
         init_instructor_attendance_schema()
         init_student_attendance_schema()
+        init_instructor_hub_schema()
         event_conn = get_db()
         try:
             ensure_event_schema(event_conn)
@@ -237,6 +239,9 @@ PUBLIC_PATH_PREFIXES = (
     '/student-attendance/live/',
     '/student-attendance/display/',
     '/student-attendance/p/',
+    # 강사통합지원: 강사 포털(링크+비밀번호 세션)과 학부모 모바일 링크페이지
+    '/teacher-hub/',
+    '/school-link/',
 )
 
 def _is_script_request() -> bool:
@@ -1153,6 +1158,7 @@ app.register_blueprint(manual_bp, url_prefix='/manual')
 app.register_blueprint(parent_notification_bp)
 app.register_blueprint(instructor_attendance_bp)
 app.register_blueprint(student_attendance_bp)
+app.register_blueprint(instructor_hub_bp)
 app.register_blueprint(points_bp)
 app.register_blueprint(unified_search_bp)
 
