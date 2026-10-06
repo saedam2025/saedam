@@ -1,0 +1,238 @@
+{% extends 'base.html' %}
+{% block title %}강사통합지원{% endblock %}
+{% block extra_css %}
+<style>
+.ih-page{--ih-ink:var(--text-dark,#0f172a);--ih-muted:var(--text-gray,#64748b);--ih-line:var(--border-color,#e2e8f0);--ih-card:var(--card-bg,#fff);--ih-accent:var(--primary-color,#2563eb);
+  --ih-soft:color-mix(in srgb,var(--ih-accent) 8%,var(--ih-card));max-width:1280px;margin:0 auto;padding:6px 8px 50px;color:var(--ih-ink);font-size:16px}
+.ih-page h1{margin:6px 0 4px;font-size:1.6rem;font-weight:900}
+.ih-page .sub{margin:0 0 16px;color:var(--ih-muted);font-weight:700;font-size:.95rem}
+.ih-tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+.ih-tabs a{padding:11px 20px;border-radius:12px;border:1px solid var(--ih-line);background:var(--ih-card);color:var(--ih-muted);font-weight:900;text-decoration:none}
+.ih-tabs a.on{background:var(--ih-accent);border-color:var(--ih-accent);color:#fff}
+.ih-tabs a b{margin-left:6px;padding:1px 8px;border-radius:99px;background:#dc2626;color:#fff;font-size:.78rem}
+.ih-card{background:var(--ih-card);border:1px solid var(--ih-line);border-radius:16px;padding:20px;margin-bottom:16px}
+.ih-card h2{margin:0 0 6px;font-size:1.15rem;font-weight:900}
+.ih-hint{margin:0 0 14px;color:var(--ih-muted);font-size:.9rem;font-weight:700}
+.ih-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:1px solid var(--ih-line);background:var(--ih-card);color:var(--ih-ink);font:inherit;font-size:.9rem;font-weight:800;cursor:pointer;text-decoration:none}
+.ih-btn.primary{background:var(--ih-accent);border-color:var(--ih-accent);color:#fff}
+.ih-btn.danger{color:#b91c1c;border-color:#fecaca;background:#fff5f5}
+.ih-btn.sm{padding:6px 11px;font-size:.82rem}
+.ih-input{padding:10px 12px;border:1px solid var(--ih-line);border-radius:10px;font:inherit;background:var(--ih-card);color:var(--ih-ink);min-width:0}
+.ih-flash{padding:12px 16px;border-radius:12px;margin-bottom:12px;font-weight:800}
+.ih-flash.success{background:#ecfdf5;color:#047857}.ih-flash.error{background:#fef2f2;color:#b91c1c}
+.ih-table{width:100%;border-collapse:collapse;font-size:.92rem}
+.ih-table th,.ih-table td{padding:11px 10px;border-bottom:1px solid var(--ih-line);text-align:left;vertical-align:top}
+.ih-table th{background:var(--ih-soft);font-weight:900;white-space:nowrap}
+.ih-badge{display:inline-block;padding:3px 10px;border-radius:99px;background:var(--ih-soft);font-size:.78rem;font-weight:900}
+.ih-badge.off{background:#f1f5f9;color:#64748b}.ih-badge.ok{background:#dcfce7;color:#166534}
+.ih-mono{font-family:Consolas,monospace;font-size:.85rem;word-break:break-all}
+.ih-inline{display:inline}
+.ih-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.ih-row label{display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:800;color:var(--ih-muted)}
+.ih-review{display:grid;grid-template-columns:200px 1fr;gap:18px;padding:16px 0;border-top:1px solid var(--ih-line)}
+.ih-review img.ph{width:180px;height:180px;object-fit:cover;border-radius:14px;border:1px solid var(--ih-line)}
+.ih-thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin:8px 0}
+.ih-thumbs img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;border:1px solid var(--ih-line);background:#fff}
+.ih-bio{white-space:pre-wrap;background:var(--ih-soft);padding:12px 14px;border-radius:12px;font-size:.95rem;line-height:1.7}
+.ih-link{display:grid;grid-template-columns:130px 1fr;gap:18px;padding:16px 0;border-top:1px solid var(--ih-line)}
+.ih-link img{width:120px;height:120px;border:1px solid var(--ih-line);border-radius:10px;background:#fff}
+@media (max-width:760px){.ih-review,.ih-link{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="ih-page">
+  <h1><i class="fa-solid fa-handshake-angle"></i> 강사통합지원</h1>
+  <p class="sub">전자계약을 마친 강사에게 접속 링크·비밀번호를 부여하고, 강사가 올린 프로필·홍보페이지를 승인하며, 학부모용 모바일 링크페이지를 관리합니다.</p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<div class="ih-flash {{ category }}">{{ message }}</div>{% endfor %}
+  {% endwith %}
+
+  <nav class="ih-tabs">
+    <a class="{{ 'on' if tab == 'accounts' }}" href="?tab=accounts">① 접속관리</a>
+    <a class="{{ 'on' if tab == 'review' }}" href="?tab=review">② 승인관리{% set pending = pending_profiles|length + pending_promos|length %}{% if pending %}<b>{{ pending }}</b>{% endif %}</a>
+    <a class="{{ 'on' if tab == 'links' }}" href="?tab=links">③ 학부모 링크페이지</a>
+  </nav>
+
+  {% if tab == 'accounts' %}
+  <div class="ih-card">
+    <h2>강사 접속 계정</h2>
+    <p class="ih-hint">강사 전자계약이 완료되면 계정(링크·비밀번호)이 자동으로 만들어집니다. 문자는 [문자 보내기]를 눌렀을 때만 발송됩니다.</p>
+    <div class="ih-row" style="margin-bottom:14px">
+      <form method="post" action="{{ url_for('instructor_hub.admin_sync') }}" class="ih-inline"
+            onsubmit="return confirm('이미 완료된 강사 전자계약을 모두 확인해 없는 계정을 만들까요?');">
+        <button class="ih-btn primary" type="submit"><i class="fa-solid fa-rotate"></i> 완료된 계약에서 계정 불러오기</button>
+      </form>
+    </div>
+    <details style="margin-bottom:14px">
+      <summary style="cursor:pointer;font-weight:900;color:var(--ih-accent)">＋ 강사 계정 직접 추가</summary>
+      <form method="post" action="{{ url_for('instructor_hub.admin_add_account') }}" class="ih-row" style="margin-top:10px">
+        <label>이름<input class="ih-input" type="text" name="name" required></label>
+        <label>휴대폰번호<input class="ih-input" type="tel" name="phone" required placeholder="010-0000-0000"></label>
+        <label>학교<input class="ih-input" type="text" name="school_name" list="ihSchools" placeholder="학교명"></label>
+        <label>강의부서<input class="ih-input" type="text" name="department" placeholder="예) 로봇코딩"></label>
+        <button class="ih-btn primary" type="submit">추가</button>
+      </form>
+    </details>
+    <datalist id="ihSchools">{% for school in schools %}<option value="{{ school.name }}">{% endfor %}</datalist>
+
+    <div style="overflow-x:auto">
+    <table class="ih-table">
+      <thead><tr><th>강사</th><th>학교 · 강의부서</th><th>접속 링크 / 비밀번호</th><th>상태</th><th>관리</th></tr></thead>
+      <tbody>
+      {% for item in accounts %}
+      <tr>
+        <td><strong>{{ item.name }}</strong><br><span class="ih-hint" style="margin:0">{{ item.phone }}</span></td>
+        <td>
+          {% for a in item.assignments %}<div>{{ a.school_name }}{% if a.department %} · {{ a.department }}{% endif %}</div>{% else %}<span class="ih-hint">배정 없음</span>{% endfor %}
+          <form method="post" action="{{ url_for('instructor_hub.admin_account_action', account_id=item.id, action='assign') }}" class="ih-row" style="margin-top:6px">
+            <input class="ih-input" style="width:120px" type="text" name="school_name" list="ihSchools" placeholder="학교">
+            <input class="ih-input" style="width:90px" type="text" name="department" placeholder="강의부서">
+            <button class="ih-btn sm" type="submit">추가</button>
+          </form>
+        </td>
+        <td>
+          <div class="ih-mono">{{ item.url }}</div>
+          <div style="margin-top:4px">비밀번호 <strong class="ih-mono">{{ item.password or '(재발급 필요)' }}</strong></div>
+          <button class="ih-btn sm" type="button" style="margin-top:6px" data-copy="{{ item.url }}&#10;비밀번호: {{ item.password }}">링크·비번 복사</button>
+        </td>
+        <td>
+          <span class="ih-badge {{ 'ok' if item.is_active else 'off' }}">{{ '사용중' if item.is_active else '중지' }}</span>
+          <div class="ih-hint" style="margin:6px 0 0">최근 접속<br>{{ item.last_login_at[:16] or '없음' }}</div>
+          {% if item.sms_sent_at %}<div class="ih-hint" style="margin:4px 0 0">문자 {{ item.sms_sent_at[:16] }}</div>{% endif %}
+        </td>
+        <td>
+          <div class="ih-row">
+            <form method="post" class="ih-inline" action="{{ url_for('instructor_hub.admin_account_action', account_id=item.id, action='sms') }}"
+                  onsubmit="return confirm('{{ item.name }} 강사({{ item.phone }})에게 접속 링크와 비밀번호를 문자로 보낼까요?');">
+              <button class="ih-btn sm primary" type="submit">문자 보내기</button></form>
+            <form method="post" class="ih-inline" action="{{ url_for('instructor_hub.admin_account_action', account_id=item.id, action='reset-password') }}"
+                  onsubmit="return confirm('비밀번호를 새로 만들까요? 예전 비밀번호는 쓸 수 없게 됩니다.');">
+              <button class="ih-btn sm" type="submit">비번 재발급</button></form>
+            <form method="post" class="ih-inline" action="{{ url_for('instructor_hub.admin_account_action', account_id=item.id, action='reissue-link') }}"
+                  onsubmit="return confirm('접속 링크를 새로 만들까요? 예전 링크는 열리지 않게 됩니다.');">
+              <button class="ih-btn sm" type="submit">링크 재발급</button></form>
+            <form method="post" class="ih-inline" action="{{ url_for('instructor_hub.admin_account_action', account_id=item.id, action='toggle') }}">
+              <button class="ih-btn sm {{ 'danger' if item.is_active }}" type="submit">{{ '사용 중지' if item.is_active else '다시 사용' }}</button></form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="ih-hint">아직 계정이 없습니다. 위의 [완료된 계약에서 계정 불러오기]를 눌러 보세요.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {% elif tab == 'review' %}
+  <div class="ih-card">
+    <h2>강사프로필 승인 ({{ pending_profiles|length }})</h2>
+    <p class="ih-hint">승인하면 학부모 링크페이지에 사진과 소개글이 보입니다. 승인 전에는 외부에 보이지 않습니다.</p>
+    {% for item in pending_profiles %}
+    <div class="ih-review">
+      <div>{% if item.has_photo %}<img class="ph" src="{{ url_for('instructor_hub.admin_photo', account_id=item.account_id, which='draft') }}" alt="">{% endif %}</div>
+      <div>
+        <strong style="font-size:1.1rem">{{ item.name }}</strong> <span class="ih-hint">{{ item.submitted_at[:16] }} 제출{% if item.has_new_photo %} · 새 사진{% endif %}</span>
+        <div class="ih-bio" style="margin:8px 0">{{ item.bio or '(소개글 없음)' }}</div>
+        <form method="post" action="{{ url_for('instructor_hub.admin_review_profile', account_id=item.account_id) }}" class="ih-row">
+          <input class="ih-input" type="text" name="reason" placeholder="반려 사유(반려할 때만)" style="flex:1 1 220px">
+          <button class="ih-btn primary" name="decision" value="approve" type="submit">승인</button>
+          <button class="ih-btn danger" name="decision" value="reject" type="submit">반려</button>
+        </form>
+      </div>
+    </div>
+    {% else %}<p class="ih-hint">승인을 기다리는 프로필이 없습니다.</p>{% endfor %}
+  </div>
+
+  <div class="ih-card">
+    <h2>홍보페이지(e리플렛) 승인 ({{ pending_promos|length }})</h2>
+    <p class="ih-hint">승인하면 해당 학교 e리플렛의 외부 링크가 열립니다. 승인 전에도 e리플렛 메뉴에서는 직원이 미리 볼 수 있습니다.</p>
+    {% for item in pending_promos %}
+    <div class="ih-review" style="grid-template-columns:1fr">
+      <div>
+        <strong style="font-size:1.1rem">{{ item.school_name }} · {{ item.name }} 강사</strong>
+        <span class="ih-hint">{{ item.submitted_at[:16] }} 제출 · {{ item.page_total }}쪽</span>
+        <div class="ih-thumbs">
+          {% for page in item.pages %}
+            {% if item.from_ebook %}<img loading="lazy" alt="" src="{{ url_for('ebook.serve_page_image', ebook_id=item.ebook_id, page_id=page.id) }}">
+            {% else %}<img loading="lazy" alt="" src="{{ url_for('instructor_hub.admin_promo_page', page_id=page.id) }}">{% endif %}
+          {% endfor %}
+        </div>
+        <form method="post" action="{{ url_for('instructor_hub.admin_review_promo', promo_id=item.id) }}" class="ih-row">
+          <input class="ih-input" type="text" name="reason" placeholder="반려 사유(반려할 때만)" style="flex:1 1 220px">
+          <button class="ih-btn primary" name="decision" value="approve" type="submit">승인</button>
+          <button class="ih-btn danger" name="decision" value="reject" type="submit">반려</button>
+        </form>
+      </div>
+    </div>
+    {% else %}<p class="ih-hint">승인을 기다리는 홍보페이지가 없습니다.</p>{% endfor %}
+  </div>
+
+  {% else %}
+  <div class="ih-card">
+    <h2>학부모 링크페이지 만들기</h2>
+    <p class="ih-hint">학교×강의부서마다 하나씩 만듭니다. 강사프로필·출석알림·홍보 e리플렛·교실안내가 한 모바일 화면에 나옵니다. 가정통신문에는 QR을 넣으세요.</p>
+    <form method="post" action="{{ url_for('instructor_hub.admin_save_link') }}" class="ih-row">
+      <label>학교 · 강의부서
+        <select class="ih-input" id="ihPair" onchange="(function(s){var v=s.value.split('||');document.getElementById('ihSchool').value=v[0]||'';document.getElementById('ihDept').value=v[1]||'';})(this)">
+          <option value="">직접 입력 ▼</option>
+          {% for name, dept, sid in link_pairs %}<option value="{{ name }}||{{ dept }}">{{ name }}{% if dept %} · {{ dept }}{% endif %}</option>{% endfor %}
+        </select></label>
+      <label>학교<input class="ih-input" id="ihSchool" type="text" name="school_name" list="ihSchools2" required></label>
+      <label>강의부서<input class="ih-input" id="ihDept" type="text" name="department" placeholder="없으면 비워 두기"></label>
+      <label>제목<input class="ih-input" type="text" name="title" placeholder="예) 로봇코딩 방과후 안내"></label>
+      <button class="ih-btn primary" type="submit">링크페이지 만들기</button>
+    </form>
+    <datalist id="ihSchools2">{% for school in schools %}<option value="{{ school.name }}">{% endfor %}</datalist>
+  </div>
+
+  <div class="ih-card">
+    <h2>만든 링크페이지 ({{ link_pages|length }})</h2>
+    {% for link in link_pages %}
+    <div class="ih-link">
+      <div><img src="{{ url_for('instructor_hub.admin_link_qr', link_id=link.id) }}" alt="QR"></div>
+      <div>
+        <strong style="font-size:1.1rem">{{ link.school_name }}{% if link.department %} · {{ link.department }}{% endif %}</strong>
+        <span class="ih-badge {{ 'ok' if link.is_active else 'off' }}">{{ '공개중' if link.is_active else '비공개' }}</span>
+        <div class="ih-mono" style="margin:6px 0">{{ link.url }}</div>
+        <div class="ih-row" style="margin-bottom:10px">
+          <button class="ih-btn sm" type="button" data-copy="{{ link.url }}">링크 복사</button>
+          <a class="ih-btn sm" href="{{ link.url }}" target="_blank" rel="noopener">미리보기</a>
+          <form method="post" class="ih-inline" action="{{ url_for('instructor_hub.admin_link_action', link_id=link.id, action='toggle') }}"><button class="ih-btn sm" type="submit">{{ '비공개로' if link.is_active else '공개로' }}</button></form>
+          <form method="post" class="ih-inline" action="{{ url_for('instructor_hub.admin_link_action', link_id=link.id, action='regenerate') }}" onsubmit="return confirm('링크를 새로 만들면 예전 링크·QR은 열리지 않습니다. 계속할까요?');"><button class="ih-btn sm" type="submit">링크 재발급</button></form>
+          <form method="post" class="ih-inline" action="{{ url_for('instructor_hub.admin_link_action', link_id=link.id, action='delete') }}" onsubmit="return confirm('이 링크페이지를 삭제할까요?');"><button class="ih-btn sm danger" type="submit">삭제</button></form>
+        </div>
+        <form method="post" action="{{ url_for('instructor_hub.admin_save_link') }}">
+          <input type="hidden" name="id" value="{{ link.id }}">
+          <input type="hidden" name="school_name" value="{{ link.school_name }}"><input type="hidden" name="department" value="{{ link.department }}">
+          <div class="ih-row">
+            <label style="flex:1 1 220px">제목<input class="ih-input" type="text" name="title" value="{{ link.title }}"></label>
+            <label style="flex:2 1 300px">학부모 안내 문구<input class="ih-input" type="text" name="notice" value="{{ link.notice }}" maxlength="500"></label>
+          </div>
+          <div class="ih-row" style="margin-top:8px">
+            <label style="flex-direction:row;gap:6px"><input type="checkbox" name="show_profile" {{ 'checked' if link.show_profile }}> 강사프로필</label>
+            <label style="flex-direction:row;gap:6px"><input type="checkbox" name="show_attendance" {{ 'checked' if link.show_attendance }}> 출석알림</label>
+            <label style="flex-direction:row;gap:6px"><input type="checkbox" name="show_leaflet" {{ 'checked' if link.show_leaflet }}> 홍보 e리플렛</label>
+            <label style="flex-direction:row;gap:6px"><input type="checkbox" name="show_guide" {{ 'checked' if link.show_guide }}> 교실안내</label>
+            <button class="ih-btn sm primary" type="submit">저장</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% else %}<p class="ih-hint">아직 만든 링크페이지가 없습니다.</p>{% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('[data-copy]').forEach(button => {
+  button.addEventListener('click', async () => {
+    const text = button.dataset.copy;
+    try { await navigator.clipboard.writeText(text); button.textContent = '복사됨 ✓'; }
+    catch (error) { window.prompt('아래 내용을 복사해 주세요.', text); }
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ko">
+<head>
+{% include 'instructor_hub/_portal_head.html' %}
+<title>강사통합지원 · {{ account.name }}</title>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1><small>새담 강사통합지원</small>{{ account.name }} 선생님</h1>
+    <form method="post" action="{{ url_for('instructor_hub.portal_logout', token=token) }}">
+      <button class="btn sm" type="submit">나가기</button>
+    </form>
+  </div>
+
+  {% for category, message in messages %}<div class="msg {{ category }}">{{ message }}</div>{% endfor %}
+
+  <nav class="tabs">
+    <a href="?tab=profile" class="{{ 'on' if tab == 'profile' }}">강사프로필</a>
+    <a href="?tab=promo" class="{{ 'on' if tab == 'promo' }}">홍보페이지</a>
+    <a href="?tab=attendance" class="{{ 'on' if tab == 'attendance' }}">학생출석관리</a>
+  </nav>
+
+  {% if tab == 'profile' %}
+  <section class="card">
+    <h2>강사프로필 <span class="badge {{ profile.status }}">{{ status_labels[profile.status] }}</span></h2>
+    <p class="hint">프로필 사진과 소개글을 올리면 본사 담당자가 확인한 뒤 학부모 안내 페이지에 보입니다.</p>
+    {% if profile.status == 'rejected' %}<div class="msg error">반려되었습니다{% if profile.reject_reason %} · {{ profile.reject_reason }}{% endif %}. 고쳐서 다시 제출해 주세요.</div>{% endif %}
+    {% if profile.status == 'pending' %}<div class="note">승인을 기다리는 중입니다. 승인되기 전까지는 학부모에게 보이지 않습니다.</div>{% endif %}
+    <form method="post" action="{{ url_for('instructor_hub.portal_save_profile', token=token) }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      {% if photo_exists %}
+      <img src="{{ url_for('instructor_hub.portal_photo', token=token) }}?t={{ profile.submitted_at or '' }}" alt="프로필 사진"
+           style="width:140px;height:140px;object-fit:cover;border-radius:50%;border:3px solid #fff;box-shadow:0 4px 14px rgba(36,50,71,.18);display:block;margin:6px 0 4px">
+      {% endif %}
+      <label for="photo">프로필 사진 {% if photo_exists %}(바꾸려면 새 사진 선택){% endif %}</label>
+      <input id="photo" type="file" name="photo" accept="image/*">
+      <label for="bio">프로필 소개글 <span class="muted">(1,500자까지)</span></label>
+      <textarea id="bio" name="bio" maxlength="1500" placeholder="예) 방과후 로봇코딩을 5년째 가르치고 있습니다. 아이들이 스스로 만들어 보는 수업을 합니다.">{{ profile.draft_bio or profile.bio }}</textarea>
+      <button class="btn primary block" type="submit" style="margin-top:14px">승인 요청하기</button>
+    </form>
+  </section>
+
+  {% elif tab == 'promo' %}
+  {% for promo in promos %}
+  <section class="card">
+    <h2>{{ promo.school_name }} 홍보페이지 <span class="badge {{ promo.status }}">{{ status_labels[promo.status] }}</span></h2>
+    <p class="hint">홍보 그림이나 PDF를 올리면 이 학교의 e리플렛으로 자동 등록됩니다. 본사 담당자가 승인하면 외부에 보여 줄 링크가 열립니다.</p>
+    {% if promo.status == 'rejected' %}<div class="msg error">반려되었습니다{% if promo.reject_reason %} · {{ promo.reject_reason }}{% endif %}. 고쳐서 다시 올려 주세요.</div>{% endif %}
+    {% if promo.status == 'pending' %}<div class="note">승인을 기다리는 중입니다{% if promo.submitted_at %} ({{ promo.submitted_at[:16] }} 제출){% endif %}.</div>{% endif %}
+    {% if promo.live %}<p class="hint">공개 중인 e리플렛: <a href="{{ promo.live_url }}" target="_blank" rel="noopener">{{ promo.live_url }}</a><br>새로 올리면 승인될 때까지 지금 내용이 그대로 보입니다.</p>{% endif %}
+    <form method="post" action="{{ url_for('instructor_hub.portal_save_promo', token=token) }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <input type="hidden" name="school_name" value="{{ promo.school_name }}">
+      <label>홍보 그림·PDF <span class="muted">(그림 JPG·PNG 또는 PDF, 최대 20개 / 30쪽)</span></label>
+      <input type="file" name="files" accept="image/*,.pdf,application/pdf" multiple required>
+      <p class="muted">올리면 이전에 올린 홍보 내용을 새 파일로 바꿉니다.</p>
+      <button class="btn primary block" type="submit">올리고 승인 요청하기</button>
+    </form>
+  </section>
+  {% else %}
+  <section class="card"><p class="hint">배정된 학교가 없습니다. 본사 담당자에게 문의해 주세요.</p></section>
+  {% endfor %}
+
+  {% else %}
+  {% for group in class_groups %}
+  <section class="card">
+    <h2>{{ group.assignment.school_name }}{% if group.assignment.department %} · {{ group.assignment.department }}{% endif %}</h2>
+    <p class="hint">과목을 만들고, 학생을 등록한 뒤, 수업 시간에 출석 QR을 학생에게 보여 주세요.</p>
+    {% for item in group.classes %}
+    <div style="border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px;background:#fafcff">
+      <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+        <strong style="font-size:1.05rem">{{ item.name }}</strong>
+        <span class="muted">{{ item.schedule or '요일·시간 미정' }} · 학생 {{ item.students }}명</span>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <a class="btn primary" href="{{ item.live_url }}" target="_blank" rel="noopener">출석 QR · 출석 보기</a>
+        <a class="btn" href="{{ url_for('instructor_hub.portal_students', token=token, class_id=item.id) }}">학생 등록·관리</a>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <a class="btn sm" href="{{ item.display_url }}" target="_blank" rel="noopener">교실 TV용 QR 화면</a>
+        <form method="post" action="{{ url_for('instructor_hub.portal_delete_class', token=token, class_id=item.id) }}"
+              onsubmit="return confirm('‘{{ item.name }}’ 과목을 삭제할까요? 지난 출석 기록은 보존됩니다.');" style="flex:0 0 auto">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <button class="btn sm danger" type="submit">과목 삭제</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+    <details {{ 'open' if not group.classes }}>
+      <summary style="cursor:pointer;font-weight:900;color:var(--accent);padding:6px 0">＋ 과목 만들기</summary>
+      <form method="post" action="{{ url_for('instructor_hub.portal_save_class', token=token) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <input type="hidden" name="assignment_id" value="{{ group.assignment.id }}">
+        <label>과목 이름</label>
+        <input type="text" name="class_name" maxlength="60" required placeholder="예) 로봇코딩 초급반">
+        <label>수업 요일</label>
+        <div class="days">
+          {% for day in weekday_labels %}<label><input type="checkbox" name="weekdays" value="{{ loop.index0 }}">{{ day }}</label>{% endfor %}
+        </div>
+        <div class="row">
+          <div><label>시작</label><input type="time" name="start_time"></div>
+          <div><label>끝</label><input type="time" name="end_time"></div>
+          <div><label>지각 기준(분)</label><input type="number" name="late_minutes" value="10" min="0" max="120"></div>
+        </div>
+        <label>출석 QR 방식</label>
+        <select name="qr_mode">
+          <option value="daily">하루 고정 QR (인쇄해서 붙일 수 있음)</option>
+          <option value="live">실시간 QR (30초마다 바뀌어 대리출석 방지)</option>
+        </select>
+        <button class="btn primary block" type="submit" style="margin-top:14px">과목 만들기</button>
+      </form>
+    </details>
+  </section>
+  {% else %}
+  <section class="card"><p class="hint">배정된 학교가 없습니다. 본사 담당자에게 문의해 주세요.</p></section>
+  {% endfor %}
+  {% endif %}
+</div>
+</body>
+</html>

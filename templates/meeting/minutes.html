@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ meeting.title }} · 회의록{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/meeting.css') }}?v=20260911-meeting">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/meeting.css') }}?v=20261010-meeting">
 {% endblock %}
 {% block content %}
 <div class="mt-page" id="mtMinutesPage" data-generate-url="{{ url_for('meeting.generate_minutes', meeting_id=meeting.id) }}">
@@ -202,7 +202,9 @@
     {% for item in recordings %}
     <div class="mt-rec-row">
       <div class="mt-rec-meta">
-        <b>{{ item.no }}회차</b>
+        <b>{{ item.no }}회차 ·
+          {%- set ag = agendas|selectattr('row.id','equalto',item.agenda_id)|list -%}
+          {{ ' 안건 ' ~ ag[0].row.position ~ '. ' ~ ag[0].row.title if ag else ' 공통' }}</b>
         <span>{{ item.length }} · {{ item.size_kb }}KB · {{ item.created_at }}{% if item.uploaded_by %} · {{ item.uploaded_by }}{% endif %}</span>
       </div>
       <audio controls preload="none" src="{{ url_for('meeting.serve_recording', meeting_id=meeting.id, recording_id=item.id) }}"></audio>
@@ -221,10 +223,19 @@
     {% else %}
     <p class="mt-help">저장된 녹음이 없습니다.</p>
     {% endif %}
+    {% for ag in agendas if ag.row.transcript %}
+    <details class="mt-fold" style="margin-top:12px;">
+      <summary>안건 {{ ag.row.position }}. {{ ag.row.title }} · 받아쓰기 ({{ ag.row.transcript|length }}자)</summary>
+      <p style="white-space:pre-wrap; font-size:.9rem; font-weight:600; line-height:1.8; margin-top:8px;">{{ ag.row.transcript }}</p>
+      <a class="mt-btn sm" download href="{{ url_for('meeting.download_agenda_transcript', meeting_id=meeting.id, agenda_id=ag.row.id, download=1) }}"><i class="fa-solid fa-download"></i> 텍스트 파일로 받기</a>
+    </details>
+    {% endfor %}
+    {% if meeting.transcript %}
     <details class="mt-fold" style="margin-top:12px;">
       <summary>회의 받아쓰기 전문 보기 ({{ (meeting.transcript or '')|length }}자)</summary>
-      <p style="white-space:pre-wrap; font-size:.84rem; font-weight:600; line-height:1.8; margin-top:8px;">{{ meeting.transcript or '받아쓰기 기록이 없습니다.' }}</p>
+      <p style="white-space:pre-wrap; font-size:.84rem; font-weight:600; line-height:1.8; margin-top:8px;">{{ meeting.transcript }}</p>
     </details>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

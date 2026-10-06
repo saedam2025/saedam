@@ -146,11 +146,11 @@
     <div class="admin-header">
         <div style="display: flex; align-items: center; gap: 12px;">
             <img src="http://www.saedam.org/img/logo01.gif" alt="새담 로고" style="height: 35px; mix-blend-mode: multiply;">
-            <h2 style="margin:0; font-size:1.3rem;">증명서 발급 관리 시스템</h2>
+            <h2 style="margin:0; font-size:1.3rem;">{{ kind_config.title }}</h2>
         </div>
         <div class="admin-header-actions">
-            <a href="{{ url_for('document.certificate_settings') }}" class="btn btn-settings">
-                <i class="fa-solid fa-gear"></i> 증명서 발급설정
+            <a href="{{ url_for('document.certificate_settings', kind=kind) }}" class="btn btn-settings">
+                <i class="fa-solid fa-gear"></i> {{ '우수강사인증서 설정·명단' if kind == 'excellent' else kind_config.short ~ ' 발급설정' }}
             </a>
         </div>
     </div>
@@ -193,28 +193,17 @@
 
         <div class="type-stats-container">
             <div class="type-stat-item">
-                <span>총 발급 건수 통계: 📄 경력증명서</span><strong>{{ count_career }}건</strong>
+                <span>{{ kind_config.short }} 종류별 건수</span>
             </div>
+            {% for type_name, type_count in type_counts %}
             <div class="type-stat-divider"></div>
             <div class="type-stat-item">
-                <span>📄 재직증명서</span><strong>{{ count_employment }}건</strong>
+                <span>{{ '🏆' if kind == 'excellent' else '📄' }} {{ type_name }}</span><strong>{{ type_count }}건</strong>
             </div>
+            {% else %}
             <div class="type-stat-divider"></div>
-            <div class="type-stat-item">
-                <span>📄 해촉증명서</span><strong>{{ count_dismissal }}건</strong>
-            </div>
-            <div class="type-stat-divider"></div>
-            <div class="type-stat-item">
-                <span>📄 강사활동증명서</span><strong>{{ count_activity }}건</strong>
-            </div>
-            <div class="type-stat-divider"></div>
-            <div class="type-stat-item">
-                <span>📄 강사해촉증명서</span><strong>{{ count_inst_dismissal }}건</strong>
-            </div>
-            <div class="type-stat-divider"></div>
-            <div class="type-stat-item">
-                <span>🏆 우수강사인증서</span><strong>{{ count_excellent }}건</strong>
-            </div>
+            <div class="type-stat-item"><span>아직 접수된 신청이 없습니다.</span></div>
+            {% endfor %}
         </div>
     </div>
 
@@ -225,10 +214,10 @@
         </div>
         
         <div class="toolbar-actions">
-            <form action="{{ url_for('document.admin_list') }}" method="GET" class="search-form">
+            <form action="{{ url_for('document.admin_list', kind=kind) }}" method="GET" class="search-form">
                 <input type="text" name="search" class="search-input" placeholder="성명, 학교명 등 검색" value="{{ request.args.get('search', '') }}">
                 <button type="submit" class="btn btn-search">🔍 검색</button>
-                <a href="{{ url_for('document.admin_list') }}" class="btn btn-reset">🔄 초기화</a>
+                <a href="{{ url_for('document.admin_list', kind=kind) }}" class="btn btn-reset">🔄 초기화</a>
             </form>
             
             <button type="button" class="btn btn-delete" onclick="deleteSelected()">🗑️ 선택 삭제</button>
@@ -263,7 +252,10 @@
                         {{ item.성명 }} ⬇️
                     </td>
                     
-                    <td style="font-size: 0.8rem; font-family: monospace; white-space: nowrap;">{{ item.주민번호 }}</td>
+                    <td style="font-size: 0.8rem; font-family: monospace; white-space: nowrap;">
+                        {% if can_view_ssn %}<span class="ssn-toggle" data-masked="{{ item.주민번호_가림 }}" data-full="{{ item.주민번호 }}" title="클릭하면 전체 번호가 보입니다" style="cursor:pointer;">{{ item.주민번호_가림 }}</span>
+                        {% else %}{{ item.주민번호_가림 }}{% endif %}
+                    </td>
                     <td style="text-align: left;">
                         <span style="font-weight: 600;">{{ item.근무장소 }}</span>
                         <span style="font-size: 0.8rem; opacity: 0.8; margin-left: 6px;">({{ item.직책 }} / {{ item.강의과목 }})</span>
@@ -276,7 +268,7 @@
 
                     <td>
                         {% if item.상태 == "발급완료" %}
-                            <a href="{{ url_for('document.serve_pdf', idx=item.index) }}" target="_blank" style="font-size: 12px; color:var(--primary-color, #4a90e2); font-weight:500; text-decoration:underline;">
+                            <a href="{{ url_for('document.serve_pdf', kind=kind, idx=item.index) }}" target="_blank" style="font-size: 12px; color:var(--primary-color, #4a90e2); font-weight:500; text-decoration:underline;">
                                 {{ item.발급번호 }}
                             </a>
                             <div style="font-size: 11px; opacity: 0.6; margin-top: 2px;">{{ item.발급일 }}</div>
@@ -289,9 +281,7 @@
                         <select class="workgroup-select" id="workgroup-{{ item.index }}">
                             <option value="">작업그룹 선택</option>
                             {% for group in workgroups %}
-                            {% if not item.신청구분 or (item.증명서종류 == '우수강사인증서' and group.allow_excellent_instructor) or (item.신청구분 == '강사' and item.증명서종류 != '우수강사인증서' and group.allow_instructor) or (item.신청구분 == '임직원' and group.allow_employee) %}
                             <option value="{{ group.id }}" {% if item.작업그룹ID|string == group.id|string %}selected{% endif %}>{{ group.company_name }} · {{ group.name }}</option>
-                            {% endif %}
                             {% endfor %}
                         </select>
                         {% else %}
@@ -307,10 +297,10 @@
                                 data-end="{{ item.근무종료일 }}" data-place="{{ item.근무장소 }}" data-subject="{{ item.강의과목 }}"
                                 data-role="{{ item.직책 }}" data-purpose="{{ item.용도 }}" data-reason="{{ item.종료사유 }}"
                                 data-email="{{ item.이메일주소 }}" onclick="openEditModal(this)">수정</button>
-                            <a href="{{ url_for('document.delete_record', idx=item.index) }}" class="btn btn-delete" onclick="return confirm('이 신청 내역을 삭제하시겠습니까?')">삭제</a>
+                            <a href="{{ url_for('document.delete_record', kind=kind, idx=item.index) }}" class="btn btn-delete" onclick="return confirm('이 신청 내역을 삭제하시겠습니까?')">삭제</a>
                         {% else %}
                             <span class="status-badge status-done">발급완료</span>
-                            <a href="{{ url_for('document.delete_record', idx=item.index) }}" style="font-size: 12px; opacity: 0.5; margin-left:8px;" onclick="return confirm('기록을 영구 삭제하시겠습니까?')">삭제</a>
+                            <a href="{{ url_for('document.delete_record', kind=kind, idx=item.index) }}" style="font-size: 12px; opacity: 0.5; margin-left:8px;" onclick="return confirm('기록을 영구 삭제하시겠습니까?')">삭제</a>
                         {% endif %}
                     </td>
                 </tr>
@@ -336,20 +326,20 @@
 
     {% if total_pages > 1 %}
     <ul class="pagination">
-        {% if page > 1 %} <li><a href="{{ url_for('document.admin_list', page=1) }}">처음</a></li> {% endif %}
-        {% if start_page > 1 %} <li><a href="{{ url_for('document.admin_list', page=start_page-1) }}">◀ 이전 10개</a></li> {% endif %}
-        {% if page > 1 %} <li><a href="{{ url_for('document.admin_list', page=page-1) }}">◁ Pre</a></li> {% endif %}
+        {% if page > 1 %} <li><a href="{{ url_for('document.admin_list', kind=kind, search=request.args.get('search', ''), page=1) }}">처음</a></li> {% endif %}
+        {% if start_page > 1 %} <li><a href="{{ url_for('document.admin_list', kind=kind, search=request.args.get('search', ''), page=start_page-1) }}">◀ 이전 10개</a></li> {% endif %}
+        {% if page > 1 %} <li><a href="{{ url_for('document.admin_list', kind=kind, search=request.args.get('search', ''), page=page-1) }}">◁ Pre</a></li> {% endif %}
         
         {% for p in range(start_page, end_page + 1) %}
         <li>
             {% if p == page %} <span class="active">{{ p }}</span>
-            {% else %} <a href="{{ url_for('document.admin_list', page=p) }}">{{ p }}</a> {% endif %}
+            {% else %} <a href="{{ url_for('document.admin_list', kind=kind, search=request.args.get('search', ''), page=p) }}">{{ p }}</a> {% endif %}
         </li>
         {% endfor %}
         
-        {% if page < total_pages %} <li><a href="{{ url_for('document.admin_list', page=page+1) }}">Next ▷</a></li> {% endif %}
-        {% if end_page < total_pages %} <li><a href="{{ url_for('document.admin_list', page=end_page+1) }}">다음 10개 ▶</a></li> {% endif %}
-        {% if page < total_pages %} <li><a href="{{ url_for('document.admin_list', page=total_pages) }}">끝</a></li> {% endif %}
+        {% if page < total_pages %} <li><a href="{{ url_for('document.admin_list', kind=kind, search=request.args.get('search', ''), page=page+1) }}">Next ▷</a></li> {% endif %}
+        {% if end_page < total_pages %} <li><a href="{{ url_for('document.admin_list', kind=kind, search=request.args.get('search', ''), page=end_page+1) }}">다음 10개 ▶</a></li> {% endif %}
+        {% if page < total_pages %} <li><a href="{{ url_for('document.admin_list', kind=kind, search=request.args.get('search', ''), page=total_pages) }}">끝</a></li> {% endif %}
     </ul>
     {% endif %}
 </div>
@@ -357,7 +347,7 @@
 <div id="modalOverlay" class="modal-overlay" onclick="closeMailModal(); closeEditModal();"></div>
 <div id="mailModal">
     <h3 style="margin:0 0 15px 0; font-size:1.1rem; color:var(--primary-dark, #357abd); border-bottom:2px solid var(--card-border, #e2e8f0); padding-bottom:10px;">📧 안내 메일 발송</h3>
-    <form action="/document/send_simple_email" method="POST">
+    <form action="{{ url_for('document.send_simple_email', kind=kind) }}" method="POST">
         <label style="font-size:0.75rem; font-weight:700;">수신자</label>
         <input type="text" name="email" id="modalEmail" style="width:100%; padding:8px; margin:5px 0 15px; border:1px solid var(--card-border, #e2e8f0); border-radius:4px; background:var(--input-bg, #f9f9f9);" readonly>
         <label style="font-size:0.75rem; font-weight:700;">발송 작업그룹</label>
@@ -378,12 +368,16 @@
 
 <div id="editModal">
     <h3 style="margin:0 0 15px 0; font-size:1.1rem; color:var(--primary-dark, #357abd); border-bottom:2px solid var(--card-border, #e2e8f0); padding-bottom:10px;">📝 신청 정보 수정</h3>
-    <form action="/document/edit" method="POST">
+    <form action="{{ url_for('document.edit_record_post', kind=kind) }}" method="POST">
         <input type="hidden" name="idx" id="editIdx">
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-            <div><label style="font-size:0.75rem; font-weight:700;">증명서종류</label><select name="증명서종류" id="editType" style="width:100%; padding:8px; border:1px solid var(--card-border, #e2e8f0); border-radius:4px;"><option value="경력증명서">경력증명서</option><option value="재직증명서">재직증명서</option><option value="해촉증명서">해촉증명서</option></select></div>
+            <div><label style="font-size:0.75rem; font-weight:700;">증명서종류</label><select name="증명서종류" id="editType" style="width:100%; padding:8px; border:1px solid var(--card-border, #e2e8f0); border-radius:4px;">
+                {% if kind == 'instructor' %}<option value="강사 활동증명서">강사 활동증명서</option><option value="강사 해촉증명서">강사 해촉증명서</option>
+                {% elif kind == 'employee' %}<option value="재직증명서">재직증명서</option><option value="경력증명서">경력증명서</option><option value="해촉증명서">해촉증명서</option>
+                {% else %}<option value="우수강사인증서">우수강사인증서</option>{% endif %}
+            </select></div>
             <div><label style="font-size:0.75rem; font-weight:700;">성명</label><input type="text" name="성명" id="editName" style="width:100%; padding:8px; border:1px solid var(--card-border, #e2e8f0); border-radius:4px;"></div>
-            <div><label style="font-size:0.75rem; font-weight:700;">주민번호</label><input type="text" name="주민번호" id="editSsn" style="width:100%; padding:8px; border:1px solid var(--card-border, #e2e8f0); border-radius:4px;"></div>
+            <div><label style="font-size:0.75rem; font-weight:700;">주민번호</label><input type="text" name="주민번호" id="editSsn" {% if not can_view_ssn %}readonly{% endif %} style="width:100%; padding:8px; border:1px solid var(--card-border, #e2e8f0); border-radius:4px;"></div>
             <div><label style="font-size:0.75rem; font-weight:700;">이메일</label><input type="text" name="이메일주소" id="editEmail" style="width:100%; padding:8px; border:1px solid var(--card-border, #e2e8f0); border-radius:4px;"></div>
             <div style="grid-column: span 2;"><label style="font-size:0.75rem; font-weight:700;">자택주소</label><input type="text" name="자택주소" id="editAddr" style="width:100%; padding:8px; border:1px solid var(--card-border, #e2e8f0); border-radius:4px;"></div>
             <div><label style="font-size:0.75rem; font-weight:700;">근무장소</label><input type="text" name="근무장소" id="editPlace" style="width:100%; padding:8px; border:1px solid var(--card-border, #e2e8f0); border-radius:4px;"></div>
@@ -407,6 +401,13 @@
         for (let checkbox of checkboxes) { checkbox.checked = this.checked; }
     }
 
+    document.querySelectorAll('.ssn-toggle').forEach(el => {
+        el.addEventListener('click', () => {
+            const showing = el.textContent.trim() === el.dataset.full;
+            el.textContent = showing ? el.dataset.masked : el.dataset.full;
+        });
+    });
+
     function toggleDetail(rowId) {
         const row = document.getElementById(rowId);
         row.classList.contains('open') ? row.classList.remove('open') : row.classList.add('open');
@@ -418,7 +419,7 @@
         if (confirm(`선택하신 ${checkedBoxes.length}건의 기록을 정말 삭제하시겠습니까?`)) {
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = "{{ url_for('document.delete_multiple') }}";
+            form.action = "{{ url_for('document.delete_multiple', kind=kind) }}";
             checkedBoxes.forEach(box => {
                 const input = document.createElement('input');
                 input.type = 'hidden'; input.name = 'chk_ids'; input.value = box.value;
@@ -436,7 +437,7 @@
         {% endif %}
         showLoading(btn);
         const query = select && select.value ? `?workgroup_id=${encodeURIComponent(select.value)}` : '';
-        window.location.href = `/document/generate/${idx}${query}`;
+        window.location.href = "{{ url_for('document.generate_certificate', kind=kind, idx=0) }}".replace(/0$/, idx) + query;
     }
 
     function openMailModal(name, email, workgroupId) {
@@ -450,7 +451,11 @@
 
     function openEditModal(btn) {
         document.getElementById('editIdx').value = btn.getAttribute('data-idx');
-        document.getElementById('editType').value = btn.getAttribute('data-type');
+        const editType = document.getElementById('editType'), typeValue = btn.getAttribute('data-type');
+        if (typeValue && ![...editType.options].some(o => o.value === typeValue)) {
+            editType.add(new Option(typeValue, typeValue));
+        }
+        editType.value = typeValue;
         document.getElementById('editName').value = btn.getAttribute('data-name');
         document.getElementById('editSsn').value = btn.getAttribute('data-ssn');
         document.getElementById('editEmail').value = btn.getAttribute('data-email');

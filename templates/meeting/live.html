@@ -2,16 +2,15 @@
 {% block title %}{{ meeting.title }} · 회의 진행{% endblock %}
 {% block body_class %}mt-live-body{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/meeting.css') }}?v=20260911-meeting">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/meeting.css') }}?v=20261010-meeting">
 {% endblock %}
 {% block content %}
 <div class="mt-live" id="mtLive"
      data-meeting-id="{{ meeting.id }}"
      data-decision-url="{{ url_for('meeting.save_decision', meeting_id=meeting.id, agenda_id=0) }}"
-     data-transcript-url="{{ url_for('meeting.save_transcript', meeting_id=meeting.id) }}"
+     data-transcript-url="{{ url_for('meeting.save_agenda_transcript', meeting_id=meeting.id, agenda_id=0) }}"
      data-recording-url="{{ url_for('meeting.upload_recording', meeting_id=meeting.id) }}"
      data-minutes-url="{{ url_for('meeting.generate_minutes', meeting_id=meeting.id) }}"
-     data-transcript-revision="{{ transcript_revision }}"
      data-can-manage="{{ 1 if can_manage else 0 }}">
 
   <!-- 저장이 막힌 상태(로그인 만료·인터넷 끊김)를 놓치지 않게 계속 띄워 둔다. -->
@@ -47,10 +46,9 @@
 
   <div class="mt-live-body-grid">
 
-    <!-- 왼쪽 : 안건 목록. 클릭하면 가운데에서 확대된다. -->
-    <section class="mt-live-col">
-      <h2><span><i class="fa-solid fa-list-check"></i> 안건 <span id="mtAgendaCount">{{ agendas|length }}</span>건</span>
-        <span style="font-weight:700; color:#64748b;">클릭하면 확대</span></h2>
+    <!-- 왼쪽 : 안건 목록 -->
+    <section class="mt-live-col mt-agenda-col">
+      <h2><span><i class="fa-solid fa-list-check"></i> 안건 <span id="mtAgendaCount">{{ agendas|length }}</span>건</span></h2>
       <div class="mt-live-scroll" id="mtAgendaList"></div>
 
       <div class="mt-agenda-add">
@@ -66,75 +64,74 @@
           </div>
         </form>
       </div>
-
-      <div class="mt-rec-list" id="mtRecList" data-meeting-id="{{ meeting.id }}">
-        <h3><i class="fa-solid fa-waveform-lines"></i> 녹음 <span id="mtRecCount">{{ recordings|length }}</span>회차
-          <small>5분마다 자동 저장</small></h3>
-        <div id="mtRecItems"></div>
-      </div>
     </section>
 
-    <!-- 가운데 : 확대된 안건 + 자료 화면 출력 -->
-    <section class="mt-live-col">
-      <div class="mt-stage">
-        <div class="mt-stage-head">
-          <div class="mt-stage-no" id="mtStageNo">안건을 선택해 주세요</div>
-          <h2 id="mtStageTitle">{{ meeting.title }}</h2>
-          <p id="mtStageSummary">왼쪽에서 안건을 클릭하면 안건 내용이 크게 보이고, 등록된 자료가 아래 화면에 출력됩니다.</p>
-          <div class="mt-stage-owner" id="mtStageOwner"></div>
-        </div>
-        <div class="mt-stage-view" id="mtStageView">
-          <div class="mt-thumbs" id="mtThumbs"></div>
-          <div class="mt-zoom" id="mtZoom" hidden>
-            <img id="mtZoomImg" alt="회의 자료">
-            <button type="button" class="mt-zoom-nav prev" id="mtZoomPrev" aria-label="이전 자료"><i class="fa-solid fa-chevron-left"></i></button>
-            <button type="button" class="mt-zoom-nav next" id="mtZoomNext" aria-label="다음 자료"><i class="fa-solid fa-chevron-right"></i></button>
-            <button type="button" class="mt-zoom-close" id="mtZoomClose" aria-label="목록으로"><i class="fa-solid fa-table-cells-large"></i> 목록</button>
-            <div class="mt-zoom-label" id="mtZoomLabel"></div>
+    <!-- 가운데 : 메인. 안건 내용 + 논의·결정 기록 + 받아쓰기를 크게 -->
+    <section class="mt-live-col mt-main">
+      <div class="mt-stage-head">
+        <div class="mt-stage-no" id="mtStageNo">안건을 선택해 주세요</div>
+        <h2 id="mtStageTitle">{{ meeting.title }}</h2>
+        <p id="mtStageSummary">왼쪽에서 안건을 클릭하면 안건 내용과 기록 칸이 열립니다.</p>
+        <div class="mt-stage-owner" id="mtStageOwner"></div>
+      </div>
+
+      <div class="mt-work">
+        <div class="mt-work-col">
+          <div class="mt-work-head">
+            <span><i class="fa-solid fa-gavel"></i> 논의 · 결정 기록</span>
+            <span class="mt-save-state" id="mtDecisionState"></span>
+          </div>
+          <label for="mtMinutesText">논의 내용</label>
+          <textarea id="mtMinutesText" class="grow2" placeholder="오간 이야기를 적어 주세요. 회의록의 근거가 됩니다."></textarea>
+          <label for="mtDecisionText">결정 내용</label>
+          <textarea id="mtDecisionText" class="grow1" placeholder="무엇을 어떻게 하기로 했는지 적어 주세요."></textarea>
+          <div class="mt-work-foot">
+            <select id="mtDecisionStatus" aria-label="처리 상태">
+              {% for key, label in decision_labels.items() %}
+              <option value="{{ key }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button type="button" class="mt-lbtn go" id="mtDecisionSave">
+              <i class="fa-solid fa-floppy-disk"></i> 이 안건 기록 저장
+            </button>
           </div>
         </div>
-        <div class="mt-stage-files" id="mtStageFiles"></div>
-      </div>
-    </section>
 
-    <!-- 오른쪽 : 안건 결정 기록 + 받아쓰기 -->
-    <section class="mt-live-col mt-side">
-      <h2><span><i class="fa-solid fa-gavel"></i> 논의 · 결정 기록</span>
-        <span class="mt-save-state" id="mtDecisionState"></span></h2>
-      <div class="mt-live-form">
-        <div>
-          <label for="mtMinutesText">논의 내용</label>
-          <textarea id="mtMinutesText" rows="4" placeholder="오간 이야기를 적어 주세요. 회의록의 근거가 됩니다."></textarea>
+        <div class="mt-work-col">
+          <div class="mt-work-head">
+            <span><i class="fa-solid fa-microphone-lines"></i> 이 안건 받아쓰기</span>
+            <span class="mt-save-state" id="mtTranscriptState"></span>
+          </div>
+          <textarea class="mt-transcript" id="mtTranscript"
+                    placeholder="[받아쓰기 시작]을 누르면 마이크로 들어온 말이 이 안건에 자동으로 적힙니다. 직접 입력해도 됩니다."></textarea>
+          <div class="mt-interim" id="mtInterim" hidden></div>
+          <p class="mt-save-state" id="mtSttHint">
+            받아쓰기는 크롬·엣지에서 동작합니다. 안건을 바꾸면 그 안건의 받아쓰기로 이어집니다.
+          </p>
         </div>
-        <div>
-          <label for="mtDecisionText">결정 내용</label>
-          <textarea id="mtDecisionText" rows="3" placeholder="무엇을 어떻게 하기로 했는지 적어 주세요."></textarea>
-        </div>
-        <div>
-          <label for="mtDecisionStatus">처리 상태</label>
-          <select id="mtDecisionStatus">
-            {% for key, label in decision_labels.items() %}
-            <option value="{{ key }}">{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <button type="button" class="mt-lbtn go" id="mtDecisionSave" style="justify-content:center;">
-          <i class="fa-solid fa-floppy-disk"></i> 이 안건 기록 저장
-        </button>
       </div>
 
-      <h2 style="border-top:1px solid rgba(255,255,255,.08);">
-        <span><i class="fa-solid fa-microphone-lines"></i> 회의 받아쓰기</span>
-        <span class="mt-save-state" id="mtTranscriptState"></span>
-      </h2>
-      <div class="mt-live-form" style="flex:1 1 auto; min-height:0;">
-        <textarea class="mt-transcript" id="mtTranscript"
-                  placeholder="[받아쓰기 시작]을 누르면 마이크로 들어온 말이 자동으로 적힙니다. 직접 입력해도 됩니다.">{{ meeting.transcript }}</textarea>
-        <p class="mt-save-state" id="mtSttHint">
-          받아쓰기는 크롬·엣지에서 동작합니다. 지원하지 않는 브라우저에서는 직접 입력하거나 녹음만 사용해 주세요.
-        </p>
+      <!-- 첨부파일 : 자료 · 이 안건의 녹음 · 이 안건의 받아쓰기 파일. 누르면 전체화면 -->
+      <div class="mt-attach">
+        <div class="mt-attach-head">
+          <span><i class="fa-solid fa-paperclip"></i> 첨부파일 <b id="mtAttachCount">0</b>개</span>
+          <small>누르면 전체화면으로 크게 열립니다</small>
+        </div>
+        <div class="mt-attach-row" id="mtAttachRow"></div>
       </div>
     </section>
+  </div>
+
+  <!-- 첨부파일 전체화면 보기 -->
+  <div class="mt-viewer" id="mtViewer" hidden role="dialog" aria-modal="true" aria-label="첨부파일 전체화면 보기">
+    <div class="mt-viewer-bar">
+      <div class="mt-viewer-title" id="mtViewerTitle"></div>
+      <a class="mt-lbtn" id="mtViewerDown" href="#" target="_blank" rel="noopener"><i class="fa-solid fa-download"></i><span>내려받기</span></a>
+      <button type="button" class="mt-lbtn" id="mtViewerClose"><i class="fa-solid fa-xmark"></i><span>닫기 (Esc)</span></button>
+    </div>
+    <div class="mt-viewer-stage" id="mtViewerStage"></div>
+    <button type="button" class="mt-viewer-nav prev" id="mtViewerPrev" aria-label="이전"><i class="fa-solid fa-chevron-left"></i></button>
+    <button type="button" class="mt-viewer-nav next" id="mtViewerNext" aria-label="다음"><i class="fa-solid fa-chevron-right"></i></button>
   </div>
 
   <div class="mt-live-toast" id="mtToast" role="status" aria-live="polite"></div>
@@ -144,5 +141,5 @@
 <script id="mtRecData" type="application/json">{{ recordings|tojson }}</script>
 {% endblock %}
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/meeting_live.js') }}?v=20260911-meeting"></script>
+<script src="{{ url_for('static', filename='js/meeting_live.js') }}?v=20261010-meeting"></script>
 {% endblock %}
