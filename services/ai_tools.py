@@ -16,7 +16,11 @@ from typing import Any, Callable
 from urllib.parse import quote
 
 from routes.database import get_db
-from routes.menu_access import BOARD_TOP_MENU_LABELS, SCHOOL_WORKSPACE_CATEGORY_MENU_KEYS
+from routes.menu_access import (
+    BOARD_TOP_MENU_LABELS,
+    SCHOOL_WORKSPACE_CATEGORY_MENU_KEYS,
+    VERIFIED_CONTRACT_KIND_MENUS,
+)
 
 
 MAX_RESULT_LIMIT = 20
@@ -148,6 +152,16 @@ def _allowed(context: dict[str, Any], menu_key: str) -> bool:
 def _require(context: dict[str, Any], menu_key: str, label: str) -> None:
     if not _allowed(context, menu_key):
         raise ToolPermissionError(f"{label} 조회 권한이 없습니다.")
+
+
+def _contract_source(context: dict[str, Any], label: str) -> str:
+    """강사전자계약/임직원전자계약 중 권한이 있는 쪽 계약 테이블만 묶은 FROM 절 조각."""
+    from routes.verified_contract_repository import contract_source
+
+    kinds = [kind for kind, menu in VERIFIED_CONTRACT_KIND_MENUS.items() if _allowed(context, menu)]
+    if not kinds:
+        raise ToolPermissionError(f"{label} 조회 권한이 없습니다.")
+    return contract_source(kinds)
 
 
 def _assigned_schools(conn, context: dict[str, Any]) -> list[dict[str, Any]]:
@@ -601,14 +615,14 @@ def _contract_end_date(period: Any) -> date | None:
 
 
 def get_contract_expirations(arguments: dict[str, Any], context: dict[str, Any]) -> ToolExecution:
-    _require(context, "verified_contract_admin", "인증전자계약")
+    source = _contract_source(context, "인증전자계약")
     start, end = _date_range(arguments)
     limit = _limit(arguments.get("limit"), 20)
     conn = get_db()
     try:
         rows = conn.execute(
             "SELECT id, contract_type, school_name, department, signer_name, contract_data_json "
-            "FROM verified_contracts ORDER BY id DESC"
+            f"FROM {source} ORDER BY id DESC"
         ).fetchall()
     finally:
         conn.close()
@@ -643,14 +657,14 @@ def get_contract_expirations(arguments: dict[str, Any], context: dict[str, Any])
 
 
 def get_incomplete_contracts(arguments: dict[str, Any], context: dict[str, Any]) -> ToolExecution:
-    _require(context, "verified_contract_admin", "인증전자계약")
+    source = _contract_source(context, "인증전자계약")
     limit = _limit(arguments.get("limit"), 20)
     conn = get_db()
     try:
         rows = conn.execute(
-            """
+            f"""
             SELECT signer_name, school_name, department, status, created_at
-            FROM verified_contracts
+            FROM {source}
             WHERE LOWER(COALESCE(status,'')) NOT IN ('completed','signed')
             ORDER BY id DESC LIMIT ?
             """, (limit,),
@@ -1015,14 +1029,25 @@ def search_documents(arguments: dict[str, Any], context: dict[str, Any]) -> Tool
     return ToolExecution({"keyword": keyword, "files": model_results}, display)
 
 
+CERTIFICATE_REQUEST_SOURCES = (
+    ("document_instructor", "instructor_certificate_requests", "/document/instructor/admin"),
+    ("document_employee", "employee_certificate_requests", "/document/employee/admin"),
+    ("document_excellent", "excellent_certificate_requests", "/document/excellent/admin"),
+)
+
+
 def search_certificate_requests(arguments: dict[str, Any], context: dict[str, Any]) -> ToolExecution:
-    _require(context, "document_admin", "증명서 발급관리")
+    # 증명서 발급관리는 강사/임직원/우수강사 메뉴로 나뉘어 있어, 권한이 있는 메뉴만 조회한다.
+    sources = [item for item in CERTIFICATE_REQUEST_SOURCES if _allowed(context, item[0])]
+    if not sources:
+        raise ToolPermissionError("증명서 발급관리 조회 권한이 없습니다.")
     keyword = _clean(arguments.get("keyword"), 50)
     certificate_type = _clean(arguments.get("certificate_type"), 40)
     status = _clean(arguments.get("status"), 20)
     start, end = _date_range(arguments, default="year")
     limit = _limit(arguments.get("limit"), 10)
     conn = get_db()
+    items: list[dict[str, Any]] = []
     try:
         where = ["COALESCE(applied_date,'') BETWEEN ? AND ?"]
         params: list[Any] = [start.isoformat(), end.isoformat()]
@@ -1035,24 +1060,27 @@ def search_certificate_requests(arguments: dict[str, Any], context: dict[str, An
         if status:
             where.append("status=?")
             params.append(status)
-        rows = conn.execute(
-            f"""
-            SELECT applicant_name, applicant_type, certificate_type, status,
-                   applied_date, issued_date, workplace, purpose
-            FROM certificate_requests
-            WHERE {' AND '.join(where)}
-            ORDER BY applied_date DESC LIMIT ?
-            """, (*params, limit),
-        ).fetchall()
+        for _menu_key, table, _url in sources:
+            rows = conn.execute(
+                f"""
+                SELECT applicant_name, applicant_type, certificate_type, status,
+                       applied_date, issued_date, workplace, purpose
+                FROM {table}
+                WHERE {' AND '.join(where)}
+                ORDER BY applied_date DESC LIMIT ?
+                """, (*params, limit),
+            ).fetchall()
+            items.extend(dict(row) for row in rows)
     finally:
         conn.close()
-    items = [dict(row) for row in rows]
+    items.sort(key=lambda row: str(row.get("applied_date") or ""), reverse=True)
+    items = items[:limit]
     display = _table(
         "증명서 발급 현황", f"조건에 맞는 증명서 신청 {len(items)}건입니다.",
         [("applicant_name", "성명"), ("applicant_type", "구분"), ("certificate_type", "증명서종류"),
          ("status", "상태"), ("applied_date", "신청일"), ("issued_date", "발급일"),
          ("workplace", "근무장소"), ("purpose", "용도")], items,
-        [{"label": "증명서 발급관리로 이동", "url": "/document/admin", "style": "primary"}],
+        [{"label": "증명서 발급관리로 이동", "url": sources[0][2], "style": "primary"}],
     )
     return ToolExecution({"count": len(items), "requests": items}, display)
 
@@ -1466,7 +1494,7 @@ _VERIFIED_CONTRACT_STATUS_BY_LABEL = {label: key for key, label in VERIFIED_CONT
 
 
 def search_verified_contracts(arguments: dict[str, Any], context: dict[str, Any]) -> ToolExecution:
-    _require(context, "verified_contract_admin", "인증전자계약관리")
+    source = _contract_source(context, "인증전자계약관리")
     status = _clean(arguments.get("status"), 20)
     status = _VERIFIED_CONTRACT_STATUS_BY_LABEL.get(status, status.lower())
     if status and status not in VERIFIED_CONTRACT_STATUSES:
@@ -1477,7 +1505,7 @@ def search_verified_contracts(arguments: dict[str, Any], context: dict[str, Any]
     limit = _limit(arguments.get("limit"), 15)
     conn = get_db()
     try:
-        if not _table_exists(conn, "verified_contracts"):
+        if not _table_exists(conn, "instructor_verified_contracts") or not _table_exists(conn, "employee_verified_contracts"):
             return ToolExecution({"period": _period_label(start, end), "count": 0, "contracts": [], "status_counts": {}},
                                   _table("인증전자계약 현황", "아직 등록된 인증전자계약이 없습니다.",
                                          [("contract_type", "계약구분"), ("school", "학교"), ("department", "부서"),
@@ -1499,14 +1527,14 @@ def search_verified_contracts(arguments: dict[str, Any], context: dict[str, Any]
         rows = conn.execute(
             f"""
             SELECT contract_type, school_name, department, signer_name, status, created_at, signed_at
-            FROM verified_contracts WHERE {' AND '.join(where)}
+            FROM {source} WHERE {' AND '.join(where)}
             ORDER BY created_at DESC LIMIT ?
             """, (*params, limit),
         ).fetchall()
         status_rows = conn.execute(
-            """
+            f"""
             SELECT COALESCE(status,'') AS status, COUNT(*) AS cnt
-            FROM verified_contracts WHERE date(created_at) BETWEEN ? AND ?
+            FROM {source} WHERE date(created_at) BETWEEN ? AND ?
             GROUP BY status
             """, (start.isoformat(), end.isoformat()),
         ).fetchall()
