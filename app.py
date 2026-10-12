@@ -56,6 +56,8 @@ from routes.instructor_attendance import (
     instructor_attendance_bp,
 )
 from routes.instructor_hub import instructor_hub_bp, init_instructor_hub_schema
+from routes.parent_hub import parent_hub_bp, init_parent_hub_schema
+from routes.support_hub import support_hub_bp
 from routes.student_attendance import (
     init_student_attendance_schema,
     student_attendance_bp,
@@ -124,6 +126,7 @@ with app.app_context():
         init_instructor_attendance_schema()
         init_student_attendance_schema()
         init_instructor_hub_schema()
+        init_parent_hub_schema()
         event_conn = get_db()
         try:
             ensure_event_schema(event_conn)
@@ -239,9 +242,11 @@ PUBLIC_PATH_PREFIXES = (
     '/student-attendance/live/',
     '/student-attendance/display/',
     '/student-attendance/p/',
-    # 강사통합지원: 강사 포털(링크+비밀번호 세션)과 학부모 모바일 링크페이지
+    # 강사통합지원: 강사 포털(링크+비밀번호 세션)
     '/teacher-hub/',
-    '/school-link/',
+    # 학부모통합지원: 학교 링크와 보호자 개인 화면(자녀 이름·보호자 번호 확인 / 개인 토큰으로 보호)
+    '/parent/hub/',
+    '/parent/home/',
 )
 
 def _is_script_request() -> bool:
@@ -1159,6 +1164,8 @@ app.register_blueprint(parent_notification_bp)
 app.register_blueprint(instructor_attendance_bp)
 app.register_blueprint(student_attendance_bp)
 app.register_blueprint(instructor_hub_bp)
+app.register_blueprint(parent_hub_bp)
+app.register_blueprint(support_hub_bp)
 app.register_blueprint(points_bp)
 app.register_blueprint(unified_search_bp)
 
