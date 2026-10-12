@@ -1,0 +1,16 @@
+{# 통합지원 화면에서 함께 쓰는 작은 양식·배지. `{% from 'support_hub/_macros.html' import act, chip with context %}`로 불러온다. #}
+{% macro act(account_id, action, label, confirm='', cls='') %}
+<form method="post" class="ih-inline" action="{{ url_for('instructor_hub.admin_account_action', account_id=account_id, action=action) }}"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
+  <input type="hidden" name="next" value="{{ here }}"><button class="ih-btn sm {{ cls }}" type="submit">{{ label }}</button></form>
+{% endmacro %}
+
+{% macro chip(status) %}<span class="ih-st {{ status }}">{{ status_labels[status] }}</span>{% endmacro %}
+
+{# 어느 화면에서든 같은 모양으로 쓰는 '확인 창이 뜨는 단추 양식' #}
+{% macro post_button(url, label, confirm='', cls='', extra={}) %}
+<form method="post" class="ih-inline" action="{{ url }}"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
+  <input type="hidden" name="next" value="{{ here }}">
+  {% for key, value in extra.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+  <button class="ih-btn sm {{ cls }}" type="submit">{{ label }}</button>
+</form>
+{% endmacro %}

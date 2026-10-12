@@ -1068,7 +1068,7 @@
                         <!-- 3-2. 학교지원 메뉴 (학교관리 오른쪽) -->
                         {% if menu_access.get('school_support_group', true) %}
                         <li class="menu-item-wrapper dropdown">
-                            <a href="javascript:void(0);" class="menu-item {% if request.path.startswith('/instructor-hub') or request.path.startswith('/survey') or request.path.startswith('/billing') or request.path.startswith('/student-attendance') or request.path.startswith('/school/guide') or request.path.startswith('/parent-notifications') or (request.path.startswith('/ebook') and not request.path.startswith('/ebook/books')) %}active{% endif %}">
+                            <a href="javascript:void(0);" class="menu-item {% if request.path.startswith('/support-hub') or request.path.startswith('/instructor-hub') or request.path.startswith('/parent-hub') or request.path.startswith('/survey') or request.path.startswith('/billing') or request.path.startswith('/student-attendance') or request.path.startswith('/school/guide') or request.path.startswith('/parent-notifications') or (request.path.startswith('/ebook') and not request.path.startswith('/ebook/books')) %}active{% endif %}">
                                 <i class="fa-solid fa-handshake-angle"></i> 학교지원
                             </a>
                             <div class="dropdown-content">
@@ -1078,7 +1078,7 @@
                                 {% if menu_access.get('ebook_library', true) %}<a href="{{ url_for('ebook.library') }}"><i class="fa-solid fa-book-open-reader"></i>e리플렛</a>{% endif %}
                                 {% if menu_access.get('parent_notifications', false) %}<a href="/parent-notifications"><i class="fa-solid fa-bell"></i>학부모알림전송</a>{% endif %}
                                 {% if menu_access.get('school_billing', false) %}<a href="/billing/"><i class="fa-solid fa-file-invoice-dollar"></i>청구업무</a>{% endif %}
-                                {% if menu_access.get('school_instructor_hub', false) %}<a href="/instructor-hub/"><i class="fa-solid fa-chalkboard-user"></i>강사통합지원</a>{% endif %}
+                                {% if menu_access.get('school_support_hub', false) %}<a href="/support-hub/"><i class="fa-solid fa-people-roof"></i>학부모·강사 통합지원</a>{% endif %}
                             </div>
                         </li>
                         {% endif %}

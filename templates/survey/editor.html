@@ -390,7 +390,7 @@
                             <span class="date-sep">~</span>
                             <input type="date" id="endsOn" aria-label="응답 종료일">
                         </div>
-                        <span class="hint">비워 두면 마감 전까지 언제든 응답할 수 있습니다. 종료일이 지나면 링크를 열어도 응답할 수 없습니다.</span>
+                        <span class="hint">비워 두면 마감 전까지 언제든 응답할 수 있습니다. 종료일 다음 날 0시(한국시간)가 되면 자동으로 마감되어 링크를 열어도 응답할 수 없습니다. 종료일을 늘리면 다시 응답을 받습니다.</span>
                     </div>
                     <div class="field">
                         <label class="q-check">
@@ -969,7 +969,8 @@ async function loadSurvey() {
     document.getElementById('cntRecipients').textContent = survey.recipient_count;
     document.getElementById('cntSent').textContent = survey.sent_count;
     document.getElementById('cntResponded').textContent = survey.response_count;
-    document.getElementById('cntStatus').textContent = STATUS_LABEL[survey.status] || survey.status;
+    document.getElementById('cntStatus').textContent = (STATUS_LABEL[survey.status] || survey.status)
+        + (survey.auto_closed ? ' (종료일 경과)' : '');
 
     if (!data.sms_ready) {
         showMessage('smsMsg',

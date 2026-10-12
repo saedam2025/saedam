@@ -1,0 +1,117 @@
+{% from 'support_hub/_macros.html' import act, chip with context %}
+{% set total = selected.instructors %}
+  <div class="ih-section">
+    <h2>강사 등록</h2>
+    <p class="ih-hint">등록하면 접속 링크와 6자리 비밀번호가 무작위로 만들어집니다. 같은 휴대폰번호의 강사가 이미 있으면 새로 만들지 않고 이 학교·강의부서만 더합니다.</p>
+
+    <details class="ih-way" open>
+      <summary>한 명씩 등록</summary>
+      <div class="body">
+        <form method="post" action="{{ url_for('instructor_hub.admin_register') }}" class="ih-row">
+          <input type="hidden" name="next" value="{{ here }}"><input type="hidden" name="school_name" value="{{ selected.name }}">
+          <label>이름<input class="ih-input" type="text" name="name" required maxlength="60" autocomplete="off"></label>
+          <label>휴대폰번호<input class="ih-input" type="tel" name="phone" required placeholder="010-0000-0000" autocomplete="off"></label>
+          <label>강의부서<input class="ih-input" type="text" name="department" required list="deptList" maxlength="60" placeholder="예) 로봇과학" autocomplete="off"></label>
+          <label>이메일(선택)<input class="ih-input" type="email" name="email" maxlength="120" autocomplete="off"></label>
+          <button class="ih-btn primary" type="submit">등록</button>
+        </form>
+        <datalist id="deptList">{% for name in departments %}<option value="{{ name }}">{% endfor %}</datalist>
+      </div>
+    </details>
+
+    <details class="ih-way">
+      <summary>여러 명 붙여넣기 (엑셀에서 복사해 붙여 넣어도 됩니다)</summary>
+      <div class="body">
+        <form method="post" action="{{ url_for('instructor_hub.admin_import') }}">
+          <input type="hidden" name="next" value="{{ here }}"><input type="hidden" name="school_name" value="{{ selected.name }}">
+          <p class="ih-hint">한 줄에 한 명씩 <b>이름, 휴대폰, 강의부서</b> 순서로 적어 주세요. 쉼표·탭·띄어쓰기로 나누면 됩니다. (한 번에 {{ max_rows }}줄까지)</p>
+          <textarea name="text" placeholder="홍길동, 010-1234-5678, 로봇과학&#10;김미술  010-2345-6789  미술&#10;박바둑	010-3456-7890	바둑"></textarea>
+          <div style="margin-top:8px"><button class="ih-btn primary" type="submit">붙여넣은 강사 등록</button></div>
+        </form>
+      </div>
+    </details>
+
+    <details class="ih-way">
+      <summary>엑셀 파일로 올리기</summary>
+      <div class="body">
+        <form method="post" enctype="multipart/form-data" action="{{ url_for('instructor_hub.admin_import') }}" class="ih-row">
+          <input type="hidden" name="next" value="{{ here }}"><input type="hidden" name="school_name" value="{{ selected.name }}">
+          <input class="ih-input" type="file" name="file" accept=".xlsx" required>
+          <button class="ih-btn primary" type="submit"><i class="fa-solid fa-upload"></i> 올려서 등록</button>
+          <a class="ih-btn" href="{{ url_for('instructor_hub.admin_template') }}"><i class="fa-solid fa-download"></i> 엑셀 양식 받기</a>
+        </form>
+        <p class="ih-hint" style="margin:10px 0 0">첫 줄에 이름·휴대폰·강의부서(이메일·학교는 선택) 제목을 두면 칸 순서는 상관없습니다. <b>학교</b> 칸을 채운 줄은 그 학교에, 비운 줄은 지금 고른 <b>{{ selected.name }}</b>에 등록돼요. (.xlsx만 가능, {{ max_rows }}줄까지)</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="ih-section">
+    <div class="ih-listhead">
+      <h2>등록된 강사 ({{ total }}명)</h2>
+      <input class="ih-input" id="instructorFilter" type="search" placeholder="강사·강의부서 검색…" autocomplete="off" style="flex:0 1 240px">
+      {% if total %}
+      <a class="ih-btn sm" href="{{ url_for('instructor_hub.admin_export', school=selected.name) }}" title="접속 링크와 비밀번호가 들어 있으니 조심해서 다뤄 주세요"><i class="fa-solid fa-file-excel"></i> 접속정보 엑셀</a>
+      <form method="post" action="{{ url_for('instructor_hub.admin_school_sms') }}" class="ih-row" id="bulkSms" data-all="{{ total }}" data-unused="{{ selected.unused }}" data-school="{{ selected.name }}">
+        <input type="hidden" name="next" value="{{ here }}"><input type="hidden" name="school_name" value="{{ selected.name }}">
+        <label style="flex-direction:row;gap:6px;align-items:center;font-size:.8rem"><input type="checkbox" name="only_unused" value="1" {{ 'checked' if selected.unused and selected.unused < total }}> 접속 안 한 강사만</label>
+        <button class="ih-btn sm primary" type="submit"><i class="fa-solid fa-comment-sms"></i> 접속 안내 문자 일괄 발송</button>
+      </form>
+      {% endif %}
+    </div>
+
+    {% for group in groups %}
+    <div class="ih-group" data-group>
+      <h3>{{ group.name or '(강의부서 없음)' }} <span class="ih-badge">{{ group.people|length }}명</span></h3>
+      <div style="overflow-x:auto">
+      <table class="ih-table">
+        <colgroup><col style="width:24%"><col style="width:15%"><col style="width:33%"><col style="width:28%"></colgroup>
+        <thead><tr><th>강사</th><th>프로필 · 홍보</th><th>접속 안내</th><th>관리</th></tr></thead>
+        <tbody>
+        {% for item in group.people %}
+        <tr data-row data-search="{{ item.name }} {{ item.department }} {{ item.phone }}">
+          <td><strong>{{ item.name }}</strong>{% if not item.is_active %} <span class="ih-badge off">사용 중지</span>{% endif %}<br><span class="ih-hint" style="margin:0">{{ item.phone }}{% if item.email %} · {{ item.email }}{% endif %}</span></td>
+          <td style="white-space:nowrap">프로필 {{ chip(item.profile_status) }}<br>홍보 {{ chip(item.promo_status) }}</td>
+          <td>
+            <button class="ih-btn sm" type="button" data-copy="{{ item.url }}&#10;비밀번호: {{ item.password }}">링크·비번 복사</button>
+            <div class="ih-hint" style="margin:4px 0 0">비번 <span class="ih-mono">{{ item.password or '재발급 필요' }}</span> · 최근 접속 {{ item.last_login_at[:10] or '없음' }}{% if item.sms_sent_at %} · 문자 {{ item.sms_sent_at[:10] }}{% endif %}</div>
+          </td>
+          <td>
+            <div class="ih-row" style="align-items:center">
+              {{ act(item.id, 'sms', '문자 보내기', item.name ~ ' 강사(' ~ item.phone ~ ')에게 접속 링크와 비밀번호를 문자로 보낼까요?', 'primary') }}
+              <details class="ih-more"><summary class="ih-btn sm">관리 ▾</summary>
+                <div class="panel ih-row">
+                  {{ act(item.id, 'reset-password', '비번 재발급', '비밀번호를 새로 만들까요? 예전 비밀번호는 쓸 수 없게 됩니다.') }}
+                  {{ act(item.id, 'reissue-link', '링크 재발급', '접속 링크를 새로 만들까요? 예전 링크는 열리지 않게 됩니다.') }}
+                  {{ act(item.id, 'toggle', '사용 중지' if item.is_active else '다시 사용', '', 'danger' if item.is_active else '') }}
+                  <div class="sep"></div>
+                  <form method="post" class="edit" action="{{ url_for('instructor_hub.admin_account_action', account_id=item.id, action='set-department') }}">
+                    <input type="hidden" name="next" value="{{ here }}"><input type="hidden" name="assignment_id" value="{{ item.assignment_id }}">
+                    <input class="ih-input" type="text" name="department" value="{{ item.department }}" list="deptList" required maxlength="60" aria-label="강의부서">
+                    <button class="ih-btn sm" type="submit">강의부서 변경</button>
+                  </form>
+                  <form method="post" class="edit" action="{{ url_for('instructor_hub.admin_account_action', account_id=item.id, action='edit') }}">
+                    <input type="hidden" name="next" value="{{ here }}">
+                    <input class="ih-input" type="text" name="name" value="{{ item.name }}" required maxlength="60" aria-label="이름">
+                    <input class="ih-input" type="tel" name="phone" value="{{ item.phone }}" required aria-label="휴대폰번호">
+                    <input class="ih-input" type="email" name="email" value="{{ item.email }}" placeholder="이메일" maxlength="120" aria-label="이메일">
+                    <button class="ih-btn sm" type="submit">이름·번호 수정</button>
+                  </form>
+                  <div class="sep"></div>
+                  <form method="post" class="ih-inline" action="{{ url_for('instructor_hub.admin_account_action', account_id=item.id, action='unassign') }}" data-confirm="{{ item.name }} 강사를 {{ selected.name }}({{ item.department or '강의부서 없음' }})에서 뺄까요? 계정과 올린 자료는 남아 있습니다.">
+                    <input type="hidden" name="next" value="{{ here }}"><input type="hidden" name="assignment_id" value="{{ item.assignment_id }}">
+                    <button class="ih-btn sm danger" type="submit">이 학교에서 빼기</button>
+                  </form>
+                </div>
+              </details>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+    {% else %}
+    <p class="ih-hint">아직 등록된 강사가 없습니다. 위에서 강사를 등록해 주세요.</p>
+    {% endfor %}
+  </div>

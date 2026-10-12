@@ -8,78 +8,168 @@
   .solapi-status{white-space:nowrap;padding:7px 11px;border-radius:999px;font-size:.8rem;font-weight:800;background:#fff3cd;color:#795500}.solapi-status.ok{background:#e6f4ea;color:#176b36}
   .solapi-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px}.solapi-field{display:flex;flex-direction:column;gap:7px}.solapi-field.full{grid-column:1/-1}
   .solapi-field label{font-size:.84rem;font-weight:800;color:var(--primary-dark,#173f6a)}.solapi-field input{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--border-color,#cbd5e1);border-radius:8px;background:var(--input-bg,#fff);color:var(--text-dark,#1e293b)}
-  .solapi-help{font-size:.75rem;color:var(--text-gray,#64748b);line-height:1.5}.solapi-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}.solapi-actions button{border:0;border-radius:8px;padding:11px 22px;background:var(--primary-dark,#173f6a);color:#fff;font-weight:800;cursor:pointer}
+  .solapi-help{font-size:.75rem;color:var(--text-gray,#64748b);line-height:1.5}.solapi-actions{display:flex;justify-content:flex-end;align-items:center;gap:14px;margin-top:22px}.solapi-actions button{border:0;border-radius:8px;padding:11px 22px;background:var(--primary-dark,#173f6a);color:#fff;font-weight:800;cursor:pointer}
   .solapi-note{margin-top:18px;background:var(--widget-bg,#f8fafc);border:1px solid var(--border-color,#dbe3ef);border-radius:10px;padding:15px;font-size:.82rem;line-height:1.65;color:var(--text-gray,#475569)}
   .solapi-message{margin:14px 0 0;padding:12px 14px;border-radius:8px;font-weight:700}.solapi-message.error{background:#fff0f0;color:#9e2525}.solapi-message.success{background:#e9f7ee;color:#176b36}
   .solapi-source{margin-top:7px;font-size:.75rem;color:var(--text-gray,#64748b)}
+  /* 구역: 기본 연결 / 카카오 알림톡 템플릿(노란 배경으로 구분) */
+  .solapi-panel{margin-top:18px;padding:20px;border:1px solid var(--border-color,#dbe3ef);border-radius:14px;background:var(--widget-bg,#f8fafc)}
+  .solapi-panel h3{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:0 0 4px;font-size:1.02rem;color:var(--primary-dark,#173f6a)}
+  .solapi-panel h3 small{color:var(--text-gray,#64748b);font-size:.78rem;font-weight:500}
+  .solapi-panel > .solapi-help{margin:0 0 14px}
+  .solapi-panel .solapi-grid{margin-top:14px}
+  .solapi-no{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--primary-dark,#173f6a);color:#fff;font-size:.78rem;font-weight:800}
+  .solapi-panel.tpl{background:color-mix(in srgb,#fee500 12%,var(--card-bg,#fff));border-color:color-mix(in srgb,#e3c400 42%,var(--border-color,#dbe3ef))}
+  .solapi-panel.tpl .solapi-no{background:#3b1e1e;color:#fee500}
+  .tpl-row{margin-top:12px;padding:16px;border:1px solid var(--border-color,#dbe3ef);border-left:4px solid #cbd5e1;border-radius:12px;background:var(--card-bg,#fff)}
+  .tpl-row.ok{border-left-color:#2f9e5b}
+  .tpl-row.extra{border-left-color:#e3c400}
+  .tpl-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px}
+  .tpl-head b{font-size:.95rem;color:var(--text-dark,#1e293b)}
+  .tpl-head .tpl-gap{flex:1}
+  .tpl-chip{padding:2px 9px;border-radius:99px;background:#fff3cd;color:#795500;font-size:.72rem;font-weight:800}.tpl-chip.ok{background:#e6f4ea;color:#176b36}
+  .tpl-used{margin:6px 0 0;color:var(--text-gray,#64748b);font-size:.78rem;line-height:1.55}
+  .tpl-used code,.tpl-vars code{padding:1px 6px;border-radius:6px;background:var(--widget-bg,#f1f5f9);font-size:.76rem}
+  .tpl-vars{margin-top:14px;padding:12px 14px;border:1px dashed color-mix(in srgb,#e3c400 55%,var(--border-color,#cbd5e1));border-radius:10px;background:color-mix(in srgb,#fee500 7%,var(--card-bg,#fff))}
+  .tpl-vars-title{font-size:.84rem;font-weight:800;color:var(--primary-dark,#173f6a);line-height:1.6}.tpl-vars-title .solapi-help{font-weight:400;display:block}
+  .tpl-vars .solapi-grid{margin-top:10px}
+  .tpl-btn{padding:6px 12px;border:1px solid var(--border-color,#cbd5e1);border-radius:8px;background:var(--card-bg,#fff);color:var(--text-dark,#1e293b);font-size:.78rem;font-weight:700;cursor:pointer}
+  .tpl-btn:hover{background:var(--widget-hover,#f1f5f9)}.tpl-btn.danger{color:#b42323;border-color:#f0c4c4}
+  .tpl-result{margin-top:10px;font-size:.78rem;line-height:1.55;color:var(--text-gray,#64748b)}.tpl-result:empty{display:none}
+  .tpl-result.ok{color:#176b36}.tpl-result.bad{color:#b45309}
+  .tpl-empty{margin:14px 0 0;padding:16px;border:1px dashed color-mix(in srgb,#e3c400 55%,var(--border-color,#cbd5e1));border-radius:12px;color:var(--text-gray,#64748b);font-size:.82rem;text-align:center}
+  .tpl-add{margin-top:14px;padding:11px 18px;border:1px dashed #b89b00;border-radius:10px;background:color-mix(in srgb,#fee500 30%,var(--card-bg,#fff));color:#3b1e1e;font-weight:800;cursor:pointer}
+  .tpl-add:disabled{opacity:.5;cursor:not-allowed}
   @media(max-width:760px){.solapi-grid{grid-template-columns:1fr}.solapi-field.full{grid-column:auto}.solapi-head{display:block}.solapi-status{display:inline-block;margin-top:12px}}
 </style>
+{% macro extra_row(item) %}
+<div class="tpl-row extra">
+  <div class="tpl-head"><b>추가 템플릿</b><span class="tpl-gap"></span>
+    <button type="button" class="tpl-btn" data-check>승인 상태 확인</button>
+    <button type="button" class="tpl-btn danger" data-del>삭제</button>
+  </div>
+  <div class="solapi-grid">
+    <div class="solapi-field">
+      <label>이름(용도)</label>
+      <input name="extra_name" value="{{ item.name }}" maxlength="30" placeholder="예: 수강료 안내">
+    </div>
+    <div class="solapi-field">
+      <label>메모 (선택)</label>
+      <input name="extra_memo" value="{{ item.memo }}" maxlength="100" placeholder="어디에 쓰는 템플릿인지 적어 두세요">
+    </div>
+    <div class="solapi-field">
+      <label>채널 ID (PF)</label>
+      <input name="extra_pf_id" value="{{ item.pf_id }}" maxlength="120" placeholder="KA01PF...">
+      <span class="solapi-help">비워 두면 설문조사와 같은 채널을 씁니다.</span>
+    </div>
+    <div class="solapi-field">
+      <label>템플릿 ID</label>
+      <input name="extra_template_id" data-tid value="{{ item.template_id }}" maxlength="120" placeholder="KA01TP...">
+    </div>
+  </div>
+  <div class="tpl-result" aria-live="polite"></div>
+</div>
+{% endmacro %}
 <div class="solapi-wrap">
   {% include '_system_management_nav.html' %}
   <section class="solapi-card">
     <div class="solapi-head">
       <div>
         <h2>솔라피설정</h2>
-        <p>인증전자계약 링크 알림톡, 휴대폰 본인인증 문자, 설문조사 알림톡·URL 문자에 함께 사용하는 공용 설정입니다.</p>
+        <p>인증전자계약 링크 알림톡, 휴대폰 본인인증 문자, 설문조사·학부모 안내 알림톡과 URL 문자에 함께 사용하는 공용 설정입니다.</p>
         <div class="solapi-source">현재 설정 출처: {% if solapi.source=='database' %}통합관리 저장값{% elif solapi.source=='environment' %}Render 환경변수{% else %}미설정{% endif %}{% if solapi.updated_at %} · 최근 저장 {{ solapi.updated_at }}{% endif %}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
         <span class="solapi-status{% if solapi.configured %} ok{% endif %}">알림톡 {% if solapi.configured %}설정 완료{% else %}설정 필요{% endif %}</span>
         <span class="solapi-status{% if solapi.sms_configured %} ok{% endif %}">문자(설문조사) {% if solapi.sms_configured %}설정 완료{% else %}설정 필요{% endif %}</span>
         <span class="solapi-status{% if solapi.survey_kakao_configured %} ok{% endif %}">알림톡(설문조사) {% if solapi.survey_kakao_configured %}설정 완료{% else %}설정 필요{% endif %}</span>
+        <span class="solapi-status{% if solapi.parent_kakao_configured %} ok{% endif %}">알림톡(학부모 안내) {% if solapi.parent_kakao_configured %}설정 완료{% else %}설정 필요{% endif %}</span>
       </div>
     </div>
     {% if error %}<div class="solapi-message error">{{ error }}</div>{% endif %}
     {% if success %}<div class="solapi-message success">{{ success }}</div>{% endif %}
     <form method="post" action="{{ url_for('admin.save_solapi_settings_route') }}" autocomplete="off">
       <input type="hidden" name="csrf_token" value="{{ solapi_csrf_token }}">
-      <div class="solapi-grid">
-        <div class="solapi-field">
-          <label for="solapi-api-key">SOLAPI_API_KEY</label>
-          <input id="solapi-api-key" name="api_key" type="password" placeholder="{% if solapi.has_api_key %}저장됨: {{ solapi.api_key_masked }} · 변경할 때만 입력{% else %}API Key 입력{% endif %}">
-          <span class="solapi-help">원문은 화면에 다시 표시하지 않고 암호화해 저장합니다.</span>
+      <input type="hidden" name="extra_present" value="1">
+
+      <section class="solapi-panel">
+        <h3><span class="solapi-no">1</span> 솔라피 기본 연결 <small>문자와 알림톡 모두에 쓰는 공통 설정</small></h3>
+        <div class="solapi-grid">
+          <div class="solapi-field">
+            <label for="solapi-api-key">SOLAPI_API_KEY</label>
+            <input id="solapi-api-key" name="api_key" type="password" placeholder="{% if solapi.has_api_key %}저장됨: {{ solapi.api_key_masked }} · 변경할 때만 입력{% else %}API Key 입력{% endif %}">
+            <span class="solapi-help">원문은 화면에 다시 표시하지 않고 암호화해 저장합니다.</span>
+          </div>
+          <div class="solapi-field">
+            <label for="solapi-api-secret">SOLAPI_API_SECRET</label>
+            <input id="solapi-api-secret" name="api_secret" type="password" placeholder="{% if solapi.has_api_secret %}저장됨 · 변경할 때만 입력{% else %}API Secret 입력{% endif %}">
+            <span class="solapi-help">서명 생성에만 사용하며 브라우저나 계약자 화면에 노출하지 않습니다.</span>
+          </div>
+          <div class="solapi-field full">
+            <label for="solapi-from">SOLAPI_FROM</label>
+            <input id="solapi-from" name="from_number" value="{{ solapi.from_number }}" inputmode="tel" maxlength="20" required placeholder="회사 발신번호">
+            <span class="solapi-help">솔라피에서 사전 등록·인증한 발신번호를 입력하세요. 하이픈은 저장할 때 제거됩니다.</span>
+          </div>
+          <div class="solapi-field">
+            <label for="solapi-origin">공개 링크 기본 주소</label>
+            <input id="solapi-origin" name="public_origin" value="{{ solapi.public_origin }}" maxlength="200" placeholder="https://works.saedam.org">
+            <span class="solapi-help">설문조사 URL 문자에 담을 주소입니다. 경로 없이 https://도메인 까지만 입력하세요.</span>
+          </div>
+          <div class="solapi-field">
+            <label for="solapi-sender-name">문자 발신 기관명</label>
+            <input id="solapi-sender-name" name="sender_name" value="{{ solapi.sender_name }}" maxlength="30" placeholder="새담">
+            <span class="solapi-help">설문 문자 앞머리 <code>[기관명]</code>과 LMS 제목에 사용합니다.</span>
+          </div>
         </div>
-        <div class="solapi-field">
-          <label for="solapi-api-secret">SOLAPI_API_SECRET</label>
-          <input id="solapi-api-secret" name="api_secret" type="password" placeholder="{% if solapi.has_api_secret %}저장됨 · 변경할 때만 입력{% else %}API Secret 입력{% endif %}">
-          <span class="solapi-help">서명 생성에만 사용하며 브라우저나 계약자 화면에 노출하지 않습니다.</span>
+      </section>
+
+      <section class="solapi-panel tpl" id="tplPanel" data-check-url="{{ url_for('admin.solapi_template_check') }}" data-max="{{ solapi.max_extra_templates }}">
+        <h3><span class="solapi-no">2</span> 카카오 알림톡 템플릿 <small>기능마다 승인된 템플릿을 하나씩 연결합니다</small></h3>
+        <p class="solapi-help">솔라피에서 승인된 템플릿의 채널 ID와 템플릿 ID를 적습니다. 새 용도가 생기면 아래 <b>[+ 템플릿 추가]</b>로 계속 늘릴 수 있습니다. [승인 상태 확인]은 저장된 API KEY로 솔라피에 조회만 하며 문자는 보내지 않습니다.</p>
+
+        {% for slot in solapi.template_slots %}
+        <div class="tpl-row{% if slot.configured %} ok{% endif %}">
+          <div class="tpl-head"><b>{{ slot.label }}</b>
+            <span class="tpl-chip{% if slot.configured %} ok{% endif %}">{% if slot.configured %}설정됨{% else %}미설정{% endif %}</span><span class="tpl-gap"></span>
+            <button type="button" class="tpl-btn" data-check>승인 상태 확인</button>
+          </div>
+          <p class="tpl-used">사용 위치: {{ slot.used_in }}<br>템플릿 변수: <code>{{ slot.variables }}</code></p>
+          <div class="solapi-grid">
+            <div class="solapi-field">
+              <label for="solapi-{{ slot.key }}-pf-id">채널 ID (PF)</label>
+              <input id="solapi-{{ slot.key }}-pf-id" name="{{ slot.pf_field }}" value="{{ slot.pf_value }}" maxlength="120" placeholder="KA01PF...">
+              {% if slot.pf_blank %}<span class="solapi-help">{{ slot.pf_blank }}</span>{% endif %}
+            </div>
+            <div class="solapi-field">
+              <label for="solapi-{{ slot.key }}-template-id">템플릿 ID</label>
+              <input id="solapi-{{ slot.key }}-template-id" name="{{ slot.template_field }}" data-tid value="{{ slot.template_value }}" maxlength="120" placeholder="KA01TP...">
+            </div>
+          </div>
+          {% if slot.variable_inputs %}
+          <div class="tpl-vars">
+            <div class="tpl-vars-title">템플릿 변수 이름 <span class="solapi-help">솔라피에 신청한 변수 이름과 같게 적어 주세요. <code>#{ }</code> 없이 이름만 적어도 됩니다. 예: <code>#{school_name}</code> → school_name</span></div>
+            <div class="solapi-grid">
+              {% for field in slot.variable_inputs %}
+              <div class="solapi-field">
+                <label for="solapi-{{ slot.key }}-{{ field.source }}">{{ field.label }}</label>
+                <input id="solapi-{{ slot.key }}-{{ field.source }}" name="{{ field.field }}" data-var="{{ field.source }}" value="{{ field.value }}" maxlength="40" placeholder="{{ field.default }}">
+                <span class="solapi-help">기본 이름: <code>#{{ '{' }}{{ field.default }}{{ '}' }}</code></span>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+          <div class="tpl-result" aria-live="polite"></div>
         </div>
-        <div class="solapi-field">
-          <label for="solapi-pf-id">SOLAPI_PF_ID</label>
-          <input id="solapi-pf-id" name="pf_id" value="{{ solapi.pf_id }}" maxlength="120" placeholder="카카오 채널 연동 ID">
-          <span class="solapi-help">알림톡(인증전자계약)에만 사용합니다. 문자만 쓰면 비워 두세요.</span>
-        </div>
-        <div class="solapi-field">
-          <label for="solapi-template-id">SOLAPI_TEMPLATE_ID</label>
-          <input id="solapi-template-id" name="template_id" value="{{ solapi.template_id }}" maxlength="120" placeholder="승인된 알림톡 템플릿 ID">
-          <span class="solapi-help">알림톡(인증전자계약)에만 사용합니다. 문자만 쓰면 비워 두세요.</span>
-        </div>
-        <div class="solapi-field full">
-          <label for="solapi-from">SOLAPI_FROM</label>
-          <input id="solapi-from" name="from_number" value="{{ solapi.from_number }}" inputmode="tel" maxlength="20" required placeholder="회사 발신번호">
-          <span class="solapi-help">솔라피에서 사전 등록·인증한 발신번호를 입력하세요. 하이픈은 저장할 때 제거됩니다.</span>
-        </div>
-        <div class="solapi-field">
-          <label for="solapi-origin">공개 링크 기본 주소</label>
-          <input id="solapi-origin" name="public_origin" value="{{ solapi.public_origin }}" maxlength="200" placeholder="https://works.saedam.org">
-          <span class="solapi-help">설문조사 URL 문자에 담을 주소입니다. 경로 없이 https://도메인 까지만 입력하세요.</span>
-        </div>
-        <div class="solapi-field">
-          <label for="solapi-sender-name">문자 발신 기관명</label>
-          <input id="solapi-sender-name" name="sender_name" value="{{ solapi.sender_name }}" maxlength="30" placeholder="새담">
-          <span class="solapi-help">설문 문자 앞머리 <code>[기관명]</code>과 LMS 제목에 사용합니다.</span>
-        </div>
-        <div class="solapi-field">
-          <label for="solapi-survey-pf-id">설문조사 알림톡 채널 ID</label>
-          <input id="solapi-survey-pf-id" name="survey_pf_id" value="{{ solapi.survey_pf_id }}" maxlength="120" placeholder="KA01PF...">
-          <span class="solapi-help">학교관리 &gt; 설문조사 알림톡 발송에 사용하는 카카오 채널(PF) ID입니다. 비워 두면 기본값을 사용합니다.</span>
-        </div>
-        <div class="solapi-field">
-          <label for="solapi-survey-template-id">설문조사 알림톡 템플릿 ID</label>
-          <input id="solapi-survey-template-id" name="survey_template_id" value="{{ solapi.survey_template_id }}" maxlength="120" placeholder="KA01TP...">
-          <span class="solapi-help">솔라피에서 승인된 설문조사 안내 템플릿 ID입니다. 비워 두면 기본값을 사용합니다.</span>
-        </div>
-      </div>
+        {% endfor %}
+
+        <div id="extraList">{% for item in solapi.extra_templates %}{{ extra_row(item) }}{% endfor %}</div>
+        <p class="tpl-empty" id="tplEmpty" hidden>추가한 템플릿이 없습니다. 새 기능용 알림톡이 생기면 [+ 템플릿 추가]로 이름과 템플릿 ID를 적어 두세요.</p>
+        <button type="button" class="tpl-add" id="addTpl">+ 템플릿 추가</button>
+        <span class="solapi-help" style="margin-left:8px">추가한 템플릿 <b id="tplCount">0</b> / {{ solapi.max_extra_templates }}개 · 추가·삭제한 뒤에는 [설정 저장]을 눌러야 반영됩니다. 적어 둔 템플릿은 새 기능에서 이름으로 불러다 씁니다.</span>
+        <template id="tplRowTemplate">{{ extra_row({}) }}</template>
+      </section>
+
       <label style="display:flex;align-items:center;gap:8px;margin-top:16px;font-size:.8rem;color:var(--text-gray,#64748b)"><input type="checkbox" name="clear_credentials" value="1" style="width:auto"> 저장된 API KEY·SECRET을 지우고 입력값 또는 Render 환경변수를 사용</label>
       <div class="solapi-actions"><button type="submit">설정 저장</button></div>
     </form>
@@ -89,12 +179,81 @@
       <b>알림톡 템플릿 변수</b><br>
       승인 템플릿에는 계약자 이름 변수 <code>#{이름}</code>과 계약 링크 변수 <code>#{url}</code>을 사용하세요. 웹링크 버튼명은 <code>전자계약서보기</code>이며 모바일·PC 링크에는 모두 <code>https://#{url}</code>을 지정합니다. 시스템이 <code>#{url}</code>에 https://를 제외한 주소를 넣습니다. 본문·강조문구·버튼은 솔라피에 승인된 템플릿을 그대로 사용합니다. 계약 등록과 발송은 <a href="https://works.saedam.org">works.saedam.org</a>에서 진행해 주세요. 알림톡 실패 시에는 솔라피의 문자 대체발송 설정이 적용됩니다.<br><br>
       <b>설문조사 알림톡</b><br>
-      학교관리 &gt; 설문조사의 기본 발송방법은 카카오 알림톡입니다. 위의 <b>설문조사 알림톡 채널 ID·템플릿 ID</b>로 발송하며, 템플릿의 <code>#{변수}</code>는 설문 화면에서 자동으로 채워집니다
+      학교관리 &gt; 설문조사의 기본 발송방법은 카카오 알림톡입니다. 위 [카카오 알림톡 템플릿]의 <b>설문조사</b> 칸으로 발송하며, 템플릿의 <code>#{변수}</code>는 설문 화면에서 자동으로 채워집니다
       (예: <code>#{이름}</code>=수신자 이름, <code>#{제목}</code>·<code>#{설문명}</code>=설문 제목, <code>#{기관명}</code>=발신 기관명, <code>#{url}</code>·<code>#{링크}</code>=수신자별 응답 주소, <code>#{기간}</code>·<code>#{마감일}</code>=응답 기간).
       버튼 주소가 <code>https://#{url}</code> 형식이면 https://를 뺀 주소를 넣습니다. 알림톡이 실패하면 설문 화면의 문자 내용으로 대체발송할 수 있습니다.<br><br>
+      <b>학부모 안내 알림톡</b><br>
+      학교지원 &gt; 학부모·강사 통합지원 &gt; 학부모 안내 &gt; 링크 발송에서 <b>카카오 알림톡</b>을 고르면 위 [카카오 알림톡 템플릿]의 <b>학부모 안내 링크</b> 칸으로 보냅니다.
+      승인 템플릿에는 학교 이름 변수와 안내 주소 변수 두 개만 쓰세요(기본 이름은 <code>#{학교명}</code>과 <code>#{url}</code>). 솔라피에 다른 이름(예: <code>#{school_name}</code>)으로 신청했다면 카드의 <b>템플릿 변수 이름</b>을 그 이름으로 바꿔 주세요. 이름에 <code>school</code>·<code>학교</code>가 들어 있으면 따로 설정하지 않아도 학교 이름으로 알아봅니다.
+      웹링크 버튼 주소가 <code>https://#{url}</code> 형식이면 https://를 뺀 주소를 넣습니다. 알림톡이 실패하면 발송 화면에서 정한 문자 내용으로 대체발송할 수 있습니다.<br><br>
+      <b>추가한 템플릿</b><br>
+      [+ 템플릿 추가]로 적어 둔 템플릿은 이름과 ID가 저장되고, 새 기능이 알림톡을 보낼 때 이름으로 불러다 씁니다(채널 ID를 비우면 설문조사 채널). 아직 연결된 기능은 위 세 가지(인증전자계약·설문조사·학부모 안내 링크)입니다.<br><br>
       <b>설문조사 문자</b><br>
       문자(LMS)를 선택하면 알림톡 템플릿 없이 <code>API KEY · API SECRET · 발신번호</code>만으로 URL 문자를 보냅니다. 본문이 EUC-KR 90바이트를 넘으면 자동으로 LMS(장문)로 전환되며, 이때 제목에는 위의 <b>문자 발신 기관명</b>이 들어갑니다. 수신자에게 전달되는 설문 주소는 <b>공개 링크 기본 주소</b> + <code>/survey/r/…</code> 형태입니다.
     </div>
   </section>
 </div>
+<script>
+(() => {
+  const panel = document.getElementById('tplPanel');
+  if (!panel) return;
+  const list = document.getElementById('extraList'), empty = document.getElementById('tplEmpty');
+  const addButton = document.getElementById('addTpl'), counter = document.getElementById('tplCount');
+  const sample = document.getElementById('tplRowTemplate'), max = Number(panel.dataset.max) || 30;
+  const refresh = () => {
+    const count = list.children.length;
+    empty.hidden = count > 0;
+    counter.textContent = count;
+    addButton.disabled = count >= max;
+  };
+  addButton.addEventListener('click', () => {
+    list.appendChild(sample.content.firstElementChild.cloneNode(true));
+    refresh();
+    list.lastElementChild.querySelector('input').focus();
+  });
+  panel.addEventListener('click', async event => {
+    const remove = event.target.closest('[data-del]');
+    if (remove) {
+      if (window.confirm('이 템플릿을 목록에서 지울까요?\n[설정 저장]을 눌러야 실제로 지워집니다.')) { remove.closest('.tpl-row').remove(); refresh(); }
+      return;
+    }
+    const check = event.target.closest('[data-check]');
+    if (!check) return;
+    const row = check.closest('.tpl-row'), out = row.querySelector('.tpl-result');
+    const id = row.querySelector('[data-tid]').value.trim();
+    const school = row.querySelector('[data-var="school"]'), url = row.querySelector('[data-var="url"]');
+    let query = `template_id=${encodeURIComponent(id)}`;
+    if (school && url) query += `&mode=link&school_var=${encodeURIComponent(school.value)}&url_var=${encodeURIComponent(url.value)}`;
+    out.className = 'tpl-result';
+    out.textContent = '솔라피에서 조회하는 중…';
+    check.disabled = true;
+    try {
+      const response = await fetch(`${panel.dataset.checkUrl}?${query}`, {credentials: 'same-origin'});
+      const data = await response.json();
+      if (data.ok) {
+        let text = `${data.status} · ${data.name || '이름 없는 템플릿'} · 변수: ${data.variables.length ? data.variables.join(' ') : '없음'}`;
+        let good = true;
+        if (data.link) {
+          const mapped = data.link.mapped.map(item => `${item.label} ← ${item.key}`).join(' · ');
+          text += `\n연결: ${mapped || '연결된 변수 없음'}`;
+          if (data.link.unmapped.length) { text += `\n⚠ 채울 수 없는 변수: ${data.link.unmapped.join(' ')} — 위 [템플릿 변수 이름]을 맞춰 주세요.`; good = false; }
+          if (data.link.absent.length) { text += `\n⚠ 템플릿에 없는 항목: ${data.link.absent.join(', ')}`; good = false; }
+        }
+        out.textContent = text;
+        out.style.whiteSpace = 'pre-line';
+        out.classList.add(good ? 'ok' : 'bad');
+      } else {
+        out.textContent = data.message || '템플릿을 확인하지 못했습니다.';
+        out.classList.add('bad');
+      }
+    } catch (error) {
+      out.textContent = '조회하지 못했습니다. 잠시 뒤 다시 시도해 주세요.';
+      out.classList.add('bad');
+    } finally {
+      check.disabled = false;
+    }
+  });
+  refresh();
+})();
+</script>
 {% endblock %}

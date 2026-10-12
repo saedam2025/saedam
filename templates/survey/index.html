@@ -187,7 +187,7 @@ function renderList(items) {
             <td>
                 <span class="survey-title">${escapeHtml(item.title)}</span>
                 ${item.description ? `<span class="survey-desc">${escapeHtml(item.description).slice(0, 120)}</span>` : ''}
-                ${item.starts_on || item.ends_on ? `<span class="survey-desc"><i class="fa-regular fa-calendar"></i> ${escapeHtml(item.starts_on || '제한없음')} ~ ${escapeHtml(item.ends_on || '제한없음')}</span>` : ''}
+                ${item.starts_on || item.ends_on ? `<span class="survey-desc"><i class="fa-regular fa-calendar"></i> ${escapeHtml(item.starts_on || '제한없음')} ~ ${escapeHtml(item.ends_on || '제한없음')}${item.auto_closed ? ' · 종료일이 지나 자동 마감' : ''}</span>` : ''}
             </td>
             <td><span class="chip ${item.status}">${STATUS_LABEL[item.status] || item.status}</span></td>
             <td class="num">${item.sent_count} / ${item.recipient_count}명</td>
@@ -202,7 +202,10 @@ function renderList(items) {
                     ${manage ? `<button type="button" class="btn small" onclick="location.href='/survey/${item.id}/edit'">
                         <i class="fa-solid fa-pen"></i> 편집·발송
                     </button>` : ''}
-                    ${manage ? `<button type="button" class="btn small" onclick="toggleStatus(${item.id}, '${item.status}')">
+                    ${manage && item.auto_closed ? `<button type="button" class="btn small" onclick="location.href='/survey/${item.id}/edit'">
+                        <i class="fa-regular fa-calendar-plus"></i> 종료일 변경
+                    </button>` : ''}
+                    ${manage && !item.auto_closed ? `<button type="button" class="btn small" onclick="toggleStatus(${item.id}, '${item.status}')">
                         ${item.status === 'closed' ? '<i class="fa-solid fa-rotate-left"></i> 재개' : '<i class="fa-solid fa-flag-checkered"></i> 마감'}
                     </button>` : ''}
                     <button type="button" class="btn small" onclick="duplicateSurvey(${item.id})">

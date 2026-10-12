@@ -1,0 +1,378 @@
+{% extends 'base.html' %}
+{% block title %}학부모·강사 통합지원{% endblock %}
+{% block extra_css %}
+{% include 'support_hub/_style.html' %}
+{% endblock %}
+{% block content %}
+{% from 'support_hub/_macros.html' import act, chip with context %}
+<div class="ih-page">
+  <header class="ih-hero">
+    <div class="ih-hero-copy">
+      <div class="ih-hero-icon"><i class="fa-solid fa-people-roof"></i></div>
+      <div><h1>학부모·강사 통합지원</h1><p>학교를 고르고 강사 · 과목 · 학생을 <b>이 화면에서 한 번만</b> 입력하세요. 학부모는 안내 링크 하나로 자녀 출석·강사 소개·e리플렛·교실 안내를 봅니다.</p></div>
+    </div>
+    <div class="ih-pick">
+      <label for="schoolSelect"><i class="fa-solid fa-school"></i> 학교</label>
+      <select class="ih-input" id="schoolSelect" data-tab="{{ tab }}">
+        <option value="">학교를 선택하세요 (전체 현황)</option>
+        {% for item in schools %}
+        <option value="{{ item.name }}" {{ 'selected' if selected and selected.name == item.name }}>{{ item.name }}{% if item.instructors %} · 강사 {{ item.instructors }}명{% endif %}{% if item.pending %} · 승인대기 {{ item.pending }}{% endif %}</option>
+        {% endfor %}
+        {% if legacy %}
+        <optgroup label="학교업무공간에 없는 학교 (예전 등록 자료)">
+          {% for item in legacy %}<option value="{{ item.name }}" {{ 'selected' if selected and selected.name == item.name }}>{{ item.name }} · 강사 {{ item.instructors }}명{% if item.pending %} · 승인대기 {{ item.pending }}{% endif %}</option>{% endfor %}
+        </optgroup>
+        {% endif %}
+      </select>
+    </div>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<div class="ih-flash {{ category }}">{{ message }}</div>{% endfor %}
+  {% endwith %}
+
+  <div class="ih-card ih-main">
+  <nav class="ih-tabs">
+    {% for key, label, icon in tabs %}
+    <a class="{{ 'on' if tab == key }}" href="{{ url_for('support_hub.admin_page', tab=key, school=selected.name if selected else None) }}"><i class="fa-solid {{ icon }}"></i> {{ label }}{% if key == 'review' and pending_total %}<b>{{ pending_total }}</b>{% endif %}</a>
+    {% endfor %}
+  </nav>
+  <div class="ih-panel">
+
+{% if selected %}
+  <div class="ih-sum">
+    <span class="school">{{ selected.name }}</span>
+    <span>강사 <b>{{ selected.instructors }}</b>명</span><span>강의부서 <b>{{ selected.departments }}</b>개</span>
+    <span>과목 <b>{{ selected.classes }}</b>개</span><span>학생 <b>{{ selected.students }}</b>명</span>
+    <span>알림 켠 보호자 <b>{{ selected.push }}</b>/{{ selected.guardians }}명</span>
+    {% if selected.unused %}<span>접속 안 한 강사 <b>{{ selected.unused }}</b>명</span>{% endif %}
+    {% if selected.pending %}<a class="ih-pend" href="{{ url_for('support_hub.admin_page', tab='review', school=selected.name) }}">승인 대기 {{ selected.pending }}건 보기</a>{% endif %}
+    {% if selected.portal %}<span>학부모 포털 <b>{{ '공개 중' if selected.portal.active else '비공개' }}</b></span>{% endif %}
+    {% if not selected.matched %}<span class="ih-badge" title="[학교업무공간]에 같은 이름의 학교가 없습니다.">학교업무공간에 없는 학교</span>{% endif %}
+  </div>
+
+  {% if tab == 'instructors' %}{% include 'support_hub/_instructors.html' %}
+  {% elif tab == 'roster' %}{% include 'support_hub/_roster.html' %}
+  {% elif tab == 'review' %}{% include 'support_hub/_review.html' %}
+  {% else %}{% include 'support_hub/_portal.html' %}{% endif %}
+
+{% elif tab == 'review' %}
+  <div class="ih-section">
+    <h2>승인 대기 중인 학교</h2>
+    {% if pending_schools %}
+    <p class="ih-hint">학교를 누르면 그 학교 강사들의 프로필·홍보 자료를 한 줄씩 볼 수 있어요.</p>
+    <div class="ih-row mid">
+      {% for item in pending_schools %}
+      <a class="ih-btn" href="{{ url_for('support_hub.admin_page', tab='review', school=item.name) }}">{{ item.name }} <span class="ih-pend">{{ item.pending }}</span></a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="ih-hint">승인을 기다리는 프로필·홍보 자료가 없습니다. 위 상자에서 학교를 고르면 그 학교 강사들의 자료를 모두 볼 수 있어요.</p>
+    {% endif %}
+  </div>
+
+{% else %}
+  {# ---- 학교를 고르지 않았을 때: 전체 현황 #}
+  <div class="ih-section">
+    <div class="ih-listhead">
+      <h2>학교별 현황</h2>
+      <input class="ih-input" id="schoolFilter" type="search" placeholder="학교 이름 검색…" autocomplete="off" style="width:240px">
+      {% if tab == 'portal' %}
+      <form method="post" action="{{ url_for('parent_hub.admin_create_portals') }}" data-confirm="포털이 없는 모든 학교의 포털을 한꺼번에 만들까요?">
+        <input type="hidden" name="all" value="1"><input type="hidden" name="next" value="{{ here }}">
+        <button class="ih-btn sm" type="submit"><i class="fa-solid fa-wand-magic-sparkles"></i> 포털 없는 학교 모두 만들기</button>
+      </form>
+      {% endif %}
+    </div>
+    <p class="ih-hint">위 상자에서 학교를 고르거나, 아래 학교 이름을 눌러 이동하세요. 학교는 [학교업무공간]에 등록된 학교입니다.</p>
+    <div style="overflow-x:auto">
+    <table class="ih-table" id="schoolTable">
+      <thead><tr><th>학교</th><th>강사</th><th>과목</th><th>학생</th><th>알림 켠 보호자</th><th>학부모 안내</th><th>승인 대기</th></tr></thead>
+      <tbody>
+      {% for item in overview %}
+      <tr data-name="{{ item.name }}">
+        <td><a href="{{ url_for('support_hub.admin_page', tab=tab, school=item.name) }}"><strong>{{ item.name }}</strong></a>{% if not item.matched %} <span class="ih-badge off">예전 자료</span>{% endif %}</td>
+        <td>{{ item.instructors or '-' }}{% if item.unused %} <span class="ih-sub">(미접속 {{ item.unused }})</span>{% endif %}</td>
+        <td>{{ item.classes or '-' }}</td>
+        <td>{{ item.students or '-' }}</td>
+        <td>{% if item.guardians %}{{ item.push }}/{{ item.guardians }}명{% else %}-{% endif %}</td>
+        <td>{% if item.portal %}<span class="ih-badge {{ 'ok' if item.portal.active else 'off' }}">{{ '공개 중' if item.portal.active else '비공개' }}</span>
+              <span class="ih-sub">리플렛 {{ item.portal.leaflet_pages }}쪽{% if item.portal.last_sent_at %} · 문자 {{ item.portal.last_sent_at[5:10] }}{% endif %}</span>
+            {% else %}<span class="ih-badge off">미개설</span>{% endif %}</td>
+        <td>{% if item.pending %}<a class="ih-pend" href="{{ url_for('support_hub.admin_page', tab='review', school=item.name) }}">{{ item.pending }}건</a>{% else %}-{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="ih-hint">[학교업무공간]에 등록된 학교가 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {% if tab == 'instructors' %}
+  <div class="ih-section">
+    <h2>강사 찾기</h2>
+    <p class="ih-hint">이름·휴대폰번호·학교·강의부서 중 아무거나 입력하면 모든 학교에서 찾아 줍니다.</p>
+    <input class="ih-input" id="everyoneFilter" type="search" placeholder="예) 김강사, 010-1234, 로봇" autocomplete="off" style="max-width:380px">
+    <div style="overflow-x:auto;margin-top:10px">
+    <table class="ih-table" id="everyoneTable" hidden>
+      <thead><tr><th>강사</th><th>학교 · 강의부서</th><th>프로필 · 홍보</th><th>최근 접속</th></tr></thead>
+      <tbody>
+      {% for p in everyone %}
+      <tr hidden data-search="{{ p.name }} {{ p.phone }} {{ p.school }} {{ p.department }}">
+        <td><strong>{{ p.name }}</strong>{% if not p.is_active %} <span class="ih-badge off">중지</span>{% endif %}<br><span class="ih-hint" style="margin:0">{{ p.phone }}</span></td>
+        <td><a href="{{ url_for('support_hub.admin_page', tab='instructors', school=p.school) }}">{{ p.school }}</a> · {{ p.department or '-' }}</td>
+        <td style="white-space:nowrap">{{ chip(p.profile_status) }} {{ chip(p.promo_status) }}</td>
+        <td>{{ p.last_login_at or '없음' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="ih-hint" id="everyoneNone" hidden style="margin:10px 0 0">찾는 강사가 없습니다.</p>
+  </div>
+
+  {% if orphans %}
+  <div class="ih-section">
+    <h2>학교에 배정되지 않은 강사 계정 ({{ orphans|length }})</h2>
+    <p class="ih-hint">학교에서 뺀 뒤 남은 계정이거나 잘못 만든 계정입니다. 다시 쓰려면 같은 휴대폰번호로 학교에 등록하면 이 계정이 되살아나고, 필요 없으면 삭제하세요. 삭제하면 올린 프로필·홍보 자료도 함께 지워집니다.</p>
+    {% for item in orphans %}
+    <div class="ih-plain">
+      <strong>{{ item.name }}</strong><span class="ih-hint" style="margin:0">{{ item.phone }}</span>
+      <span style="margin-left:auto">{{ act(item.id, 'delete', '삭제', item.name ~ ' 강사 계정과 올린 자료를 완전히 삭제할까요? 되돌릴 수 없습니다.', 'danger') }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+{% endif %}
+  </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+// 학교를 고르면 바로 이동(고른 탭은 그대로, 학교 선택을 비우면 전체 현황)
+document.getElementById('schoolSelect').addEventListener('change', event => {
+  const url = new URL(window.location.href);
+  url.searchParams.set('tab', event.target.dataset.tab);
+  url.searchParams.set('school', event.target.value);
+  ['class', 'edit', 'student'].forEach(key => url.searchParams.delete(key));
+  window.location.href = url.toString();
+});
+document.addEventListener('click', async event => {
+  const button = event.target.closest('[data-copy]');
+  if (!button) return;
+  const text = button.dataset.copy, label = button.textContent;
+  try { await navigator.clipboard.writeText(text); button.textContent = '복사됨 ✓'; setTimeout(() => { button.textContent = label; }, 1600); }
+  catch (error) { window.prompt('아래 내용을 복사해 주세요.', text); }
+});
+// 확인 창이 필요한 양식
+document.addEventListener('submit', event => {
+  const form = event.target.closest('form[data-confirm]');
+  if (form && !window.confirm(form.dataset.confirm)) event.preventDefault();
+});
+// 강사 문자 일괄 발송: 몇 명에게 가는지 보여 주고 확인
+const bulk = document.getElementById('bulkSms');
+if (bulk) bulk.addEventListener('submit', event => {
+  const only = bulk.elements.only_unused.checked;
+  const count = Number(only ? bulk.dataset.unused : bulk.dataset.all);
+  if (!count) { event.preventDefault(); window.alert('문자를 보낼 강사가 없습니다.'); return; }
+  const who = only ? '아직 접속하지 않은 강사' : '모든 강사';
+  if (!window.confirm(`${bulk.dataset.school}의 ${who} ${count}명에게 접속 링크와 비밀번호를 문자로 보냅니다. 계속할까요?`)) event.preventDefault();
+});
+// 학부모 링크 발송: 받는 사람 명단(선택·제외) + 발송 방법(문자·알림톡) + 미리보기
+const send = document.getElementById('sendLink');
+if (send) {
+  const counts = JSON.parse(send.dataset.counts);
+  const labels = {all: '이 학교 보호자 모두', no_push: '알림을 아직 안 켠 보호자', not_sent: '안내 링크를 아직 못 받은 보호자'};
+  const school = send.dataset.school;
+  const $id = id => document.getElementById(id);
+  const panel = $id('whoPanel'), sum = $id('whoSum'), filter = $id('whoFilter');
+  const rows = [...send.querySelectorAll('.ih-who')];
+  const boxes = rows.map(row => row.querySelector('input'));
+  const countBtns = [...send.querySelectorAll('.ih-count')];
+  const targetOf = () => send.elements.target.value;
+  const methodOf = () => send.elements.method.value;
+  const isMember = (row, target) => row.dataset.ok === '1' && (target === 'all'
+    || (target === 'no_push' && row.dataset.push === '0') || (target === 'not_sent' && row.dataset.sent === '0'));
+  const picked = () => boxes.filter(box => box.checked && !box.disabled).length;
+
+  // --- 받는 사람 명단
+  const drawSummary = () => {
+    const target = targetOf(), total = counts[target] || 0, now = picked();
+    sum.textContent = `${labels[target]} ${total}명 중 ${now}명 선택` + (total > now ? ` (${total - now}명 제외)` : '');
+  };
+  const applyFilter = () => {
+    const q = filter.value.replace(/\s+/g, '').toLowerCase();
+    rows.forEach(row => row.classList.toggle('nomatch', !!q && !row.dataset.search.replace(/\s+/g, '').toLowerCase().includes(q)));
+  };
+  const applyTarget = () => {
+    const target = targetOf();
+    rows.forEach((row, i) => {
+      const member = isMember(row, target);
+      row.hidden = !member && !(target === 'all' && row.dataset.ok !== '1');   // 번호가 틀린 사람은 '모두'에서만 보여 준다
+      if (!boxes[i].disabled) boxes[i].checked = member;
+    });
+    countBtns.forEach(btn => btn.classList.toggle('on', btn.dataset.list === target));
+    applyFilter(); drawSummary();
+  };
+  const setPanel = open => {
+    panel.hidden = !open;
+    countBtns.forEach(btn => btn.setAttribute('aria-expanded', String(open && btn.dataset.list === targetOf())));
+  };
+  const setVisible = value => {
+    rows.forEach((row, i) => { if (!row.hidden && !row.classList.contains('nomatch') && !boxes[i].disabled) boxes[i].checked = value; });
+    drawSummary();
+  };
+  send.querySelectorAll('input[name=target]').forEach(radio => radio.addEventListener('change', () => { applyTarget(); if (!panel.hidden) setPanel(true); }));
+  countBtns.forEach(btn => btn.addEventListener('click', () => {
+    const radio = send.querySelector(`input[name=target][value="${btn.dataset.list}"]`);
+    const same = radio.checked;
+    radio.checked = true;
+    if (!same) applyTarget();
+    setPanel(same ? panel.hidden : true);                     // 같은 대상을 다시 누르면 접는다
+  }));
+  $id('whoToggle').addEventListener('click', () => setPanel(panel.hidden));
+  $id('whoAll').addEventListener('click', () => setVisible(true));
+  $id('whoNone').addEventListener('click', () => setVisible(false));
+  filter.addEventListener('input', applyFilter);
+  panel.addEventListener('change', drawSummary);
+
+  // --- 문자 미리보기
+  const intro = $id('introText'), textPreview = $id('introPreview');
+  const drawText = () => {
+    const link = send.elements.link_kind.value === 'school' ? '(학교 공통 링크)' : '(보호자마다 다른 개인 링크)';
+    textPreview.textContent = `[${school}] 방과후 학부모 안내\n${intro.value.trim()}\n${link}`;
+  };
+
+  // --- 알림톡: 승인된 템플릿과 변수(#{학교명}, #{url})를 불러와 보여 준다(조회만 하고 보내지 않는다)
+  const kakaoBox = $id('kakaoBox'), kakaoStatus = $id('kakaoStatus'), kakaoVars = $id('kakaoVars');
+  const kakaoPreview = $id('kakaoPreview'), fallbackOn = $id('fallbackOn'), sendBtn = $id('sendBtn');
+  const cache = {};
+  let kakaoOk = false;
+  const paintKakao = data => {
+    kakaoOk = !!data.ok;
+    kakaoStatus.textContent = data.ok
+      ? `알림톡 템플릿: ${data.template.name || data.template.template_id} · 승인됨`
+      : (data.problem || data.error || '알림톡 템플릿을 확인해 주세요.');
+    kakaoStatus.style.color = data.ok ? '' : '#b45309';
+    const tbody = kakaoVars.querySelector('tbody');
+    tbody.textContent = '';
+    (data.variables || []).forEach(item => {
+      const tr = document.createElement('tr');
+      [item.key, item.value || '(값 없음)', item.source_label].forEach(text => {
+        const td = document.createElement('td'); td.textContent = text; tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    kakaoVars.hidden = !(data.variables || []).length;
+    kakaoPreview.textContent = data.preview || '';
+    drawMethod();
+  };
+  const loadKakao = async () => {
+    const kind = send.elements.link_kind.value;
+    if (cache[kind]) { paintKakao(cache[kind]); return; }
+    kakaoStatus.textContent = '알림톡 템플릿을 불러오는 중…'; kakaoStatus.style.color = '';
+    kakaoOk = false; kakaoVars.hidden = true; kakaoPreview.textContent = '';
+    try {
+      const response = await fetch(`${send.dataset.kakaoUrl}?link_kind=${encodeURIComponent(kind)}`, {credentials: 'same-origin'});
+      const data = await response.json();
+      if (data.ok) cache[kind] = data;
+      if (send.elements.link_kind.value === kind) paintKakao(data);     // 그 사이 링크 종류를 바꿨다면 버린다
+    } catch (error) {
+      paintKakao({ok: false, error: '알림톡 템플릿을 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.'});
+    }
+  };
+  function drawMethod() {
+    const kakao = methodOf() === 'kakao';
+    kakaoBox.hidden = !kakao;
+    $id('textPreviewBox').hidden = kakao;
+    $id('kakaoPreviewBox').hidden = !kakao;
+    $id('introField').hidden = kakao && !fallbackOn.checked;
+    $id('introLabel').innerHTML = kakao
+      ? '대체 문자 문구 <span class="ih-sub">(알림톡을 받지 못한 분께만 문자로 가요)</span>'
+      : '안내 문구 <span class="ih-sub">(학교 이름과 링크는 자동으로 붙어요)</span>';
+    sendBtn.innerHTML = kakao ? '<i class="fa-solid fa-comment-dots"></i> 알림톡 발송' : '<i class="fa-solid fa-comment-sms"></i> 문자 발송';
+    sendBtn.disabled = send.dataset.sendOff === '1' || (kakao && !kakaoOk);
+  }
+  send.querySelectorAll('input[name=method]').forEach(radio => radio.addEventListener('change', () => {
+    drawMethod(); if (methodOf() === 'kakao') loadKakao();
+  }));
+  send.elements.link_kind.addEventListener('change', () => { drawText(); if (methodOf() === 'kakao') loadKakao(); });
+  fallbackOn.addEventListener('change', drawMethod);
+  intro.addEventListener('input', drawText);
+
+  // --- 발송 전 확인
+  send.addEventListener('submit', event => {
+    const now = picked(), target = targetOf(), total = counts[target] || 0, kakao = methodOf() === 'kakao';
+    if (!now) { event.preventDefault(); window.alert('보낼 보호자를 한 명 이상 선택해 주세요.'); return; }
+    if (kakao && !kakaoOk) { event.preventDefault(); window.alert('알림톡 템플릿을 확인한 뒤 보낼 수 있어요. 문자로 보내려면 발송 방법을 바꿔 주세요.'); return; }
+    const kind = send.elements.link_kind.value === 'school' ? '학교 공통 링크' : '보호자 개인 링크';
+    const way = kakao ? '카카오 알림톡으로' : '문자로';
+    const skipped = total > now ? `\n(대상 ${total}명 중 ${total - now}명은 제외했어요)` : '';
+    const cost = kakao ? (fallbackOn.checked ? '알림톡을 받지 못한 분께는 문자로 대신 가며, 그 경우 문자 요금이 발생합니다.' : '요금이 발생합니다.') : '문자 요금이 발생합니다.';
+    if (!window.confirm(`${school}의 ${labels[target]} 중 ${now}명에게 ${kind}를 ${way} 보냅니다.${skipped}\n${cost} 계속할까요?`)) event.preventDefault();
+  });
+
+  applyTarget(); drawText(); drawMethod(); if (methodOf() === 'kakao') loadKakao();
+}
+// 학교·강사 검색
+function bindFilter(inputId, itemSelector, groupSelector) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.addEventListener('input', () => {
+    const q = input.value.replace(/\s+/g, '').toLowerCase();
+    document.querySelectorAll(itemSelector).forEach(item => {
+      item.hidden = !(item.dataset.search || item.dataset.name || '').replace(/\s+/g, '').toLowerCase().includes(q);
+    });
+    if (groupSelector) document.querySelectorAll(groupSelector).forEach(group => {
+      group.hidden = !group.querySelector('[data-row]:not([hidden])');
+    });
+  });
+}
+bindFilter('instructorFilter', '[data-row]', '[data-group]');
+bindFilter('schoolFilter', '#schoolTable tbody tr[data-name]');
+(() => {
+  const input = document.getElementById('everyoneFilter');
+  if (!input) return;
+  const table = document.getElementById('everyoneTable'), none = document.getElementById('everyoneNone');
+  const rows = [...table.querySelectorAll('tbody tr')];
+  input.addEventListener('input', () => {
+    const q = input.value.replace(/\s+/g, '').toLowerCase();
+    let shown = 0;
+    rows.forEach(row => {
+      const ok = q && shown < 60 && row.dataset.search.replace(/\s+/g, '').toLowerCase().includes(q);
+      row.hidden = !ok; if (ok) shown += 1;
+    });
+    table.hidden = !shown; none.hidden = !q || shown > 0;
+  });
+})();
+// 승인관리: 승인 대기만 보기 / 반려 사유 묻기 / 소개글 전체 보기
+document.addEventListener('click', event => {
+  const more = event.target.closest('[data-more]');
+  if (!more) return;
+  const bio = more.previousElementSibling;
+  const open = bio.classList.toggle('open');
+  more.textContent = open ? '접기' : '전체 보기';
+});
+(() => {
+  const only = document.getElementById('onlyPending');
+  const rows = [...document.querySelectorAll('.ih-rv')];
+  const apply = () => rows.forEach(row => { row.hidden = !!(only && only.checked && row.dataset.need !== '1'); });
+  if (only) { only.addEventListener('change', apply); apply(); }
+  document.querySelectorAll('[data-reject]').forEach(button => {
+    button.addEventListener('click', () => {
+      const form = button.closest('form');
+      const reason = window.prompt('반려 사유를 적어 주세요. (강사 화면에 보입니다. 비워도 됩니다)', '');
+      if (reason === null) return;
+      form.elements.reason.value = reason;
+      const decision = document.createElement('input');
+      decision.type = 'hidden'; decision.name = 'decision'; decision.value = 'reject';
+      form.appendChild(decision);
+      form.submit();
+    });
+  });
+})();
+</script>
+{% endblock %}

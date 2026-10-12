@@ -1,0 +1,165 @@
+{% from 'support_hub/_macros.html' import post_button with context %}
+{% if not can_edit %}
+<div class="ih-warn">이 학교는 [학교업무공간]에 등록되어 있지 않아 과목을 만들 수 없습니다. 학교업무공간에 같은 이름의 학교를 등록한 뒤 이용해 주세요.</div>
+{% else %}
+
+<section class="ih-section">
+  <div class="ih-listhead">
+    <h2>과목 ({{ classes|length }}개)</h2>
+    <span class="ih-sub">과목·강사·수강생은 이 화면에서만 입력합니다. 출석 확인·QR·월별 출석부는 [학생출석관리]에서 봅니다.</span>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="ih-table">
+    <thead><tr><th>과목</th><th>강사</th><th>수업 일정</th><th>수강생</th><th>설정</th><th>관리</th></tr></thead>
+    <tbody>
+    {% for c in classes %}
+    <tr class="ih-classrow {{ 'cur' if current and c.id == current.id }}">
+      <td class="cls">{{ c.class_name }}{% if c.department %}<div class="ih-sub">{{ c.department }}</div>{% endif %}</td>
+      <td>
+        {% if c.hub_instructors %}{{ c.hub_instructors|join(', ') }} <span class="ih-badge {{ '' if c.hub_manual_id else 'ok' }}">{{ '직접 연결' if c.hub_manual_id else '자동 연결' }}</span>
+        {% elif c.instructor_name %}{{ c.instructor_name }}<div class="ih-sub">강사 계정과 연결되지 않음</div>
+        {% else %}<span class="ih-badge pend">연결된 강사 없음</span><div class="ih-sub">강의부서 이름을 강사와 똑같이 쓰거나 강사를 직접 고르세요</div>{% endif %}
+      </td>
+      <td>{{ c.schedule_label or '-' }}{% if c.start_time %}<div class="ih-sub">지각 {{ c.late_minutes }}분 후</div>{% endif %}</td>
+      <td>{{ c.counts.students }}명</td>
+      <td>
+        <span class="ih-badge {{ 'ok' if c.qr_mode == 'live' else '' }}">{{ '30초 QR' if c.qr_mode == 'live' else '매일 QR' }}</span>
+        {% if not c.notify_parents %}<span class="ih-badge off">알림 끔</span>{% endif %}
+      </td>
+      <td>
+        <div class="ih-row mid">
+          <a class="ih-btn sm {{ '' if current and c.id == current.id else 'primary' }}" href="{{ url_for('support_hub.admin_page', tab='roster', school=selected.name, **{'class': c.id}) }}">명단 보기</a>
+          <a class="ih-btn sm" href="{{ url_for('support_hub.admin_page', tab='roster', school=selected.name, edit=c.id, **{'class': c.id}) }}#classForm">수정</a>
+          {{ post_button(url_for('support_hub.delete_class', class_id=c.id), '삭제', c.class_name ~ ' 과목을 삭제할까요? 지난 출석 기록은 보존됩니다.', 'danger') }}
+        </div>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="ih-hint" style="padding:22px 12px">아직 과목이 없습니다. 아래 [과목 만들기]로 하나씩 만들거나, [엑셀로 한 번에 등록]에서 과목·학생을 한꺼번에 올려 주세요.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="ih-section" id="classForm">
+  <h2>{{ (edit_class.class_name ~ ' 수정') if edit_class else '과목 만들기' }}</h2>
+  <p class="ih-hint">강의부서를 [강사 등록·관리]에 쓴 이름과 똑같이 쓰면 그 부서 강사에게 자동으로 연결됩니다. 이름이 다르면 담당 강사를 직접 고르세요.</p>
+  <form method="post" action="{{ url_for('support_hub.save_class') }}">
+    <input type="hidden" name="school_name" value="{{ selected.name }}">
+    {% if edit_class %}<input type="hidden" name="id" value="{{ edit_class.id }}">{% endif %}
+    <div class="ih-grid2">
+      <label>과목명 *<input class="ih-input" type="text" name="class_name" required maxlength="60" placeholder="예) 로봇과학 A반" value="{{ edit_class.class_name if edit_class }}"></label>
+      <label>강의부서<input class="ih-input" type="text" name="department" maxlength="40" list="deptList2" placeholder="예) 로봇과학" value="{{ edit_class.department if edit_class }}"></label>
+      <label>담당 강사
+        <select class="ih-input" name="hub_account_id">
+          <option value="">자동 연결 (학교·강의부서가 같은 강사)</option>
+          {% for person in hub_people %}<option value="{{ person.id }}" {{ 'selected' if edit_class and edit_class.hub_manual_id == person.id }}>{{ person.name }}{% if person.departments %} ({{ person.departments|join(', ') }}){% endif %}</option>{% endfor %}
+        </select>
+      </label>
+      <label>강사 표시 이름 <span class="ih-sub">(선택)</span><input class="ih-input" type="text" name="instructor_name" maxlength="40" value="{{ edit_class.instructor_name if edit_class }}"></label>
+      <div class="wide"><label style="margin-bottom:6px">수업 요일</label>
+        <div class="ih-days">
+          {% for label in weekday_labels %}<label><input type="checkbox" name="weekdays" value="{{ loop.index0 }}" {{ 'checked' if edit_class and loop.index0 in edit_class.weekdays }}><span>{{ label }}</span></label>{% endfor %}
+        </div>
+      </div>
+      <label>시작 시각<input class="ih-input" type="time" name="start_time" value="{{ edit_class.start_time if edit_class }}"></label>
+      <label>종료 시각<input class="ih-input" type="time" name="end_time" value="{{ edit_class.end_time if edit_class }}"></label>
+      <label>지각 기준 (시작 후 몇 분)<input class="ih-input" type="number" name="late_minutes" min="0" max="120" value="{{ edit_class.late_minutes if edit_class else 10 }}"></label>
+      <div class="wide">
+        <div class="ih-radio">
+          <label><input type="radio" name="qr_mode" value="daily" {{ 'checked' if not edit_class or edit_class.qr_mode != 'live' }}><span>매일 바뀌는 출석 QR (인쇄해 교실에 붙일 수 있어요)</span></label>
+          <label><input type="radio" name="qr_mode" value="live" {{ 'checked' if edit_class and edit_class.qr_mode == 'live' }}><span>30초마다 바뀌는 출석 QR (대리 출석 방지)<small>강사 화면에 띄운 QR만 인정합니다.</small></span></label>
+        </div>
+      </div>
+      <label class="ih-check wide"><input type="checkbox" name="notify_parents" value="1" {{ 'checked' if not edit_class or edit_class.notify_parents }}> 보호자에게 출결 알림 보내기</label>
+    </div>
+    <div class="ih-row mid" style="margin-top:16px">
+      <button class="ih-btn primary" type="submit"><i class="fa-solid fa-check"></i> 저장</button>
+      {% if edit_class %}<a class="ih-btn" href="{{ url_for('support_hub.admin_page', tab='roster', school=selected.name, **{'class': edit_class.id}) }}">수정 취소</a>{% endif %}
+    </div>
+  </form>
+  <datalist id="deptList2">{% for name in departments %}<option value="{{ name }}">{% endfor %}</datalist>
+</section>
+
+{% if current %}
+<section class="ih-section" id="students">
+  <div class="ih-listhead">
+    <h2>{{ current.class_name }} 수강생 ({{ students|length }}명)</h2>
+    <span class="ih-sub">보호자 휴대폰번호는 출석 알림과 학생 본인 확인(뒷 4자리)에 쓰입니다.</span>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="ih-table">
+    <thead><tr><th>#</th><th>학생</th><th>보호자</th><th>알림</th><th>휴대폰 연결</th><th>관리</th></tr></thead>
+    <tbody>
+    {% for s in students %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td class="cls">{{ s.name }}<div class="ih-sub">{% if s.grade %}{{ s.grade }}학년 {% endif %}{% if s.classroom %}{{ s.classroom }}반{% endif %}</div></td>
+      <td>{% for g in s.guardians %}<div>{{ g.name }} <span class="ih-sub">{{ g.phone }}</span></div>{% else %}<span class="ih-badge pend">보호자 없음</span>{% endfor %}</td>
+      <td>{% for g in s.guardians %}<div>{% if g.push %}<span class="ih-badge ok">켜짐</span>{% if g.receipt_warn %} <span class="ih-badge bad" title="최근 알림이 연달아 휴대폰에 도착하지 않았습니다">수신 확인 필요</span>{% endif %}{% else %}<span class="ih-badge off">꺼짐</span>{% endif %}</div>{% endfor %}</td>
+      <td>{% if s.device_bound_at %}<span class="ih-badge ok" title="최근 사용 {{ s.device_last_seen_at }}">연결됨</span>{% else %}<span class="ih-badge off">미연결</span>{% endif %}</td>
+      <td>
+        <div class="ih-row mid">
+          <details class="ih-more"><summary class="ih-btn sm">수정 ▾</summary>
+            <div class="panel">
+              <form method="post" class="edit" action="{{ url_for('support_hub.save_student', class_id=current.id) }}">
+                <input type="hidden" name="student_id" value="{{ s.id }}"><input type="hidden" name="guardian_id" value="{{ s.guardians[0].id if s.guardians }}">
+                <input class="ih-input" type="text" name="name" value="{{ s.name }}" required maxlength="40" aria-label="학생 이름">
+                <input class="ih-input" type="text" name="grade" value="{{ s.grade }}" maxlength="10" placeholder="학년" aria-label="학년">
+                <input class="ih-input" type="text" name="classroom" value="{{ s.classroom }}" maxlength="10" placeholder="반" aria-label="반">
+                <input class="ih-input" type="text" name="guardian_name" value="{{ s.guardians[0].name if s.guardians }}" maxlength="40" placeholder="보호자명" aria-label="보호자명">
+                <input class="ih-input" type="tel" name="guardian_phone" value="{{ s.guardians[0].phone if s.guardians }}" required placeholder="보호자 휴대폰" aria-label="보호자 휴대폰">
+                <button class="ih-btn sm primary" type="submit">저장</button>
+              </form>
+            </div>
+          </details>
+          {% if s.device_bound_at %}{{ post_button(url_for('support_hub.reset_device', class_id=current.id, student_id=s.id), '휴대폰 다시 등록', s.name ~ ' 학생의 휴대폰 등록을 풀까요? 휴대폰이나 QR 찍는 앱을 바꿔 출석이 안 될 때 사용합니다. 학생이 QR을 다시 찍고 이름과 보호자 휴대폰 뒷 4자리를 입력하면 됩니다.') }}{% endif %}
+          {{ post_button(url_for('support_hub.remove_student', class_id=current.id, student_id=s.id), '제외', s.name ~ ' 학생을 ' ~ current.class_name ~ ' 명단에서 뺄까요? 지난 출석 기록은 보존됩니다.', 'danger') }}
+        </div>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="ih-hint" style="padding:22px 12px">아직 수강생이 없습니다. 아래에서 한 명씩 또는 여러 명을 한꺼번에 등록해 주세요.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <details class="ih-way" open style="margin-top:16px">
+    <summary>학생 한 명 등록</summary>
+    <div class="body">
+      <form method="post" action="{{ url_for('support_hub.save_student', class_id=current.id) }}" class="ih-row">
+        <label>학생 이름 *<input class="ih-input" type="text" name="name" required maxlength="40" autocomplete="off"></label>
+        <label>학년<input class="ih-input" type="text" name="grade" maxlength="10" placeholder="3" style="width:90px" autocomplete="off"></label>
+        <label>반<input class="ih-input" type="text" name="classroom" maxlength="10" placeholder="2" style="width:90px" autocomplete="off"></label>
+        <label>보호자명<input class="ih-input" type="text" name="guardian_name" maxlength="40" placeholder="예) 김민준 어머니" autocomplete="off"></label>
+        <label>보호자 휴대폰 *<input class="ih-input" type="tel" name="guardian_phone" required placeholder="010-0000-0000" autocomplete="off"></label>
+        <button class="ih-btn primary" type="submit">등록</button>
+      </form>
+    </div>
+  </details>
+  <details class="ih-way">
+    <summary>여러 명 붙여넣기 (엑셀에서 복사해 붙여 넣어도 됩니다)</summary>
+    <div class="body">
+      <form method="post" action="{{ url_for('support_hub.bulk_students', class_id=current.id) }}">
+        <p class="ih-hint">한 줄에 한 명씩 <b>학생명, 학년, 반, 보호자명, 보호자연락처</b> 순서로 적어 주세요. 하나라도 틀리면 아무도 등록하지 않고 틀린 줄을 알려 드립니다. (한 번에 300명까지)</p>
+        <textarea name="text" placeholder="김민준, 3, 2, 김민준 어머니, 010-1234-5678&#10;이서연, 1, 4, 이서연 아버지, 01098765432"></textarea>
+        <div style="margin-top:8px"><button class="ih-btn primary" type="submit">붙여넣은 명단 등록</button></div>
+      </form>
+    </div>
+  </details>
+</section>
+{% endif %}
+
+<details class="ih-section">
+  <summary><i class="fa-solid fa-file-excel"></i> 엑셀로 학교 전체 과목·학생을 한 번에 등록</summary>
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('support_hub.import_roster_route') }}" class="ih-row mid" style="margin-top:14px">
+    <input type="hidden" name="school_name" value="{{ selected.name }}">
+    <input class="ih-input" type="file" name="file" accept=".xlsx" required>
+    <button class="ih-btn primary" type="submit"><i class="fa-solid fa-upload"></i> 올려서 등록</button>
+    <a class="ih-btn" href="{{ url_for('support_hub.roster_template') }}"><i class="fa-solid fa-download"></i> 엑셀 양식 받기</a>
+  </form>
+  <p class="ih-hint" style="margin:10px 0 0">한 줄이 학생 한 명·과목 하나입니다. 같은 이름의 과목이 이미 있으면 그 과목에 더하고 없으면 새로 만듭니다. 한 번에 {{ max_roster_rows }}줄까지, 하나라도 틀리면 아무것도 등록하지 않고 틀린 줄을 알려 드려요. (.xlsx만 가능)</p>
+</details>
+{% endif %}

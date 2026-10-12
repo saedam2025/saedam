@@ -1,0 +1,65 @@
+{% from 'support_hub/_macros.html' import chip with context %}
+  {% set waiting = review|selectattr('needs_action')|list %}
+  <div class="ih-section" style="padding:14px 18px">
+    <div class="ih-listhead" style="margin:0">
+      <h2>{{ selected.name }} · 강사 {{ review|length }}명</h2>
+      <span class="ih-hint" style="margin:0">승인 대기 <b>{{ waiting|length }}</b>명 — 한 줄에 강사 한 명의 프로필과 홍보 리플렛 자료가 함께 나옵니다.</span>
+      <label style="margin-left:auto;display:flex;gap:6px;align-items:center;font-size:.86rem"><input type="checkbox" id="onlyPending" {{ 'checked' if waiting and waiting|length < review|length }}> 승인 대기만 보기</label>
+    </div>
+  </div>
+
+  {% if review %}
+  <div class="ih-rv-head"><span>강사</span><span>프로필</span><span>홍보 리플렛 자료</span></div>
+  {% endif %}
+  {% for r in review %}
+  <div class="ih-rv {{ 'need' if r.needs_action }}" data-need="{{ 1 if r.needs_action else 0 }}">
+    <div class="who">
+      <b>{{ r.name }}{% if not r.is_active %} <span class="ih-badge off">중지</span>{% endif %}</b>
+      <span>{{ r.departments|join(' · ') or '강의부서 없음' }}</span><span>{{ r.phone }}</span>
+    </div>
+
+    {% set p = r.profile %}
+    <div class="cell {{ 'pending' if p.status == 'pending' }} {{ 'empty' if not (p.bio or p.has_photo) }}">
+      <div class="cellhead">{{ chip(p.status) }}{% if p.submitted_at and p.status == 'pending' %}<span>{{ p.submitted_at }} 제출</span>{% endif %}</div>
+      {% if p.bio or p.has_photo %}
+      <div class="prof">
+        {% if p.has_photo %}<a href="{{ url_for('instructor_hub.admin_photo', account_id=r.account_id, which=p.which) }}" target="_blank" rel="noopener"><img loading="lazy" alt="{{ r.name }} 사진" src="{{ url_for('instructor_hub.admin_photo', account_id=r.account_id, which=p.which) }}"></a>{% endif %}
+        <div style="min-width:0;flex:1"><p class="bio">{{ p.bio or '(소개글 없음)' }}</p>{% if p.bio|length > 90 %}<button type="button" class="more-btn" data-more>전체 보기</button>{% endif %}</div>
+      </div>
+      {% if p.status == 'pending' and p.old_bio and p.old_bio != p.bio %}<p class="ih-hint" style="margin:6px 0 0">이전에 승인된 소개글과 달라진 수정본입니다.</p>{% endif %}
+      {% if p.status == 'rejected' %}<p class="why">반려{% if p.reject_reason %} · {{ p.reject_reason }}{% endif %}</p>{% endif %}
+      {% if p.status == 'pending' %}
+      <form method="post" class="decide" data-review action="{{ url_for('instructor_hub.admin_review_profile', account_id=r.account_id) }}">
+        <input type="hidden" name="next" value="{{ here }}"><input type="hidden" name="reason" value="">
+        <button class="ih-btn sm primary" name="decision" value="approve" type="submit">승인</button>
+        <button class="ih-btn sm danger" type="button" data-reject>반려</button>
+      </form>
+      {% endif %}
+      {% else %}아직 올리지 않았어요{% endif %}
+    </div>
+
+    {% set m = r.promo %}
+    <div class="cell {{ 'pending' if m.status == 'pending' }} {{ 'empty' if not m.total }}">
+      <div class="cellhead">{{ chip(m.status) }}{% if m.total %}<span>총 {{ m.total }}쪽</span>{% endif %}{% if m.submitted_at and m.status == 'pending' %}<span>{{ m.submitted_at }} 제출</span>{% endif %}</div>
+      {% if m.total %}
+      <div class="thumbs">
+        {% for page_id in m.pages %}
+          {% set src = url_for('ebook.serve_page_image', ebook_id=m.ebook_id, page_id=page_id) if m.from_ebook else url_for('instructor_hub.admin_promo_page', page_id=page_id) %}
+          <a href="{{ src }}" target="_blank" rel="noopener"><img loading="lazy" alt="홍보 {{ loop.index }}쪽" src="{{ src }}"></a>
+        {% endfor %}
+        {% if m.total > m.pages|length %}<span>+{{ m.total - m.pages|length }}쪽</span>{% endif %}
+      </div>
+      {% if m.status == 'rejected' %}<p class="why">반려{% if m.reject_reason %} · {{ m.reject_reason }}{% endif %}</p>{% endif %}
+      {% if m.status == 'pending' %}
+      <form method="post" class="decide" data-review action="{{ url_for('instructor_hub.admin_review_promo', promo_id=m.id) }}">
+        <input type="hidden" name="next" value="{{ here }}"><input type="hidden" name="reason" value="">
+        <button class="ih-btn sm primary" name="decision" value="approve" type="submit">승인</button>
+        <button class="ih-btn sm danger" type="button" data-reject>반려</button>
+      </form>
+      {% endif %}
+      {% else %}아직 올리지 않았어요{% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="ih-section"><p class="ih-hint">이 학교에 등록된 강사가 아직 없습니다. <a href="{{ url_for('support_hub.admin_page', tab='instructors', school=selected.name) }}">강사 등록·관리</a> 탭에서 강사를 등록해 주세요.</p></div>
+  {% endfor %}

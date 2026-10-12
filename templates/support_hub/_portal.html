@@ -1,0 +1,224 @@
+{% from 'support_hub/_macros.html' import post_button with context %}
+{% if not push_configured %}<div class="ih-warn">서버에 웹푸시 키(VAPID)가 설정되어 있지 않아 학부모에게 출석 푸시알림이 가지 않습니다. 운영 서버 환경변수를 확인해 주세요. (포털과 링크 문자는 그대로 쓸 수 있어요.)</div>{% endif %}
+
+<div class="ih-checks2" aria-label="준비 점검">
+  {% for item in checks %}
+  <a class="{{ 'ok' if item.ok else ('opt' if item.optional else 'todo') }}" href="{{ url_for('support_hub.admin_page', tab=item.tab, school=selected.name) }}" title="{{ item.label }}: {{ item.note }}">
+    <i class="fa-solid {{ 'fa-circle-check' if item.ok else ('fa-circle' if item.optional else 'fa-circle-exclamation') }}"></i>{{ item.label }} · {{ item.note }}
+  </a>
+  {% endfor %}
+</div>
+
+{% if not portal %}
+<section class="ih-section">
+  <h2>학부모 포털 만들기</h2>
+  <p class="ih-hint">학교마다 학부모가 들어오는 입구(링크·QR) 하나를 만듭니다. 학부모는 이 링크로 자녀 출석 알림·출석률, 강사 프로필, 학교 e리플렛, 3D 교실안내를 한곳에서 봅니다.</p>
+  {% if selected.matched %}
+  <form method="post" action="{{ url_for('parent_hub.admin_create_portals') }}">
+    <input type="hidden" name="next" value="{{ here }}"><input type="hidden" name="school_name" value="{{ selected.name }}">
+    <button class="ih-btn primary" type="submit"><i class="fa-solid fa-plus"></i> {{ selected.name }} 포털 만들기</button>
+  </form>
+  {% else %}<p class="ih-hint">[학교업무공간]에 등록된 학교만 포털을 만들 수 있습니다.</p>{% endif %}
+</section>
+{% else %}
+
+<section class="ih-section">
+  <div class="ih-school" style="padding-top:0;border-top:0">
+    <div><img class="qr" src="{{ url_for('parent_hub.admin_portal_qr', portal_id=portal.id) }}" alt="{{ selected.name }} 학부모 안내 QR"></div>
+    <div>
+      <h3>학부모 안내 링크 <span class="ih-badge {{ 'ok' if portal.is_active else 'off' }}">{{ '공개중' if portal.is_active else '비공개' }}</span></h3>
+      <div class="ih-mono">{{ portal_url }}</div>
+      <p class="ih-hint" style="margin:6px 0 10px">학부모의 입구는 이 링크 하나입니다. 문자·알림장·가정통신문 QR 어디에 올려도 같은 곳으로 들어옵니다.</p>
+      <div class="ih-row mid">
+        <button class="ih-btn sm primary" type="button" data-copy="{{ portal_url }}">링크 복사</button>
+        <button class="ih-btn sm" type="button" data-copy="[{{ selected.name }} 방과후 학부모 안내]&#10;{{ default_intro }}&#10;{{ portal_url }}">안내 문구 복사</button>
+        <a class="ih-btn sm" href="{{ url_for('parent_hub.admin_portal_print', portal_id=portal.id) }}" target="_blank" rel="noopener"><i class="fa-solid fa-print"></i> 인쇄용 안내문</a>
+        <a class="ih-btn sm" href="{{ portal_url }}" target="_blank" rel="noopener">학부모 화면 미리보기</a>
+        {{ post_button(url_for('parent_hub.admin_portal_action', portal_id=portal.id, action='toggle'), '비공개로' if portal.is_active else '공개로') }}
+        {{ post_button(url_for('parent_hub.admin_portal_action', portal_id=portal.id, action='regenerate'), '링크 재발급', '링크를 새로 만들면 이미 나눠 준 링크·QR은 열리지 않습니다. 계속할까요?') }}
+        {{ post_button(url_for('parent_hub.admin_portal_action', portal_id=portal.id, action='delete'), '삭제', '포털을 삭제하면 본사가 올린 리플렛 쪽도 함께 지워집니다. 강사 홍보 자료는 남습니다. 삭제할까요?', 'danger') }}
+      </div>
+      <details class="ih-more">
+        <summary>제목·안내 문구·보일 항목 설정</summary>
+        <form class="ih-form" method="post" action="{{ url_for('parent_hub.admin_save_portal', portal_id=portal.id) }}">
+          <input type="hidden" name="next" value="{{ here }}">
+          <label>제목 <small>(비우면 '학교이름 방과후 학부모 안내')</small><input class="ih-input" type="text" name="title" maxlength="100" value="{{ portal.title }}"></label>
+          <label>학부모 안내 문구 <small>(첫 화면과 학부모 홈 위쪽에 보여요)</small><textarea class="ih-input" name="notice" rows="3" maxlength="500">{{ portal.notice }}</textarea></label>
+          <div class="ih-checks">
+            <label><input type="checkbox" name="show_attendance" {{ 'checked' if portal.show_attendance }}><span>출석 알림·출석률<small>자녀 출석현황 탭</small></span></label>
+            <label><input type="checkbox" name="show_profile" {{ 'checked' if portal.show_profile }}><span>강사 프로필<small>자녀가 등록된 부서의 강사 소개</small></span></label>
+            <label><input type="checkbox" name="show_leaflet" {{ 'checked' if portal.show_leaflet }}><span>학교 e리플렛<small>본사+강사 홍보 한 권</small></span></label>
+            <label><input type="checkbox" name="show_guide" {{ 'checked' if portal.show_guide }}><span>3D 교실안내<small>교실 위치·가는 길</small></span></label>
+          </div>
+          <div><button class="ih-btn primary" type="submit">저장</button></div>
+        </form>
+      </details>
+      {% if portal.show_guide and not guide_ready and school_url %}<p class="ih-hint" style="margin:12px 0 0">3D 교실안내가 아직 없거나 공유가 꺼져 있어요. <a href="{{ school_url }}">교실안내</a>에서 배치도를 만들고 [공유 켜기]를 눌러 주세요.</p>{% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="ih-section" id="send">
+  <h2>링크 발송</h2>
+  <p class="ih-hint">이 학교 학생의 보호자에게 학부모 안내 링크를 <b>문자</b> 또는 <b>카카오 알림톡</b>으로 보냅니다. 보호자마다 한 번만(자녀가 여럿이어도 한 통) 가며, 휴대폰번호가 올바른 보호자에게만 보냅니다.</p>
+  {% if not portal.is_active %}<div class="ih-warn">포털이 비공개 상태입니다. 위에서 [공개로]를 누른 뒤 보낼 수 있어요.</div>{% endif %}
+  <div class="ih-send">
+    <form method="post" action="{{ url_for('parent_hub.admin_send_link', portal_id=portal.id) }}" id="sendLink"
+          data-counts='{{ {"all": audience.all, "no_push": audience.no_push, "not_sent": audience.not_sent}|tojson }}' data-school="{{ selected.name }}"
+          data-kakao-url="{{ kakao_preview_url }}" data-send-off="{{ 1 if not portal.is_active or not audience.all else 0 }}">
+      <input type="hidden" name="next" value="{{ here }}">
+      <input type="hidden" name="custom" value="1">
+
+      <div class="ih-step">
+        <h3><span class="ih-no">1</span> 보낼 대상</h3>
+        <div class="ih-radio">
+          {% for key, label in link_targets.items() %}
+          <label><input type="radio" name="target" value="{{ key }}" {{ 'checked' if loop.first }}><span>{{ label }}</span>
+            <button type="button" class="ih-count" data-list="{{ key }}" aria-expanded="false" title="누르면 받는 사람 명단이 보여요">{{ audience[key] }}명 <i class="fa-solid fa-chevron-down"></i></button></label>
+          {% endfor %}
+        </div>
+        <p class="ih-who-sum"><span id="whoSum"></span> <button type="button" class="ih-linkbtn" id="whoToggle">받는 사람 명단 보기·제외하기</button></p>
+        <div class="ih-who-panel" id="whoPanel" hidden>
+          <div class="ih-who-bar">
+            <input class="ih-input" type="search" id="whoFilter" placeholder="보호자·자녀 이름이나 번호로 찾기" autocomplete="off">
+            <button type="button" class="ih-btn sm" id="whoAll">보이는 사람 모두 선택</button>
+            <button type="button" class="ih-btn sm" id="whoNone">보이는 사람 모두 해제</button>
+          </div>
+          <div class="ih-who-list">
+            {% for g in guardians %}
+            <label class="ih-who{{ ' bad' if not g.phone_ok }}" data-ok="{{ 1 if g.phone_ok else 0 }}" data-push="{{ 1 if g.push else 0 }}" data-sent="{{ 1 if g.sms_sent_at else 0 }}"
+                   data-search="{{ g.name }} {{ g.children|join(' ') }} {{ g.phone_label }} {{ g.phone_label|replace('-', '') }}">
+              <input type="checkbox" name="guardian_ids" value="{{ g.id }}" {{ 'checked' if g.phone_ok else 'disabled' }}>
+              <span class="who-name"><b>{{ g.name }}</b> <small>{{ g.phone_label }}</small></span>
+              <span class="who-kids">자녀 {{ g.children|join(', ') }}</span>
+              <span class="who-tags">
+                {% if not g.phone_ok %}<em class="warn">번호 확인 필요 · 발송 제외</em>{% endif %}
+                <em class="{{ 'on' if g.push }}">알림 {{ '켬' if g.push else '꺼짐' }}</em>
+                <em>{% if g.sms_sent_at %}링크 받음 {{ g.sms_sent_at[:10] }}{% else %}링크 아직{% endif %}</em>
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+          <p class="ih-hint" style="margin:8px 0 0">체크를 풀면 그 사람은 빼고 보냅니다. 위에서 보낼 대상을 바꾸면 선택이 처음 상태로 돌아가요.</p>
+        </div>
+      </div>
+
+      <div class="ih-step">
+        <h3><span class="ih-no">2</span> 발송 방법</h3>
+        <div class="ih-methods">
+          <label class="ih-method{{ ' off' if not kakao_ready }}"><input type="radio" name="method" value="kakao" {{ 'checked' if kakao_ready else 'disabled' }}>
+            <span><b>카카오 알림톡</b><small>카카오톡으로 안내가 가요. 승인된 템플릿의 <code>{{ kakao_var_keys.school }}</code>·<code>{{ kakao_var_keys.url }}</code> 변수에 학교 이름과 주소가 들어갑니다.</small></span></label>
+          <label class="ih-method"><input type="radio" name="method" value="text" {{ 'checked' if not kakao_ready }}>
+            <span><b>문자 (솔라피)</b><small>문자(SMS·LMS)로 안내 문구와 링크를 보내요.</small></span></label>
+        </div>
+        {% if not kakao_ready %}<p class="ih-hint" style="margin:8px 0 0">알림톡 템플릿이 아직 연결되지 않아 문자만 보낼 수 있어요. <a href="{{ solapi_settings_url }}">통합관리 &gt; 솔라피설정</a>에서 [학부모 안내 알림톡 템플릿 ID]를 저장하면 알림톡도 고를 수 있습니다.</p>{% endif %}
+      </div>
+
+      <div class="ih-step">
+        <h3><span class="ih-no">3</span> 보낼 내용</h3>
+        <div class="ih-field" style="margin-bottom:14px"><label>보낼 링크
+          <select class="ih-input" name="link_kind">
+            <option value="personal">보호자 개인 링크 (권장) — 누르면 바로 자기 화면이 열려요</option>
+            <option value="school">학교 공통 링크 — 자녀 이름·보호자 번호를 한 번 확인해요</option>
+          </select></label>
+        </div>
+        <div id="kakaoBox" hidden>
+          <p class="ih-hint" id="kakaoStatus" style="margin:0 0 8px">알림톡 템플릿을 불러오는 중…</p>
+          <table class="ih-table ih-vars" id="kakaoVars" hidden>
+            <thead><tr><th>템플릿 변수</th><th>들어가는 값</th><th>내용</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <label class="ih-check" style="margin:10px 0 14px"><input type="hidden" name="fallback" value="0"><input type="checkbox" name="fallback" value="1" id="fallbackOn" checked> 알림톡을 받지 못하는 분께는 문자로 대신 보내기</label>
+        </div>
+        <div class="ih-field" id="introField"><label><span id="introLabel">안내 문구 <span class="ih-sub">(학교 이름과 링크는 자동으로 붙어요)</span></span>
+          <textarea class="ih-input" name="intro" id="introText" maxlength="300">{{ default_intro }}</textarea></label>
+        </div>
+      </div>
+
+      <button class="ih-btn primary" type="submit" id="sendBtn" {{ 'disabled' if not portal.is_active or not audience.all }}><i class="fa-solid fa-comment-sms"></i> 문자 발송</button>
+    </form>
+    <div>
+      <div id="textPreviewBox">
+        <label style="color:var(--ih-muted);font-size:.78rem;font-weight:500">문자 미리보기</label>
+        <div class="ih-bubble" id="introPreview" style="margin-top:6px">[{{ selected.name }}] 방과후 학부모 안내
+{{ default_intro }}
+{{ portal_url }}/…</div>
+      </div>
+      <div id="kakaoPreviewBox" hidden>
+        <label style="color:var(--ih-muted);font-size:.78rem;font-weight:500">알림톡 미리보기</label>
+        <div class="ih-bubble kakao" id="kakaoPreview" style="margin-top:6px"></div>
+      </div>
+      <p class="ih-hint" style="margin:12px 0 0">
+        보호자 {{ audience.total }}명 · 알림 켠 보호자 {{ selected.push }}명{% if audience.invalid %} · <b style="font-weight:500;color:#b45309">휴대폰번호 확인 필요 {{ audience.invalid }}명</b>(발송 제외){% endif %}<br>
+        {% if portal.last_sent_at %}마지막 발송: {{ portal.last_sent_at[:16] }} · {{ link_methods.get(portal.last_sent_method, '문자') }} · {{ portal.last_sent_count }}명{% else %}아직 링크를 보낸 적이 없습니다.{% endif %}
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="ih-section">
+  <div class="ih-listhead">
+    <h2>학교 e리플렛</h2>
+    <span class="ih-hint" style="margin:0">학부모에게는 아래 순서대로 한 권으로 보입니다. (총 {{ total_pages }}쪽)</span>
+    <a class="ih-btn sm primary" href="{{ preview_url }}" target="_blank" rel="noopener"><i class="fa-solid fa-book-open"></i> 합쳐진 리플렛 미리보기</a>
+  </div>
+  <div class="ih-toc" style="margin-bottom:6px">
+    {% for item in toc %}<span>{{ loop.index }}. {{ item.title }} · {{ item.count }}쪽</span>{% else %}<span>아직 올라온 쪽이 없어요</span>{% endfor %}
+  </div>
+</section>
+
+{% macro hq_section(section) %}
+<section class="ih-section">
+  <h2>{{ '본사 ' ~ sections[section] }}</h2>
+  <p class="ih-hint">{{ '강사 홍보 앞에 붙는 쪽입니다. 표지, 학교·새담 소개, 운영 안내 등을 올려 주세요.' if section == 'front' else '강사 홍보 뒤에 붙는 쪽입니다. 신청 방법, 문의처, 마무리 안내 등을 올려 주세요.' }} (최대 {{ max_pages }}쪽)</p>
+  {% if hq[section] %}
+  <div class="ih-thumbs">
+    {% for page in hq[section] %}
+    <div class="ih-thumb">
+      <img loading="lazy" src="{{ url_for('parent_hub.admin_leaflet_image', page_id=page.id) }}" alt="{{ page.name }}">
+      <small title="{{ page.name }}">{{ loop.index }}. {{ page.name }}</small>
+      <div class="acts">
+        <form method="post" action="{{ url_for('parent_hub.admin_leaflet_page', page_id=page.id, action='up') }}"><input type="hidden" name="next" value="{{ here }}"><button class="ih-btn sm" type="submit" title="앞으로" {{ 'disabled' if loop.first }}>◀</button></form>
+        <form method="post" action="{{ url_for('parent_hub.admin_leaflet_page', page_id=page.id, action='down') }}"><input type="hidden" name="next" value="{{ here }}"><button class="ih-btn sm" type="submit" title="뒤로" {{ 'disabled' if loop.last }}>▶</button></form>
+        <form method="post" action="{{ url_for('parent_hub.admin_leaflet_page', page_id=page.id, action='delete') }}" data-confirm="이 쪽을 삭제할까요?"><input type="hidden" name="next" value="{{ here }}"><button class="ih-btn sm danger" type="submit" title="삭제">✕</button></form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}<p class="ih-hint">아직 올린 쪽이 없습니다.</p>{% endif %}
+  <form method="post" enctype="multipart/form-data" class="ih-row mid" action="{{ url_for('parent_hub.admin_leaflet_upload', portal_id=portal.id) }}">
+    <input type="hidden" name="next" value="{{ here }}"><input type="hidden" name="section" value="{{ section }}">
+    <input class="ih-input" type="file" name="files" multiple required accept=".jpg,.jpeg,.png,.webp,.gif,.pdf">
+    <button class="ih-btn primary" type="submit"><i class="fa-solid fa-upload"></i> 쪽 올리기</button>
+  </form>
+  <p class="ih-hint" style="margin:8px 0 0">그림(JPG·PNG 등)이나 PDF를 올리면 파일 이름 순서대로 뒤에 덧붙습니다. PDF는 쪽마다 그림으로 바뀌어요. 한 번에 파일 20개·30쪽까지.</p>
+</section>
+{% endmacro %}
+
+{{ hq_section('front') }}
+
+<section class="ih-section">
+  <h2>강사 홍보 <span class="ih-badge">자동으로 합쳐짐</span></h2>
+  <p class="ih-hint">강사가 자기 포털에서 홍보 자료를 올리고 본사가 승인하면 이곳 순서(강의부서·이름순)로 자동 합쳐집니다. 승인 전 자료는 학부모에게 보이지 않아요.</p>
+  <div style="overflow-x:auto">
+  <table class="ih-table">
+    <thead><tr><th>강의부서</th><th>강사</th><th>상태</th><th>학부모에게 보이는 쪽</th></tr></thead>
+    <tbody>
+    {% for item in coverage %}
+      <tr>
+        <td>{{ item.departments|join(' · ') or '-' }}</td><td>{{ item.name }}</td>
+        <td>{% if item.status == 'approved' %}<span class="ih-badge ok">승인됨</span>
+            {% elif item.status == 'pending' %}<span class="ih-badge pend">승인 대기</span>
+            {% elif item.status == 'rejected' %}<span class="ih-badge bad">반려됨</span>
+            {% else %}<span class="ih-badge off">아직 안 올림</span>{% endif %}</td>
+        <td>{{ (item.live_pages ~ '쪽') if item.live_pages else '-' }}</td>
+      </tr>
+    {% else %}<tr><td colspan="4" class="ih-hint">이 학교에 배정된 강사가 아직 없습니다.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="ih-hint" style="margin:12px 0 0">승인이 필요한 자료는 <a href="{{ url_for('support_hub.admin_page', tab='review', school=selected.name) }}">승인관리</a> 탭에서 확인해 주세요.</p>
+</section>
+
+{{ hq_section('back') }}
+{% endif %}
