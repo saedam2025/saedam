@@ -1,19 +1,15 @@
-import io
 import json
 import logging
 import os
 import secrets
 import sqlite3
-import urllib.error
-import urllib.request
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 from flask import (
     Blueprint, Response, current_app, jsonify, redirect, render_template,
-    request, send_file, session, url_for,
+    request, session,
 )
-from openpyxl import Workbook, load_workbook
 
 from .database import get_db
 
@@ -280,16 +276,8 @@ def _text(value, limit=500):
     return str(value or '').strip()[:limit]
 
 
-def _phone(value):
-    return ''.join(ch for ch in str(value or '') if ch.isdigit())[:20]
-
-
 def _token():
     return secrets.token_urlsafe(32)
-
-
-def _base_url():
-    return str(os.getenv('PUBLIC_BASE_URL') or request.url_root).rstrip('/')
 
 
 def _push_config():
@@ -320,45 +308,6 @@ def _active_invite(conn, guardian_id):
     )
     conn.commit()
     return conn.execute('SELECT * FROM parent_invites WHERE id=?', (cursor.lastrowid,)).fetchone()
-
-
-def _invite_url(conn, guardian_id):
-    invite = _active_invite(conn, guardian_id)
-    return f"{_base_url()}/parent/register/{invite['token']}"
-
-
-def _invite_message(url):
-    return (
-        '[새담 방과후학교]\n'
-        '앞으로 출결 알림이나 방과후 안내를 무료 알림으로 받아보실 수 있습니다.\n'
-        '아래에서 알림을 등록해주세요.\n'
-        f'{url}'
-    )
-
-
-def _send_sms_webhook(phone, message):
-    endpoint = _text(os.getenv('PARENT_SMS_WEBHOOK_URL'), 2000)
-    if not endpoint:
-        return False, 'SMS 연동값이 없어 문자 문구만 생성했습니다.'
-    payload = json.dumps({
-        'to': phone,
-        'from': _phone(os.getenv('PARENT_SMS_SENDER')),
-        'text': message,
-    }, ensure_ascii=False).encode('utf-8')
-    headers = {'Content-Type': 'application/json; charset=utf-8'}
-    token = _text(os.getenv('PARENT_SMS_WEBHOOK_TOKEN'), 2000)
-    if token:
-        headers['Authorization'] = f'Bearer {token}'
-    req = urllib.request.Request(endpoint, data=payload, headers=headers, method='POST')
-    try:
-        with urllib.request.urlopen(req, timeout=10) as response:
-            if 200 <= response.status < 300:
-                return True, '최초 푸시등록 안내문자를 발송했습니다.'
-            return False, f'SMS 연동 서버 응답 오류({response.status})'
-    except urllib.error.HTTPError as exc:
-        return False, f'SMS 발송 실패({exc.code})'
-    except Exception as exc:
-        return False, f'SMS 발송 실패: {exc}'
 
 
 def _send_subscription(conn, row, payload):
@@ -407,9 +356,11 @@ def _send_subscription(conn, row, payload):
         return False, _text(exc, 500)
 
 
-def _notification_url(conn, guardian_id):
+def _notification_url(conn, guardian_id, kind=None):
+    """알림을 눌렀을 때 열 화면. 학부모통합지원 홈이 도착 화면이다(출결 알림은 출석 탭, 그 밖은 알림 탭)."""
     invite = _active_invite(conn, guardian_id)
-    return f"/parent/register/{invite['token']}"
+    tab = 'attendance' if kind in ATTENDANCE_KINDS else 'notices'
+    return f"/parent/home/{invite['token']}?tab={tab}"
 
 
 def _send_notification(conn, guardian_ids, kind, title, body, *, class_id=None,
@@ -450,7 +401,7 @@ def _send_notification(conn, guardian_ids, kind, title, body, *, class_id=None,
             'body': body,
             'kind': kind,
             'tag': f'saedam-parent-{notification_id}-{guardian_id}',
-            'url': _notification_url(conn, guardian_id),
+            'url': _notification_url(conn, guardian_id, kind),
         }
         for subscription in subscriptions:
             ok, error = _send_subscription(
@@ -594,10 +545,6 @@ def _bootstrap_payload(conn):
         receipt = health.get(row['id'], {})
         item['last_received_at'] = receipt.get('last_received_at', '')
         item['receipt_warn'] = bool(receipt.get('warn'))
-        item['invite_url'] = (
-            f"{_base_url()}/parent/register/{row['invite_token']}"
-            if row['invite_token'] else ''
-        )
         guardians.append(item)
     classes = []
     for row in conn.execute('''
@@ -607,9 +554,7 @@ def _bootstrap_payload(conn):
         WHERE c.is_active=1 GROUP BY c.id
         ORDER BY c.school_name, c.department, c.class_name
     ''').fetchall():
-        item = _with_kst(row)
-        item['instructor_url'] = f"{_base_url()}/parent-notifications/instructor/{row['access_token']}"
-        classes.append(item)
+        classes.append(_with_kst(row))
     histories = [_with_kst(row) for row in conn.execute('''
         SELECT n.*, c.class_name, c.school_name,
                (SELECT COUNT(*) FROM parent_notification_recipients r
@@ -651,7 +596,6 @@ def _bootstrap_payload(conn):
         'schools': schools,
         'notice_kinds': list(NOTICE_KINDS),
         'push_configured': _push_ready(),
-        'sms_configured': bool(_text(os.getenv('PARENT_SMS_WEBHOOK_URL'))),
     }
 
 
@@ -669,219 +613,6 @@ def bootstrap_api():
     payload = _bootstrap_payload(conn)
     conn.close()
     return jsonify(payload)
-
-
-@parent_notification_bp.route('/parent-notifications/api/parents', methods=['POST'])
-@manager_required
-def save_parent():
-    data = request.get_json(silent=True) or {}
-    parent_id = data.get('id')
-    name = _text(data.get('name'), 100)
-    phone = _phone(data.get('phone'))
-    if not name or len(phone) < 9:
-        return jsonify(ok=False, message='학부모명과 올바른 휴대폰 번호를 입력해주세요.'), 400
-    conn = get_db()
-    ensure_parent_notification_schema(conn)
-    if parent_id:
-        row = conn.execute('SELECT id FROM parent_guardians WHERE id=?', (parent_id,)).fetchone()
-        if not row:
-            conn.close()
-            return jsonify(ok=False, message='학부모 정보를 찾을 수 없습니다.'), 404
-        conn.execute('''
-            UPDATE parent_guardians SET name=?, phone=?, email=?, memo=?,
-                updated_at=CURRENT_TIMESTAMP WHERE id=?
-        ''', (name, phone, _text(data.get('email'), 200), _text(data.get('memo'), 1000), parent_id))
-    else:
-        cursor = conn.execute('''
-            INSERT INTO parent_guardians(name, phone, email, memo) VALUES (?, ?, ?, ?)
-        ''', (name, phone, _text(data.get('email'), 200), _text(data.get('memo'), 1000)))
-        parent_id = cursor.lastrowid
-    if 'children' in data:
-        conn.execute('DELETE FROM parent_guardian_students WHERE guardian_id=?', (parent_id,))
-        for child in data.get('children') or []:
-            child_name = _text(child.get('name'), 100)
-            if not child_name:
-                continue
-            student_id = child.get('id')
-            school_id = child.get('school_id') or None
-            school_name = _text(child.get('school_name'), 200)
-            if school_id and not school_name:
-                school = conn.execute('SELECT school_name FROM schools WHERE id=?', (school_id,)).fetchone()
-                school_name = school['school_name'] if school else ''
-            if student_id and conn.execute('SELECT 1 FROM parent_students WHERE id=?', (student_id,)).fetchone():
-                conn.execute('''
-                    UPDATE parent_students SET name=?, school_id=?, school_name=?, grade=?,
-                        classroom=?, memo=?, updated_at=CURRENT_TIMESTAMP WHERE id=?
-                ''', (child_name, school_id, school_name, _text(child.get('grade'), 30),
-                      _text(child.get('classroom'), 30), _text(child.get('memo'), 500), student_id))
-            else:
-                cursor = conn.execute('''
-                    INSERT INTO parent_students(name, school_id, school_name, grade, classroom, memo)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (child_name, school_id, school_name, _text(child.get('grade'), 30),
-                      _text(child.get('classroom'), 30), _text(child.get('memo'), 500)))
-                student_id = cursor.lastrowid
-            conn.execute('''
-                INSERT OR IGNORE INTO parent_guardian_students(guardian_id, student_id)
-                VALUES (?, ?)
-            ''', (parent_id, student_id))
-            if 'class_ids' in child or 'class_id' in child:
-                class_ids = child.get('class_ids') or []
-                if child.get('class_id'):
-                    class_ids = [*class_ids, child.get('class_id')]
-                conn.execute('DELETE FROM parent_class_students WHERE student_id=?', (student_id,))
-                for class_id in {str(value) for value in class_ids if value}:
-                    conn.execute('''
-                        INSERT OR IGNORE INTO parent_class_students(class_id, student_id)
-                        SELECT id, ? FROM parent_classes WHERE id=? AND is_active=1
-                    ''', (student_id, class_id))
-    _active_invite(conn, parent_id)
-    conn.commit()
-    conn.close()
-    return jsonify(ok=True, message='학부모 정보를 저장했습니다.', id=parent_id)
-
-
-@parent_notification_bp.route('/parent-notifications/api/parents/<int:parent_id>', methods=['DELETE'])
-@manager_required
-def delete_parent(parent_id):
-    conn = get_db()
-    ensure_parent_notification_schema(conn)
-    conn.execute('DELETE FROM parent_guardians WHERE id=?', (parent_id,))
-    conn.commit()
-    conn.close()
-    return jsonify(ok=True, message='학부모 정보를 삭제했습니다.')
-
-
-@parent_notification_bp.route('/parent-notifications/api/parents/<int:parent_id>/invite', methods=['POST'])
-@manager_required
-def parent_invite(parent_id):
-    conn = get_db()
-    ensure_parent_notification_schema(conn)
-    parent = conn.execute('SELECT * FROM parent_guardians WHERE id=? AND is_active=1', (parent_id,)).fetchone()
-    if not parent:
-        conn.close()
-        return jsonify(ok=False, message='학부모 정보를 찾을 수 없습니다.'), 404
-    url = _invite_url(conn, parent_id)
-    message = _invite_message(url)
-    conn.close()
-    return jsonify(ok=True, url=url, sms_message=message)
-
-
-@parent_notification_bp.route('/parent-notifications/api/parents/<int:parent_id>/sms', methods=['POST'])
-@manager_required
-def send_parent_invite_sms(parent_id):
-    data = request.get_json(silent=True) or {}
-    conn = get_db()
-    ensure_parent_notification_schema(conn)
-    parent = conn.execute('SELECT * FROM parent_guardians WHERE id=? AND is_active=1', (parent_id,)).fetchone()
-    if not parent:
-        conn.close()
-        return jsonify(ok=False, message='학부모 정보를 찾을 수 없습니다.'), 404
-    invite = _active_invite(conn, parent_id)
-    url = f"{_base_url()}/parent/register/{invite['token']}"
-    message = _invite_message(url)
-    if invite['sms_sent_at'] and not data.get('force'):
-        conn.close()
-        return jsonify(ok=False, already_sent=True, message='최초 안내문자는 이미 발송했습니다.',
-                       url=url, sms_message=message), 409
-    ok, result_message = _send_sms_webhook(parent['phone'], message)
-    if ok:
-        conn.execute('''
-            UPDATE parent_invites SET sms_sent_at=CURRENT_TIMESTAMP,
-                sms_send_count=sms_send_count+1 WHERE id=?
-        ''', (invite['id'],))
-        conn.commit()
-    conn.close()
-    status = 200 if ok else 503
-    return jsonify(ok=ok, configured=bool(_text(os.getenv('PARENT_SMS_WEBHOOK_URL'))),
-                   message=result_message, url=url, sms_message=message), status
-
-
-@parent_notification_bp.route('/parent-notifications/api/classes', methods=['POST'])
-@manager_required
-def save_class():
-    data = request.get_json(silent=True) or {}
-    class_id = data.get('id')
-    school_id = data.get('school_id') or None
-    school_name = _text(data.get('school_name'), 200)
-    class_name = _text(data.get('class_name'), 200)
-    conn = get_db()
-    ensure_parent_notification_schema(conn)
-    if school_id and not school_name:
-        school = conn.execute('SELECT school_name FROM schools WHERE id=?', (school_id,)).fetchone()
-        school_name = school['school_name'] if school else ''
-    if not school_name or not class_name:
-        conn.close()
-        return jsonify(ok=False, message='학교명과 강좌명을 입력해주세요.'), 400
-    values = (school_id, school_name, _text(data.get('department'), 100), class_name,
-              _text(data.get('instructor_emp_no'), 100), _text(data.get('instructor_name'), 100))
-    if class_id:
-        conn.execute('''
-            UPDATE parent_classes SET school_id=?, school_name=?, department=?, class_name=?,
-                instructor_emp_no=?, instructor_name=?, updated_at=CURRENT_TIMESTAMP WHERE id=?
-        ''', (*values, class_id))
-    else:
-        cursor = conn.execute('''
-            INSERT INTO parent_classes(
-                school_id, school_name, department, class_name,
-                instructor_emp_no, instructor_name, access_token
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (*values, _token()))
-        class_id = cursor.lastrowid
-    conn.commit()
-    row = conn.execute('SELECT access_token FROM parent_classes WHERE id=?', (class_id,)).fetchone()
-    conn.close()
-    return jsonify(ok=True, message='강좌 전용페이지를 저장했습니다.', id=class_id,
-                   url=f"{_base_url()}/parent-notifications/instructor/{row['access_token']}")
-
-
-@parent_notification_bp.route('/parent-notifications/api/classes/<int:class_id>/sms', methods=['POST'])
-@manager_required
-def send_instructor_link_sms(class_id):
-    conn = get_db()
-    ensure_parent_notification_schema(conn)
-    class_row = conn.execute('''
-        SELECT c.*, u.phone AS instructor_phone, u.name AS member_name
-        FROM parent_classes c
-        LEFT JOIN users u ON u.emp_no=c.instructor_emp_no
-        WHERE c.id=? AND c.is_active=1
-    ''', (class_id,)).fetchone()
-    if not class_row:
-        conn.close()
-        return jsonify(ok=False, message='강좌 정보를 찾을 수 없습니다.'), 404
-    phone = _phone(class_row['instructor_phone'])
-    url = f"{_base_url()}/parent-notifications/instructor/{class_row['access_token']}"
-    message = (
-        '[새담 방과후학교]\n'
-        f'{class_row["school_name"]} {class_row["class_name"]} 강사 전용 출결 페이지입니다.\n'
-        '인트라넷 로그인 후 이용해주세요.\n'
-        f'{url}'
-    )
-    if not class_row['instructor_emp_no']:
-        conn.close()
-        return jsonify(ok=False, message='강사 사번을 먼저 지정해주세요.',
-                       url=url, sms_message=message), 400
-    if len(phone) < 9:
-        conn.close()
-        return jsonify(ok=False, message='지정 강사의 회원정보에 휴대폰 번호가 없습니다.',
-                       url=url, sms_message=message), 400
-    ok, result_message = _send_sms_webhook(phone, message)
-    conn.close()
-    return jsonify(ok=ok,
-                   configured=bool(_text(os.getenv('PARENT_SMS_WEBHOOK_URL'))),
-                   message=result_message, url=url,
-                   sms_message=message), 200 if ok else 503
-
-
-@parent_notification_bp.route('/parent-notifications/api/classes/<int:class_id>', methods=['DELETE'])
-@manager_required
-def delete_class(class_id):
-    conn = get_db()
-    ensure_parent_notification_schema(conn)
-    conn.execute('UPDATE parent_classes SET is_active=0, updated_at=CURRENT_TIMESTAMP WHERE id=?', (class_id,))
-    conn.commit()
-    conn.close()
-    return jsonify(ok=True, message='강좌 전용페이지를 사용 중지했습니다.')
 
 
 @parent_notification_bp.route('/parent-notifications/api/send', methods=['POST'])
@@ -930,148 +661,6 @@ def history_detail(notification_id):
     return jsonify(ok=True, notification=_with_kst(notification), recipients=recipients)
 
 
-EXCEL_ALIASES = {
-    'parent_name': ('학부모명', '보호자명', '학부모', '보호자'),
-    'phone': ('휴대폰', '휴대폰번호', '전화번호', '학부모연락처', '보호자연락처'),
-    'student_name': ('학생명', '학생이름', '학생'),
-    'school_name': ('학교명', '학교'),
-    'grade': ('학년',),
-    'classroom': ('반', '학급'),
-    'class_name': ('강좌명', '수업명', '프로그램명', '방과후강좌'),
-    'department': ('부서', '분야'),
-    'instructor_emp_no': ('강사사번', '강사ID', '강사아이디'),
-    'instructor_name': ('강사명', '강사이름'),
-}
-
-
-def _header_map(values):
-    normalized = {str(value or '').strip().replace(' ', ''): index for index, value in enumerate(values)}
-    result = {}
-    for key, aliases in EXCEL_ALIASES.items():
-        for alias in aliases:
-            index = normalized.get(alias.replace(' ', ''))
-            if index is not None:
-                result[key] = index
-                break
-    return result
-
-
-def _cell(values, mapping, key):
-    index = mapping.get(key)
-    return values[index] if index is not None and index < len(values) else ''
-
-
-@parent_notification_bp.route('/parent-notifications/api/upload', methods=['POST'])
-@manager_required
-def upload_parents():
-    uploaded = request.files.get('file')
-    if not uploaded or not uploaded.filename.lower().endswith('.xlsx'):
-        return jsonify(ok=False, message='xlsx 엑셀 파일을 업로드해주세요.'), 400
-    try:
-        workbook = load_workbook(uploaded.stream, read_only=True, data_only=True)
-    except Exception:
-        return jsonify(ok=False, message='엑셀 파일을 읽을 수 없습니다.'), 400
-    conn = get_db()
-    ensure_parent_notification_schema(conn)
-    counts = {'parents': 0, 'students': 0, 'links': 0, 'classes': 0, 'rows': 0}
-    errors = []
-    for sheet in workbook.worksheets:
-        rows = sheet.iter_rows(values_only=True)
-        headers = next(rows, None)
-        if not headers:
-            continue
-        mapping = _header_map(headers)
-        if not {'parent_name', 'phone', 'student_name'}.issubset(mapping):
-            errors.append(f'{sheet.title}: 학부모명·휴대폰·학생명 열이 필요합니다.')
-            continue
-        for excel_row, values in enumerate(rows, 2):
-            parent_name = _text(_cell(values, mapping, 'parent_name'), 100)
-            phone = _phone(_cell(values, mapping, 'phone'))
-            student_name = _text(_cell(values, mapping, 'student_name'), 100)
-            if not parent_name and not phone and not student_name:
-                continue
-            if not parent_name or len(phone) < 9 or not student_name:
-                errors.append(f'{sheet.title} {excel_row}행: 학부모명·휴대폰·학생명을 확인해주세요.')
-                continue
-            counts['rows'] += 1
-            guardian = conn.execute('''
-                SELECT id FROM parent_guardians WHERE phone=? AND name=? AND is_active=1 LIMIT 1
-            ''', (phone, parent_name)).fetchone()
-            if guardian:
-                guardian_id = guardian['id']
-            else:
-                guardian_id = conn.execute(
-                    'INSERT INTO parent_guardians(name, phone) VALUES (?, ?)',
-                    (parent_name, phone),
-                ).lastrowid
-                counts['parents'] += 1
-            school_name = _text(_cell(values, mapping, 'school_name'), 200)
-            grade = _text(_cell(values, mapping, 'grade'), 30)
-            classroom = _text(_cell(values, mapping, 'classroom'), 30)
-            school = conn.execute('SELECT id FROM schools WHERE school_name=? ORDER BY year DESC LIMIT 1',
-                                  (school_name,)).fetchone() if school_name else None
-            student = conn.execute('''
-                SELECT id FROM parent_students
-                WHERE name=? AND COALESCE(school_name, '')=? AND COALESCE(grade, '')=?
-                  AND COALESCE(classroom, '')=? AND is_active=1 LIMIT 1
-            ''', (student_name, school_name, grade, classroom)).fetchone()
-            if student:
-                student_id = student['id']
-            else:
-                student_id = conn.execute('''
-                    INSERT INTO parent_students(name, school_id, school_name, grade, classroom)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (student_name, school['id'] if school else None, school_name, grade, classroom)).lastrowid
-                counts['students'] += 1
-            before = conn.total_changes
-            conn.execute('INSERT OR IGNORE INTO parent_guardian_students(guardian_id, student_id) VALUES (?, ?)',
-                         (guardian_id, student_id))
-            counts['links'] += int(conn.total_changes > before)
-            class_name = _text(_cell(values, mapping, 'class_name'), 200)
-            if class_name:
-                department = _text(_cell(values, mapping, 'department'), 100)
-                class_row = conn.execute('''
-                    SELECT id FROM parent_classes WHERE school_name=? AND COALESCE(department, '')=?
-                      AND class_name=? AND is_active=1 LIMIT 1
-                ''', (school_name, department, class_name)).fetchone()
-                if class_row:
-                    class_id = class_row['id']
-                else:
-                    class_id = conn.execute('''
-                        INSERT INTO parent_classes(
-                            school_id, school_name, department, class_name,
-                            instructor_emp_no, instructor_name, access_token
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ''', (school['id'] if school else None, school_name or '미지정 학교', department,
-                          class_name, _text(_cell(values, mapping, 'instructor_emp_no'), 100),
-                          _text(_cell(values, mapping, 'instructor_name'), 100), _token())).lastrowid
-                    counts['classes'] += 1
-                conn.execute('INSERT OR IGNORE INTO parent_class_students(class_id, student_id) VALUES (?, ?)',
-                             (class_id, student_id))
-            _active_invite(conn, guardian_id)
-    conn.commit()
-    conn.close()
-    return jsonify(ok=True, message=f"엑셀 {counts['rows']}행을 처리했습니다.", counts=counts,
-                   errors=errors[:30])
-
-
-@parent_notification_bp.route('/parent-notifications/template.xlsx')
-@manager_required
-def excel_template():
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = '학부모명단'
-    sheet.append(['학부모명', '휴대폰', '학생명', '학교명', '학년', '반',
-                  '강좌명', '부서', '강사사번', '강사명'])
-    sheet.append(['홍길동', '01012345678', '김민준', '새담초등학교', '3', '1',
-                  '로봇과학 A반', '과학', 'T001', '이강사'])
-    sheet.append(['홍길동', '01012345678', '김서연', '새담초등학교', '1', '2',
-                  '창의미술', '예술', 'T002', '박강사'])
-    stream = io.BytesIO()
-    workbook.save(stream)
-    stream.seek(0)
-    return send_file(stream, as_attachment=True, download_name='학부모알림_업로드양식.xlsx',
-                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 def _invite_from_token(conn, token):
@@ -1085,36 +674,14 @@ def _invite_from_token(conn, token):
 
 @parent_notification_bp.route('/parent/register/<string:token>')
 def parent_register(token):
+    """예전 알림 등록 주소. 학부모의 입구는 학부모통합지원 하나이므로 보호자 개인 화면으로 보낸다."""
     conn = get_db()
     ensure_parent_notification_schema(conn)
     invite = _invite_from_token(conn, token)
-    if not invite:
-        conn.close()
-        return render_template('parent_notifications/register.html', invalid=True), 404
-    conn.execute('UPDATE parent_invites SET last_opened_at=CURRENT_TIMESTAMP WHERE id=?', (invite['id'],))
-    conn.commit()
-    children = [_with_kst(row) for row in conn.execute('''
-        SELECT s.*, GROUP_CONCAT(DISTINCT c.class_name) AS class_names
-        FROM parent_guardian_students gs
-        JOIN parent_students s ON s.id=gs.student_id
-        LEFT JOIN parent_class_students cs ON cs.student_id=s.id
-        LEFT JOIN parent_classes c ON c.id=cs.class_id AND c.is_active=1
-        WHERE gs.guardian_id=? GROUP BY s.id ORDER BY s.name
-    ''', (invite['guardian_id'],)).fetchall()]
-    notices = [_with_kst(row) for row in conn.execute('''
-        SELECT n.kind, n.title, n.body, n.created_at, r.status
-        FROM parent_notification_recipients r
-        JOIN parent_notifications n ON n.id=r.notification_id
-        WHERE r.guardian_id=? ORDER BY r.id DESC LIMIT 30
-    ''', (invite['guardian_id'],)).fetchall()]
-    registered = conn.execute('''
-        SELECT COUNT(*) FROM parent_push_subscriptions
-        WHERE guardian_id=? AND is_active=1
-    ''', (invite['guardian_id'],)).fetchone()[0] > 0
     conn.close()
-    return render_template('parent_notifications/register.html', invalid=False, invite=_with_kst(invite),
-                           children=children, notices=notices, registered=registered,
-                           token=token, push_configured=_push_ready())
+    if not invite:
+        return render_template('parent_notifications/register.html'), 404
+    return redirect(f'/parent/home/{token}')
 
 
 @parent_notification_bp.route('/parent/api/push/public-key/<string:token>')
@@ -1236,7 +803,7 @@ def parent_manifest(token):
     conn.close()
     if not valid:
         return jsonify(ok=False, message='유효하지 않은 등록 링크입니다.'), 404
-    start_url = f'/parent/register/{token}'
+    start_url = f'/parent/home/{token}'
     icon_dir = '/static/images/parent_app'
     manifest = {
         'id': start_url,

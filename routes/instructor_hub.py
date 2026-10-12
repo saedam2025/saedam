@@ -1,16 +1,17 @@
 """학교지원 > 강사통합지원.
 
-전자계약을 마친 강사에게 개인별 접속 링크와 비밀번호를 부여하고, 강사는 그 링크로
-자기 페이지에 들어가 아래 세 가지를 한다.
+본사 담당자가 학교를 골라 강사를 직접 등록(한 명 · 붙여넣기 · 엑셀)하면, 강사마다 개인별 접속 링크와
+6자리 비밀번호가 무작위로 만들어진다. 강사는 그 링크로 자기 페이지에 들어가 아래 세 가지를 한다.
 
-1. 강사프로필  : 사진과 소개글을 올린다. 본사 승인 후 학부모 안내 페이지에 보인다.
+1. 강사프로필  : 사진과 소개글을 올린다. 본사 승인 후 학부모통합지원 화면에 보인다.
 2. 홍보페이지  : 그림·PDF를 올리면 그 학교의 e리플렛으로 자동 등록된다(없으면 새로 만든다).
-                  본사 승인 전에는 외부 링크가 열리지 않는다.
+                  본사 승인 전에는 외부 링크가 열리지 않고, 승인되면 학부모통합지원의 학교 e리플렛에 합쳐진다.
 3. 학생출석관리: 출석 QR 화면, 학생 등록, 학부모 알림 등록 안내를 쓴다.
 
-본사 담당자는 [강사통합지원] 메뉴에서 접속 계정·승인·학부모 링크페이지를 관리한다.
-학부모 링크페이지는 학교×강의부서마다 하나씩 만들어 강사프로필·출석알림·홍보
-e리플렛·교실안내를 한 모바일 화면으로 보여 준다.
+본사 담당자는 [학부모·강사 통합지원](routes/support_hub.py) 화면의 ① 강사 탭(접속 안내 문자·비밀번호 재발급 등)과
+③ 승인관리 탭(강사별로 프로필과 홍보 자료를 한 줄에 보며 승인·반려)에서 이 모듈의 기능을 쓴다.
+화면은 support_hub가 그리고, 이 모듈은 강사 계정·승인·강사 포털의 규칙과 처리 경로를 맡는다.
+학부모에게 링크를 보내는 일도 같은 화면의 ④ 학부모 안내 탭이 맡는다.
 
 강사 계정은 인트라넷 계정(emp_no)과 무관하다. 링크(비밀 토큰) + 비밀번호 + 별도 세션으로
 보호하며, 이 세션은 인트라넷 메뉴 권한을 전혀 주지 않는다.
@@ -21,8 +22,10 @@ from __future__ import annotations
 import base64
 import hashlib
 import logging
+import re
 import secrets
 import shutil
+import sqlite3
 import time
 from datetime import datetime
 from io import BytesIO
@@ -31,7 +34,7 @@ from pathlib import Path
 from cryptography.fernet import Fernet, InvalidToken
 from flask import (
     Blueprint, Response, abort, flash, get_flashed_messages, jsonify, redirect,
-    render_template, request, session, url_for,
+    render_template, request, send_file, session, url_for,
 )
 from PIL import Image, UnidentifiedImageError
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -52,7 +55,7 @@ from .storage import DATA_ROOT
 instructor_hub_bp = Blueprint('instructor_hub', __name__)
 logger = logging.getLogger(__name__)
 
-MENU_KEY = 'school_instructor_hub'
+MENU_KEY = 'school_support_hub'      # 강사통합지원 + 학부모통합지원은 [학부모·강사 통합지원] 한 메뉴다
 HUB_ROOT = Path(DATA_ROOT) / 'instructor_hub'
 PHOTO_ROOT = HUB_ROOT / 'photos'
 PROMO_ROOT = HUB_ROOT / 'promo'
@@ -95,7 +98,7 @@ def ensure_instructor_hub_schema(conn):
         );
         CREATE INDEX IF NOT EXISTS idx_ih_accounts_phone ON ih_accounts(phone);
 
-        -- 강사가 일하는 학교·강의부서(전자계약 한 건이 한 줄을 만든다).
+        -- 강사가 일하는 학교·강의부서(본사가 등록한 한 건이 한 줄).
         CREATE TABLE IF NOT EXISTS ih_assignments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account_id INTEGER NOT NULL,
@@ -145,24 +148,6 @@ def ensure_instructor_hub_schema(conn):
             height INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS idx_ih_promo_pages ON ih_promo_pages(promo_id, position);
-
-        -- 학부모에게 보여 주는 학교×강의부서 모바일 링크페이지.
-        CREATE TABLE IF NOT EXISTS ih_link_pages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            school_id INTEGER,
-            school_name TEXT NOT NULL DEFAULT '',
-            department TEXT NOT NULL DEFAULT '',
-            token TEXT NOT NULL UNIQUE,
-            title TEXT NOT NULL DEFAULT '',
-            notice TEXT NOT NULL DEFAULT '',
-            show_profile INTEGER NOT NULL DEFAULT 1,
-            show_attendance INTEGER NOT NULL DEFAULT 1,
-            show_leaflet INTEGER NOT NULL DEFAULT 1,
-            show_guide INTEGER NOT NULL DEFAULT 1,
-            is_active INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE (school_name, department)
-        );
     ''')
     # e리플렛에 승인 상태를 더한다. 기존 리플렛은 모두 'approved'라 그대로 공개된다.
     tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -241,6 +226,15 @@ def _school_id_by_name(conn, school_name):
     return row['id'] if row else None
 
 
+def norm(value):
+    """학교·부서 이름을 비교할 때 쓰는 값(공백 차이를 무시한다)."""
+    return re.sub(r'\s+', '', str(value or ''))
+
+
+def _clean_name(value, limit):
+    return re.sub(r'\s+', ' ', str(value or '')).strip()[:limit]
+
+
 def _csrf_token():
     if not session.get(CSRF_KEY):
         session[CSRF_KEY] = secrets.token_urlsafe(24)
@@ -268,75 +262,329 @@ def create_account(conn, name, phone, email=''):
     return conn.execute('SELECT * FROM ih_accounts WHERE id=?', (account_id,)).fetchone(), password
 
 
+def clean_phone(value):
+    """휴대폰번호를 숫자만 남긴다. 엑셀이 앞의 0을 지운 번호(1012345678)도 되살린다."""
+    digits = normalize_phone(value)
+    if len(digits) == 10 and digits.startswith('10'):
+        digits = '0' + digits
+    return digits
+
+
 def find_account(conn, name, phone):
-    phone = normalize_phone(phone)
+    """같은 휴대폰번호의 강사 계정을 찾는다(사용 중인 계정, 이름이 같은 계정 순)."""
+    phone = clean_phone(phone)
     if not phone:
         return None
     return conn.execute('''
-        SELECT * FROM ih_accounts WHERE phone=? AND is_active=1
-        ORDER BY (name=?) DESC, id LIMIT 1
+        SELECT * FROM ih_accounts WHERE phone=?
+        ORDER BY is_active DESC, (name=?) DESC, id LIMIT 1
     ''', (phone, _text(name, 60))).fetchone()
 
 
-def add_assignment(conn, account_id, school_name, department, contract_id=None):
-    school_name = _text(school_name, 100)
+def canonical_school(conn, school_name):
+    """입력한 학교명을 [학교업무공간]의 학교(공백·연도 무시)와 맞춰 (id, 표준 이름)을 돌려준다.
+
+    등록된 학교가 아니면 (None, 입력한 이름)을 돌려준다.
+    """
+    cleaned = _clean_name(school_name, 100)
+    if not cleaned:
+        return None, ''
+    key = norm(cleaned)
+    rows = conn.execute('SELECT id, school_name FROM schools ORDER BY year DESC, id DESC').fetchall()
+    for row in rows:
+        if norm(row['school_name']) == key:
+            return row['id'], row['school_name']
+    return None, cleaned
+
+
+def add_assignment(conn, account_id, school_name, department):
+    """강사를 학교·강의부서에 배정한다(학교명은 학교업무공간의 표준 이름으로 맞춘다). 새로 배정했으면 True."""
+    school_id, school_name = canonical_school(conn, school_name)
     if not school_name:
         return False
     cursor = conn.execute('''
-        INSERT OR IGNORE INTO ih_assignments (account_id, school_id, school_name, department, contract_id)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (account_id, _school_id_by_name(conn, school_name), school_name,
-          _text(department, 60), contract_id))
+        INSERT OR IGNORE INTO ih_assignments (account_id, school_id, school_name, department)
+        VALUES (?, ?, ?, ?)
+    ''', (account_id, school_id, school_name, _clean_name(department, 60)))
     return cursor.rowcount > 0
 
 
-def ensure_account_for_signer(conn, name, phone, email, school_name, department, contract_id=None):
-    """전자계약 서명자에게 계정이 없으면 만들고, 계약의 학교·강의부서를 배정한다."""
+PHONE_PATTERN = re.compile(r'01\d{8,9}')
+
+
+def register_instructor(conn, school_name, name, phone, department, email='', *, allow_unmatched=False):
+    """본사 담당자가 강사를 학교·강의부서에 직접 등록한다. 호출한 쪽이 commit한다.
+
+    같은 휴대폰번호의 계정이 이미 있으면 그 계정에 학교·강의부서만 더하고(다른 학교에서도 일하는 강사),
+    없으면 접속 링크와 6자리 비밀번호가 무작위로 만들어진 새 계정을 만든다.
+    반환: {'ok': False, 'error'} 또는 {'ok': True, 'account', 'created', 'assigned', 'reactivated', 'note'}
+    """
+    name = _clean_name(name, 60)
+    phone = clean_phone(phone)
+    department = _clean_name(department, 60)
+    email = _text(email, 120)
+    if not name:
+        return {'ok': False, 'error': '강사 이름을 입력해 주세요.'}
+    if not PHONE_PATTERN.fullmatch(phone):
+        return {'ok': False, 'error': '휴대폰번호(010으로 시작하는 10~11자리)를 확인해 주세요.'}
+    if not department:
+        return {'ok': False, 'error': '강의부서를 입력해 주세요. 예) 로봇과학'}
+    school_id, school_name = canonical_school(conn, school_name)
+    if not school_name:
+        return {'ok': False, 'error': '학교를 선택해 주세요.'}
+    if school_id is None and not allow_unmatched:
+        return {'ok': False, 'error': f'‘{school_name}’은(는) [학교업무공간]에 등록된 학교가 아닙니다.'}
+
     account = find_account(conn, name, phone)
-    created = False
-    if not account:
-        account, _ = create_account(conn, name, phone, email)
+    created = reactivated = False
+    note = ''
+    if account is None:
+        account, _password = create_account(conn, name, phone, email)
         created = True
-    add_assignment(conn, account['id'], school_name, department, contract_id)
-    return account, created
+    else:
+        if not account['is_active']:
+            conn.execute('UPDATE ih_accounts SET is_active=1 WHERE id=?', (account['id'],))
+            reactivated = True
+        if email and not account['email']:
+            conn.execute('UPDATE ih_accounts SET email=? WHERE id=?', (email, account['id']))
+        if account['name'] != name:
+            note = f"같은 휴대폰번호의 기존 계정(‘{account['name']}’)에 연결했습니다."
+    assigned = add_assignment(conn, account['id'], school_name, department)
+    account = conn.execute('SELECT * FROM ih_accounts WHERE id=?', (account['id'],)).fetchone()
+    return {'ok': True, 'account': account, 'created': created, 'assigned': assigned,
+            'reactivated': reactivated, 'note': note, 'school_name': school_name, 'department': department}
 
 
-def on_instructor_contract_completed(row, phone):
-    """강사 전자계약이 완료되면 호출된다. 실패해도 계약 완료에는 영향을 주지 않는다."""
-    try:
-        conn = get_db()
-        try:
-            ensure_instructor_hub_schema(conn)
-            ensure_account_for_signer(
-                conn, row['signer_name'], phone or row['signer_phone'], row['signer_email'],
-                row['school_name'], row['department'], row['id'],
-            )
-            conn.commit()
-        finally:
-            conn.close()
-    except Exception:  # 계약 완료 응답을 막지 않는다.
-        logger.exception('강사통합지원 계정 자동 부여 실패')
+# -- 여러 명 한꺼번에 등록(붙여넣은 글 · 엑셀)
+
+MAX_IMPORT_ROWS = 300
+MAX_IMPORT_BYTES = 2 * 1024 * 1024
+HEADER_ALIASES = {
+    'name': ('이름', '성명', '성함', '강사명', '강사'),
+    'phone': ('휴대폰', '휴대폰번호', '핸드폰', '핸드폰번호', '전화', '전화번호', '연락처'),
+    'department': ('강의부서', '부서', '분야', '강의분야', '담당분야', '과목'),
+    'email': ('이메일', '메일', 'email', 'e-mail'),
+    'school': ('학교', '학교명'),
+}
+IMPORT_COLUMNS = ('name', 'phone', 'department', 'email', 'school')
 
 
-def sync_from_completed_contracts(conn):
-    """이미 완료된 강사 전자계약 중 계정이 없는 강사를 한꺼번에 만든다. 반환: (새 계정 수, 배정 수)."""
-    from .verified_contract_repository import contract_table
-    table = contract_table('instructor')
-    created = assigned = 0
-    rows = conn.execute(f'''
-        SELECT id, signer_name, signer_phone, signer_email, school_name, department
-        FROM {table} WHERE status='completed' ORDER BY id
-    ''').fetchall()
-    for row in rows:
-        if not normalize_phone(row['signer_phone']):
+def _header_key(value):
+    """머리글 칸 이름을 name/phone/department/email/school 중 하나로 바꾼다(아니면 '')."""
+    text = re.sub(r'\(.*?\)|\s+', '', str(value or '')).lower()
+    for key, names in HEADER_ALIASES.items():
+        if text in names:
+            return key
+    return ''
+
+
+def _cell_text(value):
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    return str(value if value is not None else '').strip()
+
+
+def _import_row(line, values):
+    values = list(values) + [''] * (len(IMPORT_COLUMNS) - len(values))
+    row = {key: _cell_text(values[index]) for index, key in enumerate(IMPORT_COLUMNS)}
+    row['line'] = line
+    return row
+
+
+def parse_instructor_text(text):
+    """붙여넣은 글을 강사 줄로 읽는다. 줄마다 `이름, 휴대폰, 강의부서[, 이메일[, 학교]]`
+    (엑셀에서 복사하면 탭으로 나뉜다. 쉼표나 띄어쓰기로 나눠도 된다)."""
+    rows = []
+    for number, line in enumerate(str(text or '').splitlines(), 1):
+        line = line.strip()
+        if not line:
             continue
-        account, was_created = ensure_account_for_signer(
-            conn, row['signer_name'], row['signer_phone'], row['signer_email'],
-            row['school_name'], row['department'], row['id'],
-        )
-        created += 1 if was_created else 0
-        assigned += 1
-    return created, assigned
+        if '\t' in line:
+            parts = [part.strip() for part in line.split('\t')]
+        elif ',' in line:
+            parts = [part.strip() for part in line.split(',')]
+        else:
+            tokens = line.split()
+            parts = tokens[:2] + [' '.join(tokens[2:])] if len(tokens) > 2 else tokens
+        if _header_key(parts[0]) == 'name':           # 머리글 줄은 건너뛴다
+            continue
+        rows.append(_import_row(number, parts[:len(IMPORT_COLUMNS)]))
+    return rows
+
+
+def parse_instructor_workbook(upload):
+    """엑셀(.xlsx) 첫 시트를 강사 줄로 읽는다. 머리글(이름·휴대폰·강의부서·이메일·학교)이 있으면 순서와 상관없이
+    찾고, 없으면 이름·휴대폰·강의부서·이메일·학교 순서로 본다."""
+    from openpyxl import load_workbook
+    name = str(getattr(upload, 'filename', '') or '')
+    if not name.lower().endswith('.xlsx'):
+        raise ValueError('엑셀(.xlsx) 파일만 올릴 수 있습니다. .xls 파일은 [다른 이름으로 저장]에서 .xlsx로 바꿔 주세요.')
+    data = upload.stream.read(MAX_IMPORT_BYTES + 1)
+    if len(data) > MAX_IMPORT_BYTES:
+        raise ValueError('엑셀 파일은 2MB까지 올릴 수 있습니다.')
+    try:
+        workbook = load_workbook(BytesIO(data), read_only=True, data_only=True)
+        sheet_rows = [list(row) for row in workbook.worksheets[0].iter_rows(values_only=True)]
+    except Exception as exc:
+        raise ValueError('엑셀 파일을 읽을 수 없습니다. 파일이 깨졌는지 확인해 주세요.') from exc
+    rows, mapping, first = [], None, True
+    for number, cells in enumerate(sheet_rows, 1):
+        if not any(_cell_text(cell) for cell in cells):
+            continue
+        if first:
+            first = False
+            keys = [_header_key(cell) for cell in cells]
+            if 'name' in keys and 'phone' in keys:
+                mapping = {key: index for index, key in enumerate(keys) if key}
+                continue
+        if mapping:
+            values = [cells[mapping[key]] if key in mapping and mapping[key] < len(cells) else ''
+                      for key in IMPORT_COLUMNS]
+        else:
+            values = cells[:len(IMPORT_COLUMNS)]
+        rows.append(_import_row(number, values))
+    return rows
+
+
+def register_many(conn, rows, default_school, *, allow_unmatched=False):
+    """여러 줄을 차례로 등록한다. 잘못된 줄은 건너뛰고 이유를 모은다. 반환: 요약 dict."""
+    summary = {'rows': len(rows), 'created': 0, 'added': 0, 'already': 0, 'errors': [], 'notes': []}
+    for row in rows:
+        school = row.get('school') or default_school
+        result = register_instructor(conn, school, row['name'], row['phone'], row['department'], row['email'],
+                                     allow_unmatched=allow_unmatched and not row.get('school'))
+        if not result['ok']:
+            summary['errors'].append(f"{row['line']}번째 줄 {row['name'] or '(이름 없음)'}: {result['error']}")
+        elif result['created']:
+            summary['created'] += 1
+        elif result['assigned'] or result['reactivated']:
+            summary['added'] += 1
+        else:
+            summary['already'] += 1
+        if result.get('note'):
+            summary['notes'].append(f"{row['line']}번째 줄 {row['name']}: {result['note']}")
+    return summary
+
+
+def import_message(summary):
+    done = summary['created'] + summary['added'] + summary['already']
+    parts = [f"{summary['rows']}줄 중 {done}명을 처리했습니다."]
+    detail = []
+    if summary['created']:
+        detail.append(f"새 강사 계정 {summary['created']}개(접속 링크·비밀번호 자동 생성)")
+    if summary['added']:
+        detail.append(f"기존 계정에 학교·강의부서 추가 {summary['added']}명")
+    if summary['already']:
+        detail.append(f"이미 등록되어 있음 {summary['already']}명")
+    if detail:
+        parts.append(' · '.join(detail))
+    if summary['notes']:
+        parts.append('참고: ' + ' / '.join(summary['notes'][:3]))
+    if summary['errors']:
+        parts.append(f"확인이 필요한 줄 {len(summary['errors'])}개 (등록하지 않음)")
+        parts.extend(summary['errors'][:6])
+        if len(summary['errors']) > 6:
+            parts.append(f"… 외 {len(summary['errors']) - 6}줄")
+    return '\n'.join(parts)
+
+
+def delete_account(conn, account_id):
+    """학교 배정이 하나도 없는 강사 계정을 프로필·홍보 자료 파일까지 지운다. 반환: 오류 메시지 또는 None."""
+    if conn.execute('SELECT 1 FROM ih_assignments WHERE account_id=?', (account_id,)).fetchone():
+        return '학교에 배정된 강사는 삭제할 수 없습니다. 먼저 [이 학교에서 빼기]를 해 주세요.'
+    profile = conn.execute('SELECT * FROM ih_profiles WHERE account_id=?', (account_id,)).fetchone()
+    if profile:
+        delete_file(profile['photo_path'])
+        delete_file(profile['draft_photo_path'])
+    for promo in conn.execute('SELECT * FROM ih_promos WHERE account_id=?', (account_id,)).fetchall():
+        _clear_drafts(conn, promo['id'])
+        if promo['ebook_id']:
+            book = conn.execute('SELECT cover_path FROM ebooks WHERE id=?', (promo['ebook_id'],)).fetchone()
+            for page in conn.execute('SELECT image_path FROM ebook_pages WHERE ebook_id=?',
+                                     (promo['ebook_id'],)).fetchall():
+                delete_file(page['image_path'])
+            if book:
+                delete_file(book['cover_path'])
+            conn.execute('DELETE FROM ebook_pages WHERE ebook_id=?', (promo['ebook_id'],))
+            conn.execute('DELETE FROM ebooks WHERE id=?', (promo['ebook_id'],))
+    conn.execute("UPDATE parent_classes SET instructor_emp_no='' WHERE instructor_emp_no=?", (f'IH{account_id}',))
+    conn.execute('DELETE FROM ih_promos WHERE account_id=?', (account_id,))
+    conn.execute('DELETE FROM ih_profiles WHERE account_id=?', (account_id,))
+    conn.execute('DELETE FROM ih_accounts WHERE id=?', (account_id,))
+    return None
+
+
+# ---------------------------------------------------------------- 과목(학생출석관리) ↔ 강사 연결
+# 연결 규칙
+#  - 수동: 학생출석관리에서 과목에 강사를 직접 골랐으면(parent_classes.instructor_emp_no='IH<계정번호>') 그 강사만.
+#  - 자동: 직접 고르지 않았으면, 과목의 학교명·분야(강의부서)가 등록된 학교명·강의부서와 같은 강사 모두.
+
+def manual_account_id(class_row):
+    emp = str(class_row['instructor_emp_no'] or '')
+    return int(emp[2:]) if emp.startswith('IH') and emp[2:].isdigit() else None
+
+
+def school_assignment_rows(conn, school_name):
+    """한 학교(공백 무시)에 배정된 (배정, 강사 이름·사용 여부) 목록."""
+    key = norm(school_name)
+    rows = conn.execute('''
+        SELECT s.*, a.name AS account_name, a.is_active AS account_active
+        FROM ih_assignments s JOIN ih_accounts a ON a.id=s.account_id
+        ORDER BY a.name COLLATE NOCASE, s.department
+    ''').fetchall()
+    return [row for row in rows if norm(row['school_name']) == key]
+
+
+def linked_accounts(conn, class_row):
+    """이 과목에 연결된 강사 계정들(수동 연결이 있으면 그 강사, 없으면 학교·부서가 같은 강사)."""
+    manual = manual_account_id(class_row)
+    if manual:
+        row = conn.execute('SELECT * FROM ih_accounts WHERE id=?', (manual,)).fetchone()
+        return [row] if row else []
+    seen, result = set(), []
+    for item in school_assignment_rows(conn, class_row['school_name']):
+        if not item['account_active'] or item['account_id'] in seen:
+            continue
+        if norm(item['department']) == norm(class_row['department']):
+            seen.add(item['account_id'])
+            result.append(conn.execute('SELECT * FROM ih_accounts WHERE id=?', (item['account_id'],)).fetchone())
+    return result
+
+
+def accessible_classes(conn, account):
+    """이 강사가 쓸 수 있는 과목 행들(수동 연결 + 학교·부서가 맞는 자동 연결)."""
+    assignments = conn.execute('SELECT * FROM ih_assignments WHERE account_id=?', (account['id'],)).fetchall()
+    keys = {(norm(a['school_name']), norm(a['department'])) for a in assignments}
+    mine = f"IH{account['id']}"
+    result = []
+    for row in conn.execute('''
+        SELECT id, school_name, department, class_name, instructor_emp_no FROM parent_classes
+        WHERE is_active=1 ORDER BY school_name, department, class_name COLLATE NOCASE, id
+    ''').fetchall():
+        emp = str(row['instructor_emp_no'] or '')
+        if emp == mine or (not emp.startswith('IH') and (norm(row['school_name']), norm(row['department'])) in keys):
+            result.append(row)
+    return result
+
+
+def school_instructors(conn, school_name):
+    """학생출석관리의 과목 만들기에서 고를 수 있는 이 학교의 강사 목록."""
+    rows = school_assignment_rows(conn, school_name)
+    seen, result = set(), []
+    for item in rows:
+        if not item['account_active'] or item['account_id'] in seen:
+            continue
+        seen.add(item['account_id'])
+        result.append({
+            'id': item['account_id'], 'name': item['account_name'],
+            'departments': [r['department'] for r in rows
+                            if r['account_id'] == item['account_id'] and r['department']],
+        })
+    return result
+
+
+def school_departments(conn, school_name):
+    return sorted({row['department'] for row in school_assignment_rows(conn, school_name) if row['department']})
 
 
 # ---------------------------------------------------------------- 이미지 처리
@@ -676,20 +924,20 @@ def _assignments(conn, account_id):
 
 
 def _own_class(conn, account, class_id):
-    """내(강사) 과목인지 확인하고 출석 설정까지 합친 정보를 돌려준다."""
-    row = conn.execute('''
-        SELECT id FROM parent_classes WHERE id=? AND is_active=1 AND instructor_emp_no=?
-    ''', (class_id, f"IH{account['id']}")).fetchone()
-    return sa._load_class(conn, row['id']) if row else None
+    """내가 쓸 수 있는 과목인지(수동·자동 연결) 확인하고 출석 설정까지 합친 정보를 돌려준다."""
+    if not any(row['id'] == class_id for row in accessible_classes(conn, account)):
+        return None
+    return sa._load_class(conn, class_id)
 
 
 def _school_options(assignments):
     """학교별로 묶는다(같은 학교의 여러 강의부서는 한 학교로 본다)."""
     seen, result = set(), []
     for item in assignments:
-        if item['school_name'] in seen:
+        key = norm(item['school_name'])
+        if key in seen:
             continue
-        seen.add(item['school_name'])
+        seen.add(key)
         result.append(item)
     return result
 
@@ -763,24 +1011,26 @@ def portal_home(token):
                 'draft_count': len(_draft_pages(conn, promo['id'])),
             })
         classes = []
+        grouped = {}
+        for row in accessible_classes(conn, account):
+            info = sa._load_class(conn, row['id'])
+            grouped.setdefault((row['school_name'], row['department'] or ''), []).append({
+                'id': info['id'], 'name': info['class_name'],
+                'schedule': sa._schedule_label(info),
+                'students': conn.execute('''
+                    SELECT COUNT(*) c FROM parent_class_students cs
+                    JOIN parent_students s ON s.id=cs.student_id AND s.is_active=1
+                    WHERE cs.class_id=?''', (info['id'],)).fetchone()['c'],
+                'live_url': sa._live_url(info), 'display_url': sa._display_url(info),
+            })
+        shown = set()
         for item in assignments:
-            rows = conn.execute('''
-                SELECT id FROM parent_classes WHERE instructor_emp_no=? AND is_active=1
-                  AND school_name=? AND COALESCE(department,'')=? ORDER BY class_name COLLATE NOCASE, id
-            ''', (f"IH{account['id']}", item['school_name'], item['department'])).fetchall()
-            payload = []
-            for row in rows:
-                info = sa._load_class(conn, row['id'])
-                payload.append({
-                    'id': info['id'], 'name': info['class_name'],
-                    'schedule': sa._schedule_label(info),
-                    'students': conn.execute('''
-                        SELECT COUNT(*) c FROM parent_class_students cs
-                        JOIN parent_students s ON s.id=cs.student_id AND s.is_active=1
-                        WHERE cs.class_id=?''', (info['id'],)).fetchone()['c'],
-                    'live_url': sa._live_url(info), 'display_url': sa._display_url(info),
-                })
-            classes.append({'assignment': item, 'classes': payload})
+            key = (item['school_name'], item['department'] or '')
+            shown.add(key)
+            classes.append({'school_name': key[0], 'department': key[1], 'classes': grouped.get(key, [])})
+        for key, items in grouped.items():          # 수동으로 연결된 다른 부서 과목
+            if key not in shown:
+                classes.append({'school_name': key[0], 'department': key[1], 'classes': items})
         photo_exists = bool(profile['photo_path'] or profile['draft_photo_path'])
         return _no_store(Response(render_template(
             'instructor_hub/portal_home.html', account=account, token=token, tab=tab, csrf=_csrf_token(),
@@ -850,67 +1100,6 @@ def portal_save_promo(token):
     return _back(token, 'promo')
 
 
-@instructor_hub_bp.route('/teacher-hub/<token>/classes', methods=['POST'])
-def portal_save_class(token):
-    conn = get_db()
-    try:
-        account, response = _portal_guard(conn, token)
-        if response:
-            return response
-        _check_csrf()
-        assignment = conn.execute('SELECT * FROM ih_assignments WHERE id=? AND account_id=?',
-                                  (_int(request.form.get('assignment_id')), account['id'])).fetchone()
-        class_name = _text(request.form.get('class_name'), 60)
-        if not assignment or not class_name:
-            flash('과목 이름을 입력해 주세요.', 'error')
-            return _back(token, 'attendance')
-        school_id = assignment['school_id'] or _school_id_by_name(conn, assignment['school_name'])
-        if not school_id:
-            flash('이 학교가 학교관리에 등록되어 있지 않아 과목을 만들 수 없습니다. 본사 담당자에게 문의해 주세요.', 'error')
-            return _back(token, 'attendance')
-        if conn.execute('''SELECT 1 FROM parent_classes WHERE school_id=? AND class_name=? AND is_active=1''',
-                        (school_id, class_name)).fetchone():
-            flash(f'이 학교에 같은 이름의 과목({class_name})이 이미 있습니다.', 'error')
-            return _back(token, 'attendance')
-        weekdays = ','.join(str(d) for d in sa._weekday_list(','.join(request.form.getlist('weekdays'))))
-        class_id = conn.execute('''
-            INSERT INTO parent_classes (school_id, school_name, department, class_name, instructor_emp_no,
-                                        instructor_name, access_token)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (school_id, assignment['school_name'], assignment['department'], class_name,
-              f"IH{account['id']}", account['name'], secrets.token_urlsafe(32))).lastrowid
-        conn.commit()
-        sa._ensure_settings(conn, class_id)
-        conn.execute('''
-            UPDATE student_att_settings SET weekdays=?, start_time=?, end_time=?, late_minutes=?,
-                qr_mode=?, notify_parents=1, updated_at=? WHERE class_id=?
-        ''', (weekdays, sa._valid_time(request.form.get('start_time')), sa._valid_time(request.form.get('end_time')),
-              max(0, min(120, _int(request.form.get('late_minutes')) or 10)),
-              'live' if request.form.get('qr_mode') == 'live' else 'daily', _now_text(), class_id))
-        conn.commit()
-        flash(f'‘{class_name}’ 과목을 만들었습니다. [학생 관리]에서 학생을 등록해 주세요.', 'success')
-    finally:
-        conn.close()
-    return _back(token, 'attendance')
-
-
-@instructor_hub_bp.route('/teacher-hub/<token>/classes/<int:class_id>/delete', methods=['POST'])
-def portal_delete_class(token, class_id):
-    conn = get_db()
-    try:
-        account, response = _portal_guard(conn, token)
-        if response:
-            return response
-        _check_csrf()
-        if _own_class(conn, account, class_id):
-            conn.execute('UPDATE parent_classes SET is_active=0, updated_at=CURRENT_TIMESTAMP WHERE id=?', (class_id,))
-            conn.commit()
-            flash('과목을 삭제했습니다. 지난 출석 기록은 보존됩니다.', 'success')
-    finally:
-        conn.close()
-    return _back(token, 'attendance')
-
-
 @instructor_hub_bp.route('/teacher-hub/<token>/classes/<int:class_id>')
 def portal_students(token, class_id):
     conn = get_db()
@@ -922,14 +1111,9 @@ def portal_students(token, class_id):
         if not info:
             abort(404)
         students = sa._roster(conn, class_id)
-        base = _external_root()
-        for student in students:
-            for guardian in student['guardians']:
-                path = guardian.pop('invite_path', '')
-                guardian['invite_url'] = base + path if path else ''
         return _no_store(Response(render_template(
             'instructor_hub/portal_students.html', account=account, token=token, csrf=_csrf_token(),
-            info=info, students=students, parent_url=sa._parent_url(info), schedule=sa._schedule_label(info),
+            info=info, students=students, schedule=sa._schedule_label(info),
             messages=get_flashed_messages(with_categories=True),
         )))
     finally:
@@ -1004,149 +1188,375 @@ def portal_student_action(token, class_id):
     return redirect(url_for('instructor_hub.portal_students', token=token, class_id=class_id))
 
 
-@instructor_hub_bp.route('/teacher-hub/<token>/classes/<int:class_id>/parent-qr.svg')
-def portal_parent_qr(token, class_id):
-    conn = get_db()
-    try:
-        account, response = _portal_guard(conn, token)
-        if response:
-            return response
-        info = _own_class(conn, account, class_id)
-        if not info:
-            abort(404)
-    finally:
-        conn.close()
-    return sa._svg_response(sa._parent_url(info))
-
-
 # ---------------------------------------------------------------- 본사 담당자 관리(인트라넷 메뉴)
+# 화면은 routes/support_hub.py(학부모·강사 통합지원)가 그린다. 아래 함수들은 그 화면이 쓰는 자료 모으기와 처리 경로다.
+
+ADMIN_SCHOOL_SESSION = 'ih_admin_school'
+REVIEW_THUMBS = 5
+
 
 def _admin_name():
     return str(session.get('user_name') or session.get('emp_no') or '')
 
 
-def _accounts_view(conn):
-    items = []
-    for account in conn.execute('SELECT * FROM ih_accounts ORDER BY is_active DESC, name COLLATE NOCASE, id').fetchall():
-        items.append({
-            'id': account['id'], 'name': account['name'], 'phone': format_phone(account['phone']),
-            'is_active': bool(account['is_active']), 'last_login_at': account['last_login_at'] or '',
-            'sms_sent_at': account['sms_sent_at'] or '',
-            'url': _portal_url(account), 'password': _decrypt(account['pw_enc']),
-            'assignments': _assignments(conn, account['id']),
-        })
-    return items
+def _catalog_schools(conn):
+    """[학교업무공간]에 등록된 학교(이름 기준 한 줄, 최신 연도 우선)."""
+    seen, result = set(), []
+    for school in sa._list_schools(conn):
+        key = norm(school['name'])
+        if key and key not in seen:
+            seen.add(key)
+            result.append(school)
+    return result
 
 
-def _pending_view(conn):
-    profiles = []
-    for row in conn.execute('''
-        SELECT p.*, a.name FROM ih_profiles p JOIN ih_accounts a ON a.id=p.account_id
-        WHERE p.status='pending' ORDER BY p.submitted_at
-    ''').fetchall():
-        profiles.append({
-            'account_id': row['account_id'], 'name': row['name'], 'bio': row['draft_bio'],
-            'old_bio': row['bio'], 'has_new_photo': bool(row['draft_photo_path']),
-            'has_photo': bool(row['draft_photo_path'] or row['photo_path']),
-            'submitted_at': row['submitted_at'] or '',
-        })
-    promos = []
-    for row in conn.execute('''
-        SELECT p.*, a.name FROM ih_promos p JOIN ih_accounts a ON a.id=p.account_id
-        WHERE p.status='pending' ORDER BY p.submitted_at
-    ''').fetchall():
-        pages = _draft_pages(conn, row['id'])
-        if not pages and row['ebook_id']:
-            pages = conn.execute('SELECT id, page_no, image_filename AS name FROM ebook_pages WHERE ebook_id=? '
-                                 'ORDER BY page_no', (row['ebook_id'],)).fetchall()
-            from_ebook = True
-        else:
-            from_ebook = False
-        promos.append({
-            'id': row['id'], 'name': row['name'], 'school_name': row['school_name'],
-            'submitted_at': row['submitted_at'] or '', 'ebook_id': row['ebook_id'],
-            'pages': [{'id': p['id'], 'name': p['name']} for p in pages][:12], 'page_total': len(pages),
-            'from_ebook': from_ebook,
-        })
+def _all_assignments(conn):
+    return conn.execute('''
+        SELECT s.*, a.name AS account_name, a.phone AS account_phone, a.email AS account_email,
+               a.token AS account_token, a.pw_enc AS account_pw_enc, a.is_active AS account_active,
+               a.last_login_at AS last_login_at, a.sms_sent_at AS sms_sent_at
+        FROM ih_assignments s JOIN ih_accounts a ON a.id=s.account_id
+        ORDER BY s.school_name, s.department, a.name COLLATE NOCASE
+    ''').fetchall()
+
+
+def _status_maps(conn):
+    profiles = {r['account_id']: r['status'] for r in conn.execute('SELECT account_id, status FROM ih_profiles')}
+    promos = {(r['account_id'], norm(r['school_name'])): r['status']
+              for r in conn.execute('SELECT account_id, school_name, status FROM ih_promos')}
     return profiles, promos
 
 
-def _link_pairs(conn):
-    """링크페이지를 만들 수 있는 (학교, 강의부서) 후보."""
-    pairs = {}
-    for row in conn.execute('SELECT DISTINCT school_id, school_name, department FROM ih_assignments').fetchall():
-        pairs[(row['school_name'], row['department'] or '')] = row['school_id']
+def _school_choices(conn):
+    """선택 상자용 학교 목록. 반환: (학교업무공간 학교들, 예전 자료에만 남은 학교들, 승인 대기 전체 건수)."""
+    catalog = _catalog_schools(conn)
+    profiles, promos = _status_maps(conn)
+    by_school = {}
+    for row in _all_assignments(conn):
+        by_school.setdefault(norm(row['school_name']), []).append(row)
+    class_count = {}
+    for row in conn.execute('SELECT school_name FROM parent_classes WHERE is_active=1'):
+        class_count[norm(row['school_name'])] = class_count.get(norm(row['school_name']), 0) + 1
+
+    def summarize(name, school_id, key, matched):
+        rows = by_school.get(key, [])
+        accounts = {r['account_id']: r for r in rows if r['account_active']}
+        pending = sum(1 for a in accounts if profiles.get(a) == 'pending')
+        pending += sum(1 for a in accounts if promos.get((a, key)) == 'pending')
+        return {
+            'name': name, 'school_id': school_id, 'matched': matched, 'instructors': len(accounts),
+            'unused': sum(1 for r in accounts.values() if not r['last_login_at']), 'pending': pending,
+            'classes': class_count.get(key, 0), 'departments': len({norm(r['department']) for r in rows}),
+        }
+
+    schools = sorted((summarize(s['name'], s['id'], norm(s['name']), True) for s in catalog),
+                     key=lambda item: item['name'])
+    known = {norm(s['name']) for s in catalog}
+    legacy = sorted((summarize(rows[0]['school_name'], None, key, False)
+                     for key, rows in by_school.items() if key not in known), key=lambda item: item['name'])
+    pending_total = sum(1 for s in profiles.values() if s == 'pending') \
+        + sum(1 for s in promos.values() if s == 'pending')
+    return schools, legacy, pending_total
+
+
+def _selected_school(schools, legacy):
+    """고른 학교. 주소의 school 값을 쓰고, 없으면 마지막으로 본 학교를 기억해 둔 값을 쓴다."""
+    if 'school' in request.args:
+        wanted = _text(request.args.get('school'), 100)
+        session[ADMIN_SCHOOL_SESSION] = wanted            # 빈 값이면 '학교 선택 해제'(전체 현황)
+    else:
+        wanted = session.get(ADMIN_SCHOOL_SESSION, '')
+    key = norm(wanted)
+    if not key:
+        return None
+    return next((item for item in schools + legacy if norm(item['name']) == key), None)
+
+
+def _allow_unmatched(conn, school_name):
+    """학교업무공간에 없지만 예전 자료에 남아 있는 학교는 계속 관리할 수 있게 한다."""
+    if canonical_school(conn, school_name)[0] is not None:
+        return False
+    key = norm(school_name)
+    return any(norm(row['school_name']) == key for row in _all_assignments(conn))
+
+
+def _school_instructors(conn, school_name):
+    """① 화면용: 강의부서별 강사 목록(접속 링크·비밀번호·승인 상태 포함)."""
+    key = norm(school_name)
+    profiles, promos = _status_maps(conn)
+    groups = {}
+    for row in _all_assignments(conn):
+        if norm(row['school_name']) != key:
+            continue
+        groups.setdefault(row['department'], []).append({
+            'assignment_id': row['id'], 'id': row['account_id'], 'name': row['account_name'],
+            'phone': format_phone(row['account_phone']), 'email': row['account_email'] or '',
+            'department': row['department'], 'is_active': bool(row['account_active']),
+            'url': _portal_url({'token': row['account_token']}), 'password': _decrypt(row['account_pw_enc']),
+            'last_login_at': row['last_login_at'] or '', 'sms_sent_at': row['sms_sent_at'] or '',
+            'profile_status': profiles.get(row['account_id'], 'none'),
+            'promo_status': promos.get((row['account_id'], key), 'none'),
+        })
+    return [{'name': dept, 'people': sorted(items, key=lambda item: item['name'])}
+            for dept, items in sorted(groups.items(), key=lambda pair: (pair[0] == '', pair[0]))]
+
+
+def _school_classes(conn, school_name):
+    """이 학교의 학생출석관리 과목과 연결된 강사(강의부서 이름이 맞는지 확인용)."""
+    key = norm(school_name)
+    result = []
     for row in conn.execute('''
-        SELECT DISTINCT school_id, school_name, COALESCE(department,'') AS department
-        FROM parent_classes WHERE is_active=1
+        SELECT id, school_name, department, class_name, instructor_name, instructor_emp_no
+        FROM parent_classes WHERE is_active=1 ORDER BY department, class_name COLLATE NOCASE, id
     ''').fetchall():
-        pairs.setdefault((row['school_name'], row['department']), row['school_id'])
-    return sorted(((name, dept, sid) for (name, dept), sid in pairs.items()),
-                  key=lambda item: (item[0], item[1]))
+        if norm(row['school_name']) != key:
+            continue
+        linked = linked_accounts(conn, row)
+        result.append({
+            'id': row['id'], 'name': row['class_name'], 'department': row['department'] or '',
+            'manual': bool(manual_account_id(row)), 'instructors': [a['name'] for a in linked],
+            'students': conn.execute('''
+                SELECT COUNT(*) c FROM parent_class_students cs
+                JOIN parent_students s ON s.id=cs.student_id AND s.is_active=1 WHERE cs.class_id=?''',
+                (row['id'],)).fetchone()['c'],
+        })
+    return result
 
 
-def _link_view(conn):
-    items = []
-    for row in conn.execute('SELECT * FROM ih_link_pages ORDER BY school_name, department').fetchall():
-        item = dict(row)
-        item['url'] = _external_root() + url_for('instructor_hub.public_link_page', token=row['token'])
-        items.append(item)
-    return items
+def _department_suggestions(conn, school_name):
+    """강의부서 입력칸의 추천 목록: 이 학교의 부서·과목 분야를 먼저, 다른 학교에서 쓴 부서도 함께."""
+    names = list(school_departments(conn, school_name))
+    key = norm(school_name)
+    for row in conn.execute("SELECT school_name, department FROM parent_classes WHERE is_active=1 "
+                            "AND COALESCE(department, '')<>''").fetchall():
+        if norm(row['school_name']) == key and row['department'] not in names:
+            names.append(row['department'])
+    for row in conn.execute("SELECT DISTINCT department FROM ih_assignments WHERE department<>'' "
+                            'ORDER BY department').fetchall():
+        if row['department'] not in names:
+            names.append(row['department'])
+    return names
+
+
+def _review_rows(conn, school_name):
+    """② 화면용: 이 학교 강사마다 한 줄 — 프로필과 홍보 리플렛 자료를 함께 보여 준다."""
+    key = norm(school_name)
+    people = {}
+    for row in _all_assignments(conn):
+        if norm(row['school_name']) != key:
+            continue
+        person = people.setdefault(row['account_id'], {
+            'account_id': row['account_id'], 'name': row['account_name'], 'phone': format_phone(row['account_phone']),
+            'is_active': bool(row['account_active']), 'departments': []})
+        if row['department'] and row['department'] not in person['departments']:
+            person['departments'].append(row['department'])
+    rows = []
+    for person in people.values():
+        profile = conn.execute('SELECT * FROM ih_profiles WHERE account_id=?', (person['account_id'],)).fetchone()
+        status = profile['status'] if profile else 'none'
+        if profile and status in ('pending', 'rejected'):
+            bio, photo, which = profile['draft_bio'], bool(profile['draft_photo_path'] or profile['photo_path']), 'draft'
+        elif profile:
+            bio, photo, which = profile['bio'], bool(profile['photo_path']), 'live'
+        else:
+            bio, photo, which = '', False, 'live'
+        promo = next((p for p in conn.execute('SELECT * FROM ih_promos WHERE account_id=?',
+                                             (person['account_id'],)).fetchall()
+                      if norm(p['school_name']) == key), None)
+        pages, from_ebook = [], False
+        if promo:
+            pages = _draft_pages(conn, promo['id'])
+            if not pages and promo['ebook_id']:
+                pages = conn.execute('SELECT id, page_no FROM ebook_pages WHERE ebook_id=? ORDER BY page_no',
+                                     (promo['ebook_id'],)).fetchall()
+                from_ebook = True
+        promo_status = promo['status'] if promo else 'none'
+        rows.append({
+            **person,
+            'profile': {'status': status, 'bio': bio, 'has_photo': photo, 'which': which,
+                        'old_bio': profile['bio'] if profile and status == 'pending' else '',
+                        'submitted_at': (profile['submitted_at'] or '')[:16] if profile else '',
+                        'reject_reason': profile['reject_reason'] if profile else ''},
+            'promo': {'status': promo_status, 'id': promo['id'] if promo else None,
+                      'ebook_id': promo['ebook_id'] if promo else None, 'from_ebook': from_ebook,
+                      'pages': [row['id'] for row in pages[:REVIEW_THUMBS]], 'total': len(pages),
+                      'submitted_at': (promo['submitted_at'] or '')[:16] if promo else '',
+                      'reject_reason': promo['reject_reason'] if promo else ''},
+            'needs_action': status == 'pending' or promo_status == 'pending',
+        })
+    rows.sort(key=lambda r: (not r['departments'], ' '.join(r['departments']), r['name']))
+    return rows
+
+
+def _everyone(conn):
+    """전체 현황의 강사 검색용: 학교·강의부서마다 한 줄."""
+    profiles, promos = _status_maps(conn)
+    return [{
+        'id': row['account_id'], 'name': row['account_name'], 'phone': format_phone(row['account_phone']),
+        'school': row['school_name'], 'department': row['department'], 'is_active': bool(row['account_active']),
+        'last_login_at': (row['last_login_at'] or '')[:10],
+        'profile_status': profiles.get(row['account_id'], 'none'),
+        'promo_status': promos.get((row['account_id'], norm(row['school_name'])), 'none'),
+    } for row in _all_assignments(conn)]
+
+
+def _orphan_accounts(conn):
+    """어느 학교에도 배정되지 않은 강사 계정(실수로 만든 계정을 정리할 때 쓴다)."""
+    return [{'id': row['id'], 'name': row['name'], 'phone': format_phone(row['phone'])}
+            for row in conn.execute('''
+        SELECT * FROM ih_accounts a WHERE NOT EXISTS (SELECT 1 FROM ih_assignments s WHERE s.account_id=a.id)
+        ORDER BY a.name COLLATE NOCASE
+    ''').fetchall()]
+
+
+TAB_ALIASES = {'register': 'instructors', 'schools': 'instructors', 'links': 'instructors', 'review': 'review',
+               'instructors': 'instructors'}
+
+
+def _admin_url(tab='instructors', school=None):
+    """통합지원 화면 주소(예전 탭 이름도 받는다)."""
+    return url_for('support_hub.admin_page', tab=TAB_ALIASES.get(tab, tab), school=school or None)
+
+
+def _redirect_back(default_tab='instructors'):
+    """작업을 마친 뒤 원래 보던 화면(학교·탭)으로 돌아간다."""
+    target = request.form.get('next') or ''
+    if target.startswith(('/support-hub', '/instructor-hub', '/parent-hub')) and not target.startswith('//'):
+        return redirect(target)
+    return redirect(_admin_url(default_tab))
 
 
 @instructor_hub_bp.route('/instructor-hub/')
 @instructor_hub_bp.route('/instructor-hub')
 @menu_permission_required(MENU_KEY)
 def admin_page():
-    tab = request.args.get('tab') if request.args.get('tab') in ('accounts', 'review', 'links') else 'accounts'
-    conn = get_db()
-    try:
-        profiles, promos = _pending_view(conn)
-        return render_template(
-            'instructor_hub/admin.html', tab=tab, accounts=_accounts_view(conn),
-            pending_profiles=profiles, pending_promos=promos,
-            link_pages=_link_view(conn), link_pairs=_link_pairs(conn),
-            schools=sa._list_schools(conn),
-        )
-    finally:
-        conn.close()
+    """예전 강사통합지원 주소. 지금은 학부모·강사 통합지원 화면으로 보낸다."""
+    return redirect(_admin_url(request.args.get('tab') or 'instructors', request.args.get('school')))
 
 
-def _admin_back(tab):
-    return redirect(url_for('instructor_hub.admin_page', tab=tab))
-
-
-@instructor_hub_bp.route('/instructor-hub/accounts/sync', methods=['POST'])
+@instructor_hub_bp.route('/instructor-hub/school')
 @menu_permission_required(MENU_KEY)
-def admin_sync():
-    conn = get_db()
-    try:
-        created, assigned = sync_from_completed_contracts(conn)
-        conn.commit()
-    finally:
-        conn.close()
-    flash(f'완료된 강사 전자계약을 확인했습니다. 새 계정 {created}개, 계약 {assigned}건을 반영했습니다.', 'success')
-    return _admin_back('accounts')
+def admin_school():
+    return redirect(_admin_url('instructors', _text(request.args.get('name'), 100)))
 
 
-@instructor_hub_bp.route('/instructor-hub/accounts/add', methods=['POST'])
+# -- 강사 등록(한 명 · 여러 명)
+
+@instructor_hub_bp.route('/instructor-hub/accounts/register', methods=['POST'])
 @menu_permission_required(MENU_KEY)
-def admin_add_account():
-    name, phone = _text(request.form.get('name'), 60), normalize_phone(request.form.get('phone'))
+def admin_register():
     school_name = _text(request.form.get('school_name'), 100)
-    if not name or len(phone) < 10:
-        flash('강사 이름과 휴대폰번호를 입력해 주세요.', 'error')
-        return _admin_back('accounts')
     conn = get_db()
     try:
-        ensure_account_for_signer(conn, name, phone, '', school_name,
-                                  request.form.get('department'), None)
+        result = register_instructor(
+            conn, school_name, request.form.get('name'), request.form.get('phone'),
+            request.form.get('department'), request.form.get('email'),
+            allow_unmatched=_allow_unmatched(conn, school_name))
         conn.commit()
     finally:
         conn.close()
-    flash(f'{name} 강사 계정을 만들었습니다.', 'success')
-    return _admin_back('accounts')
+    if not result['ok']:
+        flash(result['error'], 'error')
+    else:
+        name = result['account']['name']
+        if result['created']:
+            message = f'{name} 강사를 등록했습니다. 접속 링크와 6자리 비밀번호가 만들어졌어요. 아래 목록에서 확인하고 문자로 보낼 수 있습니다.'
+        elif result['assigned'] or result['reactivated']:
+            message = f"{name} 강사는 이미 있는 계정이라 {result['school_name']} · {result['department']}에 더했습니다."
+        else:
+            flash(f"{name} 강사는 이 학교 · {result['department']}에 이미 등록되어 있습니다.", 'error')
+            return _redirect_back()
+        if result['note']:
+            message += f" ({result['note']})"
+        flash(message, 'success')
+    return _redirect_back()
 
+
+@instructor_hub_bp.route('/instructor-hub/accounts/import', methods=['POST'])
+@menu_permission_required(MENU_KEY)
+def admin_import():
+    """붙여넣은 글 또는 엑셀(.xlsx)로 강사를 한꺼번에 등록한다."""
+    school_name = _text(request.form.get('school_name'), 100)
+    upload = request.files.get('file')
+    try:
+        rows = parse_instructor_workbook(upload) if upload and upload.filename \
+            else parse_instructor_text(request.form.get('text'))
+    except ValueError as exc:
+        flash(str(exc), 'error')
+        return _redirect_back()
+    if not rows:
+        flash('등록할 강사 줄이 없습니다. 이름·휴대폰·강의부서를 줄마다 적거나 엑셀 파일을 골라 주세요.', 'error')
+        return _redirect_back()
+    if len(rows) > MAX_IMPORT_ROWS:
+        flash(f'한 번에 {MAX_IMPORT_ROWS}줄까지 등록할 수 있습니다. 나누어 올려 주세요.', 'error')
+        return _redirect_back()
+    conn = get_db()
+    try:
+        summary = register_many(conn, rows, school_name, allow_unmatched=_allow_unmatched(conn, school_name))
+        conn.commit()
+    finally:
+        conn.close()
+    flash(import_message(summary), 'error' if summary['errors'] else 'success')
+    return _redirect_back()
+
+
+@instructor_hub_bp.route('/instructor-hub/accounts/template.xlsx')
+@menu_permission_required(MENU_KEY)
+def admin_template():
+    from openpyxl import Workbook
+    book = Workbook()
+    sheet = book.active
+    sheet.title = '강사등록'
+    sheet.append(['이름', '휴대폰', '강의부서', '이메일(선택)', '학교(선택)'])
+    sheet.append(['홍길동', '010-1234-5678', '로봇과학', '', ''])
+    sheet.append(['김미술', '010-2345-6789', '미술', 'art@example.com', ''])
+    for column, width in zip('ABCDE', (14, 18, 18, 24, 22)):
+        sheet.column_dimensions[column].width = width
+    note = book.create_sheet('작성방법')
+    for line in ('1. 이름·휴대폰·강의부서는 꼭 적어 주세요. 이메일·학교는 비워도 됩니다.',
+                 '2. 학교 칸을 비우면 화면 위에서 고른 학교에 등록됩니다. 학교업무공간에 등록된 학교 이름을 그대로 적으면 학교별로 한 번에 등록할 수 있어요.',
+                 '3. 같은 휴대폰번호의 강사가 이미 있으면 새로 만들지 않고 그 강사에게 학교·강의부서만 더합니다.',
+                 '4. 예시 두 줄은 지우고 올려 주세요. (.xlsx 파일, 한 번에 300줄까지)'):
+        note.append([line])
+    note.column_dimensions['A'].width = 110
+    stream = BytesIO()
+    book.save(stream)
+    stream.seek(0)
+    return send_file(stream, as_attachment=True, download_name='강사등록양식.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@instructor_hub_bp.route('/instructor-hub/accounts/export.xlsx')
+@menu_permission_required(MENU_KEY)
+def admin_export():
+    """한 학교 강사의 접속 링크·비밀번호를 엑셀로 내려받는다(다른 방법으로 안내할 때 쓴다)."""
+    from openpyxl import Workbook
+    school_name = _text(request.args.get('school'), 100)
+    conn = get_db()
+    try:
+        groups = _school_instructors(conn, school_name)
+    finally:
+        conn.close()
+    book = Workbook()
+    sheet = book.active
+    sheet.title = '강사 접속정보'
+    sheet.append(['이름', '휴대폰', '강의부서', '접속 링크', '비밀번호', '최근 접속', '안내 문자 발송일'])
+    for group in groups:
+        for item in group['people']:
+            sheet.append([item['name'], item['phone'], item['department'], item['url'], item['password'],
+                          item['last_login_at'][:10], item['sms_sent_at'][:10]])
+    for column, width in zip('ABCDEFG', (14, 16, 16, 60, 12, 12, 16)):
+        sheet.column_dimensions[column].width = width
+    stream = BytesIO()
+    book.save(stream)
+    stream.seek(0)
+    response = send_file(stream, as_attachment=True, download_name=f'{school_name}_강사접속정보.xlsx',
+                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+# -- 강사 한 명 관리(비밀번호·링크 재발급, 문자, 사용 중지, 정보 수정, 학교에서 빼기)
 
 def _account_or_404(conn, account_id):
     account = conn.execute('SELECT * FROM ih_accounts WHERE id=?', (account_id,)).fetchone()
@@ -1172,9 +1582,36 @@ def admin_account_action(account_id, action):
         elif action == 'toggle':
             conn.execute('UPDATE ih_accounts SET is_active=1-is_active WHERE id=?', (account_id,))
             flash('사용 상태를 바꿨습니다.', 'success')
-        elif action == 'assign':
-            added = add_assignment(conn, account_id, request.form.get('school_name'), request.form.get('department'))
-            flash('학교·강의부서를 추가했습니다.' if added else '이미 있거나 입력이 비었습니다.', 'success' if added else 'error')
+        elif action == 'edit':
+            name, phone = _clean_name(request.form.get('name'), 60), clean_phone(request.form.get('phone'))
+            if not name or not PHONE_PATTERN.fullmatch(phone):
+                flash('이름과 휴대폰번호(010으로 시작하는 10~11자리)를 확인해 주세요.', 'error')
+            elif conn.execute('SELECT 1 FROM ih_accounts WHERE phone=? AND id<>?', (phone, account_id)).fetchone():
+                flash('같은 휴대폰번호의 다른 강사 계정이 이미 있습니다.', 'error')
+            else:
+                conn.execute('UPDATE ih_accounts SET name=?, phone=?, email=? WHERE id=?',
+                             (name, phone, _text(request.form.get('email'), 120), account_id))
+                flash(f'{name} 강사 정보를 고쳤습니다.', 'success')
+        elif action == 'set-department':
+            department = _clean_name(request.form.get('department'), 60)
+            if not department:
+                flash('강의부서를 입력해 주세요.', 'error')
+            else:
+                try:
+                    changed = conn.execute('UPDATE ih_assignments SET department=? WHERE id=? AND account_id=?',
+                                           (department, _int(request.form.get('assignment_id')), account_id)).rowcount
+                    flash('강의부서를 바꿨습니다.' if changed else '배정 정보를 찾을 수 없습니다.',
+                          'success' if changed else 'error')
+                except sqlite3.IntegrityError:
+                    flash('이 학교에 같은 강의부서로 이미 배정되어 있습니다.', 'error')
+        elif action == 'unassign':
+            removed = conn.execute('DELETE FROM ih_assignments WHERE id=? AND account_id=?',
+                                   (_int(request.form.get('assignment_id')), account_id)).rowcount
+            flash(f'{account["name"]} 강사를 이 학교에서 뺐습니다. (계정과 올린 자료는 남아 있어요)' if removed
+                  else '배정 정보를 찾을 수 없습니다.', 'success' if removed else 'error')
+        elif action == 'delete':
+            error = delete_account(conn, account_id)
+            flash(error or f'{account["name"]} 강사 계정을 삭제했습니다.', 'error' if error else 'success')
         elif action == 'sms':
             return _send_access_sms(conn, account)
         else:
@@ -1182,28 +1619,76 @@ def admin_account_action(account_id, action):
         conn.commit()
     finally:
         conn.close()
-    return _admin_back('accounts')
+    return _redirect_back()
+
+
+def _access_sms_text(account):
+    return (f"[새담] {account['name']} 강사님 강사통합지원 접속 안내\n"
+            f"주소: {_portal_url(account)}\n비밀번호: {_decrypt(account['pw_enc'])}\n"
+            "프로필·홍보페이지·학생출석을 이 주소에서 관리합니다.")
 
 
 def _send_access_sms(conn, account):
     """강사에게 접속 링크와 비밀번호를 문자로 보낸다(담당자가 버튼을 눌렀을 때만)."""
     from .solapi_settings import send_bulk_text
-    text = (f"[새담] {account['name']} 강사님 강사통합지원 접속 안내\n"
-            f"주소: {_portal_url(account)}\n비밀번호: {_decrypt(account['pw_enc'])}\n"
-            "프로필·홍보페이지·학생출석을 이 주소에서 관리합니다.")
     try:
-        result = send_bulk_text([{'to': account['phone'], 'text': text}])[0]
+        result = send_bulk_text([{'to': account['phone'], 'text': _access_sms_text(account)}])[0]
     except Exception as exc:  # 설정 누락 등
         flash(f'문자를 보내지 못했습니다: {exc}', 'error')
-        return _admin_back('accounts')
+        return _redirect_back()
     if result.get('ok'):
         conn.execute('UPDATE ih_accounts SET sms_sent_at=? WHERE id=?', (_now_text(), account['id']))
         conn.commit()
         flash(f'{account["name"]} 강사에게 접속 안내 문자를 보냈습니다.', 'success')
     else:
         flash(f'문자를 보내지 못했습니다: {result.get("error") or "알 수 없는 오류"}', 'error')
-    return _admin_back('accounts')
+    return _redirect_back()
 
+
+@instructor_hub_bp.route('/instructor-hub/schools/sms', methods=['POST'])
+@menu_permission_required(MENU_KEY)
+def admin_school_sms():
+    """한 학교 강사들에게 접속 링크·비밀번호를 문자로 한꺼번에 보낸다(담당자가 확인 창에서 동의했을 때만)."""
+    from .solapi_settings import send_bulk_text
+    school_name = _text(request.form.get('school_name'), 100)
+    only_unused = bool(request.form.get('only_unused'))
+    conn = get_db()
+    try:
+        accounts = {}
+        for row in _all_assignments(conn):
+            if norm(row['school_name']) != norm(school_name) or not row['account_active']:
+                continue
+            if only_unused and row['last_login_at']:
+                continue
+            accounts[row['account_id']] = conn.execute('SELECT * FROM ih_accounts WHERE id=?',
+                                                       (row['account_id'],)).fetchone()
+        if not accounts:
+            flash('문자를 보낼 강사가 없습니다.', 'error')
+            return _redirect_back()
+        targets = list(accounts.values())
+        try:
+            results = send_bulk_text([{'to': a['phone'], 'text': _access_sms_text(a)} for a in targets])
+        except Exception as exc:
+            flash(f'문자를 보내지 못했습니다: {exc}', 'error')
+            return _redirect_back()
+        sent, failed = 0, []
+        for account, result in zip(targets, results):
+            if result.get('ok'):
+                sent += 1
+                conn.execute('UPDATE ih_accounts SET sms_sent_at=? WHERE id=?', (_now_text(), account['id']))
+            else:
+                failed.append(f"{account['name']}({result.get('error') or '알 수 없는 오류'})")
+        conn.commit()
+    finally:
+        conn.close()
+    message = f'{school_name} 강사 {sent}명에게 접속 안내 문자를 보냈습니다.'
+    if failed:
+        message += f"\n보내지 못한 강사 {len(failed)}명: " + ', '.join(failed[:5])
+    flash(message, 'error' if failed else 'success')
+    return _redirect_back()
+
+
+# -- 승인
 
 @instructor_hub_bp.route('/instructor-hub/review/profile/<int:account_id>', methods=['POST'])
 @menu_permission_required(MENU_KEY)
@@ -1215,7 +1700,7 @@ def admin_review_profile(account_id):
     finally:
         conn.close()
     flash(error or ('프로필을 승인했습니다.' if approve else '프로필을 반려했습니다.'), 'error' if error else 'success')
-    return _admin_back('review')
+    return _redirect_back('review')
 
 
 @instructor_hub_bp.route('/instructor-hub/review/promo/<int:promo_id>', methods=['POST'])
@@ -1227,9 +1712,9 @@ def admin_review_promo(promo_id):
         error = review_promo(conn, promo_id, approve, _admin_name(), request.form.get('reason'))
     finally:
         conn.close()
-    flash(error or ('홍보페이지를 승인했습니다. e리플렛 링크가 열렸습니다.' if approve else '홍보페이지를 반려했습니다.'),
+    flash(error or ('홍보페이지를 승인했습니다. 학교 e리플렛에 합쳐져 학부모에게 보입니다.' if approve else '홍보페이지를 반려했습니다.'),
           'error' if error else 'success')
-    return _admin_back('review')
+    return _redirect_back('review')
 
 
 @instructor_hub_bp.route('/instructor-hub/photo/<int:account_id>/<which>')
@@ -1259,164 +1744,3 @@ def admin_promo_page(page_id):
     if not page or not Path(page['path']).is_file():
         abort(404)
     return encrypted_response(page['path'], 'page.jpg', as_attachment=False, mimetype='image/jpeg')
-
-
-# -- 학부모 링크페이지 관리
-
-@instructor_hub_bp.route('/instructor-hub/links/save', methods=['POST'])
-@menu_permission_required(MENU_KEY)
-def admin_save_link():
-    school_name = _text(request.form.get('school_name'), 100)
-    department = _text(request.form.get('department'), 60)
-    if not school_name:
-        flash('학교를 선택해 주세요.', 'error')
-        return _admin_back('links')
-    conn = get_db()
-    try:
-        link_id = _int(request.form.get('id'))
-        values = (
-            _text(request.form.get('title'), 100), _multiline(request.form.get('notice'), 500),
-            1 if request.form.get('show_profile') else 0, 1 if request.form.get('show_attendance') else 0,
-            1 if request.form.get('show_leaflet') else 0, 1 if request.form.get('show_guide') else 0,
-        )
-        if link_id:
-            conn.execute('''
-                UPDATE ih_link_pages SET title=?, notice=?, show_profile=?, show_attendance=?,
-                    show_leaflet=?, show_guide=? WHERE id=?
-            ''', (*values, link_id))
-            flash('링크페이지를 저장했습니다.', 'success')
-        elif conn.execute('SELECT 1 FROM ih_link_pages WHERE school_name=? AND department=?',
-                          (school_name, department)).fetchone():
-            flash('이 학교·강의부서의 링크페이지가 이미 있습니다.', 'error')
-        else:
-            conn.execute('''
-                INSERT INTO ih_link_pages (school_id, school_name, department, token, title, notice,
-                    show_profile, show_attendance, show_leaflet, show_guide)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (_school_id_by_name(conn, school_name), school_name, department,
-                  secrets.token_urlsafe(18), *values[:2], 1, 1, 1, 1))   # 새 링크는 네 영역을 모두 켠 채 시작
-            flash('링크페이지를 만들었습니다.', 'success')
-        conn.commit()
-    finally:
-        conn.close()
-    return _admin_back('links')
-
-
-@instructor_hub_bp.route('/instructor-hub/links/<int:link_id>/<action>', methods=['POST'])
-@menu_permission_required(MENU_KEY)
-def admin_link_action(link_id, action):
-    conn = get_db()
-    try:
-        if not conn.execute('SELECT 1 FROM ih_link_pages WHERE id=?', (link_id,)).fetchone():
-            abort(404)
-        if action == 'regenerate':
-            conn.execute('UPDATE ih_link_pages SET token=? WHERE id=?', (secrets.token_urlsafe(18), link_id))
-            flash('링크를 새로 만들었습니다. 예전 링크는 더 이상 열리지 않습니다.', 'success')
-        elif action == 'toggle':
-            conn.execute('UPDATE ih_link_pages SET is_active=1-is_active WHERE id=?', (link_id,))
-            flash('공개 상태를 바꿨습니다.', 'success')
-        elif action == 'delete':
-            conn.execute('DELETE FROM ih_link_pages WHERE id=?', (link_id,))
-            flash('링크페이지를 삭제했습니다.', 'success')
-        else:
-            abort(404)
-        conn.commit()
-    finally:
-        conn.close()
-    return _admin_back('links')
-
-
-@instructor_hub_bp.route('/instructor-hub/links/<int:link_id>/qr.svg')
-@menu_permission_required(MENU_KEY)
-def admin_link_qr(link_id):
-    conn = get_db()
-    try:
-        row = conn.execute('SELECT token FROM ih_link_pages WHERE id=?', (link_id,)).fetchone()
-    finally:
-        conn.close()
-    if not row:
-        abort(404)
-    return sa._svg_response(_external_root() + url_for('instructor_hub.public_link_page', token=row['token']))
-
-
-# ---------------------------------------------------------------- 학부모용 모바일 링크페이지(공개)
-
-def _link_data(conn, link):
-    department = link['department'] or ''
-    people = conn.execute('''
-        SELECT DISTINCT a.id, a.name FROM ih_accounts a
-        JOIN ih_assignments s ON s.account_id=a.id
-        WHERE a.is_active=1 AND s.school_name=? AND s.department=? ORDER BY a.name
-    ''', (link['school_name'], department)).fetchall()
-    profiles = []
-    leaflets = []
-    for person in people:
-        profile = conn.execute("SELECT * FROM ih_profiles WHERE account_id=? AND status IN ('approved','pending','rejected')",
-                               (person['id'],)).fetchone()
-        # 한 번이라도 승인된 내용(photo_path·bio)만 보여 준다. 승인 전 초안은 절대 보이지 않는다.
-        if profile and (profile['bio'] or profile['photo_path']):
-            profiles.append({'account_id': person['id'], 'name': person['name'], 'bio': profile['bio'],
-                             'has_photo': bool(profile['photo_path'])})
-        promo = conn.execute('SELECT ebook_id FROM ih_promos WHERE account_id=? AND school_name=?',
-                             (person['id'], link['school_name'])).fetchone()
-        if promo and promo['ebook_id']:
-            book = conn.execute("SELECT title, share_token FROM ebooks WHERE id=? AND approval_status='approved'",
-                                (promo['ebook_id'],)).fetchone()
-            if book:
-                leaflets.append({'title': book['title'], 'name': person['name'],
-                                 'url': url_for('ebook.public_reader', token=book['share_token'])})
-    classes = []
-    for row in conn.execute('''
-        SELECT id FROM parent_classes WHERE school_name=? AND COALESCE(department,'')=? AND is_active=1
-        ORDER BY class_name COLLATE NOCASE
-    ''', (link['school_name'], department)).fetchall():
-        info = sa._load_class(conn, row['id'])
-        classes.append({
-            'name': info['class_name'], 'instructor': info['instructor_name'] or '',
-            'schedule': sa._schedule_label(info),
-            'url': url_for('student_attendance.parent_lookup', parent_key=info['parent_key']),
-        })
-    guide_url = ''
-    if link['school_id']:
-        guide = conn.execute('SELECT share_token FROM classroom_guide_maps WHERE school_id=? AND share_enabled=1',
-                             (link['school_id'],)).fetchone() \
-            if conn.execute("SELECT 1 FROM sqlite_master WHERE name='classroom_guide_maps'").fetchone() else None
-        if guide and guide['share_token']:
-            guide_url = f"/school/guide/p/{guide['share_token']}"
-    return profiles, classes, leaflets, guide_url
-
-
-@instructor_hub_bp.route('/school-link/<token>')
-def public_link_page(token):
-    conn = get_db()
-    try:
-        link = conn.execute('SELECT * FROM ih_link_pages WHERE token=? AND is_active=1', (token,)).fetchone()
-        if not link:
-            return _no_store(Response(render_template('instructor_hub/link_page.html', invalid=True), 404))
-        profiles, classes, leaflets, guide_url = _link_data(conn, link)
-        return _no_store(Response(render_template(
-            'instructor_hub/link_page.html', invalid=False, link=link, token=token,
-            profiles=profiles, classes=classes, leaflets=leaflets, guide_url=guide_url)))
-    finally:
-        conn.close()
-
-
-@instructor_hub_bp.route('/school-link/<token>/photo/<int:account_id>')
-def public_link_photo(token, account_id):
-    """링크페이지에 나오는 강사의 '승인된' 사진만 보여 준다."""
-    conn = get_db()
-    try:
-        link = conn.execute('SELECT * FROM ih_link_pages WHERE token=? AND is_active=1', (token,)).fetchone()
-        if not link:
-            abort(404)
-        allowed = conn.execute('''
-            SELECT p.photo_path FROM ih_profiles p
-            JOIN ih_assignments s ON s.account_id=p.account_id
-            JOIN ih_accounts a ON a.id=p.account_id AND a.is_active=1
-            WHERE p.account_id=? AND s.school_name=? AND s.department=?
-        ''', (account_id, link['school_name'], link['department'] or '')).fetchone()
-    finally:
-        conn.close()
-    if not allowed or not allowed['photo_path'] or not Path(allowed['photo_path']).is_file():
-        abort(404)
-    return encrypted_response(allowed['photo_path'], 'profile.jpg', as_attachment=False, mimetype='image/jpeg')

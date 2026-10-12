@@ -36,9 +36,63 @@ BULK_CHUNK_SIZE = 100
 # 설문조사 링크 알림톡 기본값(카카오 채널·승인 템플릿). 통합관리 > 솔라피설정에서 바꿀 수 있다.
 SURVEY_KAKAO_PF_ID = "KA01PF260904081609259ib9u2XiMmdC"
 SURVEY_KAKAO_TEMPLATE_ID = "KA01TP260928063952776ZNYzvHisk7Z"
+# 학부모 안내 링크 알림톡 기본값(승인된 템플릿, 설문조사와 같은 카카오 채널). 통합관리 > 솔라피설정에서 바꿀 수 있다.
+PARENT_KAKAO_PF_ID = "KA01PF260904081609259ib9u2XiMmdC"
+PARENT_KAKAO_TEMPLATE_ID = "KA01TP261007082213496ANXs94PHj3a"
 SOLAPI_TEMPLATE_URL = "https://api.solapi.com/kakao/v2/templates/{template_id}"
 # 템플릿 조회 결과를 잠시 보관해 미리보기·발송 때마다 API를 부르지 않게 한다.
 TEMPLATE_CACHE_SECONDS = 600
+
+# 솔라피설정 화면의 [카카오 알림톡 템플릿] 칸. 기능마다 승인된 템플릿을 하나씩 연결한다.
+# 새 기능이 알림톡을 쓰게 되면 여기에 한 줄을 더하고 환경변수·저장 항목(…_pf_id / …_template_id)을 만든다.
+KAKAO_TEMPLATE_SLOTS = (
+    {
+        "key": "contract",
+        "label": "인증전자계약",
+        "used_in": "사내결재 > 강사전자계약·임직원전자계약 — 계약 링크 알림톡",
+        "variables": "#{이름} #{url}",
+        "pf_field": "pf_id",
+        "template_field": "template_id",
+        "pf_blank": "인증전자계약 알림톡에만 씁니다. 문자만 쓰면 비워 두세요.",
+    },
+    {
+        "key": "survey",
+        "label": "설문조사",
+        "used_in": "학교관리 > 설문조사 — 알림톡 발송",
+        "variables": "#{이름} #{제목} #{기관명} #{url} #{기간} 등 자동 입력",
+        "pf_field": "survey_pf_id",
+        "template_field": "survey_template_id",
+        "pf_blank": "비워 두면 기본값을 씁니다.",
+    },
+    {
+        "key": "parent",
+        "label": "학부모 안내 링크",
+        "used_in": "학교지원 > 학부모·강사 통합지원 > 학부모 안내 > 링크 발송",
+        "variables": "#{학교명} #{url}",
+        "pf_field": "parent_pf_id",
+        "template_field": "parent_template_id",
+        "pf_blank": "비워 두면 설문조사와 같은 채널을 씁니다.",
+        # 솔라피 템플릿에 쓴 변수 이름이 다르면 화면에서 맞춘다(예: #{school_name}).
+        "variable_names_key": "parent_variable_names",
+        "variable_fields": (
+            {"source": "school", "label": "학교 이름이 들어갈 변수", "field": "parent_var_school"},
+            {"source": "url", "label": "안내 주소가 들어갈 변수", "field": "parent_var_url"},
+        ),
+    },
+)
+MAX_EXTRA_TEMPLATES = 30
+
+# 링크 안내 알림톡(학부모 안내)이 채우는 변수는 학교 이름과 주소 두 가지다.
+# 템플릿에 쓴 변수 이름은 솔라피설정에서 바꿀 수 있고, 바꾸지 않은 변수는 이름 속 단어(학교·school·url·링크…)로 짐작한다.
+LINK_VARIABLE_DEFAULTS = {"school": "학교명", "url": "url"}
+LINK_VARIABLE_LABELS = {"school": "학교 이름", "url": "학부모 안내 주소"}
+_LINK_VARIABLE_RULES = (
+    ("url", ("url", "link", "링크", "주소", "바로가기")),
+    ("school", ("학교", "기관", "school")),
+)
+TEMPLATE_STATUS_LABELS = {
+    "APPROVED": "승인됨", "PENDING": "검수 대기", "INSPECTING": "검수 중", "REJECTED": "반려", "STOP": "사용 중지",
+}
 _TEMPLATE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 
 
@@ -141,6 +195,8 @@ def _environment_settings() -> dict[str, str]:
         "sender_name": str(os.environ.get("SOLAPI_SENDER_NAME", "")).strip(),
         "survey_pf_id": str(os.environ.get("SOLAPI_SURVEY_PF_ID", "")).strip(),
         "survey_template_id": str(os.environ.get("SOLAPI_SURVEY_TEMPLATE_ID", "")).strip(),
+        "parent_pf_id": str(os.environ.get("SOLAPI_PARENT_PF_ID", "")).strip(),
+        "parent_template_id": str(os.environ.get("SOLAPI_PARENT_TEMPLATE_ID", "")).strip(),
     }
 
 
@@ -153,6 +209,129 @@ def normalize_origin(value: object) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc             or parsed.path or parsed.query or parsed.fragment             or re.search(r"\s", text):
         raise ValueError("공개 링크 주소는 https://example.com 형식으로 입력해 주세요.")
     return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def normalize_variable_name(value: object, *, label: str = "변수 이름") -> str:
+    """#{학교명}·학교명 어느 쪽으로 적어도 이름만 남긴다. 비워 두면 ''(기본 이름). 공백과 # { } 는 쓸 수 없다."""
+    text = str(value or "").strip()
+    wrapped = re.fullmatch(r"#\{(.*)\}", text)
+    if wrapped:
+        text = wrapped.group(1).strip()
+    if not text:
+        return ""
+    if len(text) > 40 or re.search(r"[\s{}#]", text):
+        raise ValueError(f"{label} 값을 확인해 주세요. 공백과 # {{ }} 는 쓸 수 없고 40자까지 입력할 수 있습니다.")
+    return text
+
+
+def effective_link_variable_names(names: object = None) -> dict[str, str]:
+    """저장된(또는 비어 있는) 변수 이름에 기본 이름을 채워 {'school': …, 'url': …}를 돌려준다."""
+    given = names if isinstance(names, dict) else {}
+    return {
+        source: str(given.get(source) or "").strip() or default
+        for source, default in LINK_VARIABLE_DEFAULTS.items()
+    }
+
+
+def link_variable_source(name: object, names: object = None) -> str | None:
+    """템플릿 변수 하나가 'school'(학교 이름)인지 'url'(안내 주소)인지 정한다. 모르면 None.
+
+    직접 정한 변수 이름이 먼저이고, 그다음 이름 속 단어로 짐작한다(school_name → 학교 이름).
+    """
+    chosen = effective_link_variable_names(names)
+    key = re.sub(r"\s", "", str(name or "")).lower()
+    for source, wanted in chosen.items():
+        if key == re.sub(r"\s", "", wanted).lower():
+            return source
+    for source, words in _LINK_VARIABLE_RULES:
+        if any(word in key for word in words):
+            return source
+    return None
+
+
+def match_link_variables(variables: list[dict[str, Any]], names: object = None) -> dict[str, Any]:
+    """템플릿 변수를 학교 이름·안내 주소에 연결해 본다(설정 화면의 [승인 상태 확인]에서 보여 준다).
+
+    반환: {'mapped': [{'key','source','label'}], 'unmapped': [채울 수 없는 변수 key], 'absent': [템플릿에 없는 역할 이름]}
+    """
+    mapped: list[dict[str, str]] = []
+    unmapped: list[str] = []
+    for item in variables or []:
+        source = link_variable_source(item.get("name"), names)
+        if source:
+            mapped.append({"key": item["key"], "source": source, "label": LINK_VARIABLE_LABELS[source]})
+        else:
+            unmapped.append(item["key"])
+    present = {item["source"] for item in mapped}
+    absent = [LINK_VARIABLE_LABELS[source] for source in LINK_VARIABLE_DEFAULTS if source not in present]
+    return {"mapped": mapped, "unmapped": unmapped, "absent": absent}
+
+
+def _normalize_extra_templates(value: object, *, default_channel: str = "") -> list[dict[str, str]]:
+    """저장값에서 [추가한 템플릿] 목록을 안전하게 꺼낸다(예전·깨진 값은 건너뛴다)."""
+    rows: list[dict[str, str]] = []
+    for item in value if isinstance(value, list) else []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        template_id = str(item.get("template_id") or "").strip()
+        if not name or not template_id:
+            continue
+        pf_id = str(item.get("pf_id") or "").strip()
+        rows.append(
+            {
+                "name": name,
+                "pf_id": pf_id,
+                "channel_id": pf_id or default_channel,
+                "template_id": template_id,
+                "memo": str(item.get("memo") or "").strip(),
+            }
+        )
+    return rows
+
+
+def clean_extra_templates(rows: object) -> list[dict[str, str]]:
+    """화면에서 받은 [추가한 템플릿] 줄을 검사한다. 모두 빈 줄은 건너뛰고, 잘못된 줄이 있으면 ValueError."""
+    cleaned: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for row in rows if isinstance(rows, (list, tuple)) else []:
+        row = row if isinstance(row, dict) else {}
+        name = str(row.get("name") or "").strip()
+        pf_id = str(row.get("pf_id") or "").strip()
+        template_id = str(row.get("template_id") or "").strip()
+        memo = str(row.get("memo") or "").strip()
+        if not (name or pf_id or template_id or memo):
+            continue
+        if not name:
+            raise ValueError("추가한 템플릿의 이름(용도)을 입력해 주세요.")
+        if len(name) > 30:
+            raise ValueError(f"템플릿 이름은 30자까지 입력할 수 있습니다: {name[:12]}…")
+        if not template_id:
+            raise ValueError(f"[{name}] 템플릿 ID를 입력해 주세요.")
+        for label, text in (("채널 ID", pf_id), ("템플릿 ID", template_id)):
+            if len(text) > 120 or re.search(r"\s", text):
+                raise ValueError(f"[{name}] {label} 값을 확인해 주세요.")
+        key = re.sub(r"\s+", "", name).lower()
+        if key in seen:
+            raise ValueError(f"같은 이름의 템플릿이 두 번 들어 있습니다: {name}")
+        seen.add(key)
+        cleaned.append({"name": name, "pf_id": pf_id, "template_id": template_id, "memo": memo[:100]})
+    if len(cleaned) > MAX_EXTRA_TEMPLATES:
+        raise ValueError(f"추가한 템플릿은 최대 {MAX_EXTRA_TEMPLATES}개까지 저장할 수 있습니다.")
+    return cleaned
+
+
+def get_template_ref(name: object, settings: dict[str, Any] | None = None) -> dict[str, str] | None:
+    """[추가한 템플릿]을 이름(공백·대소문자 무시)으로 찾아 {'name','channel_id','template_id',…}를 돌려준다. 없으면 None.
+
+    새 기능이 알림톡을 보낼 때 send_bulk_alimtalk(pf_id=ref['channel_id'], template_id=ref['template_id'])로 쓴다.
+    """
+    active = settings or get_settings()
+    wanted = re.sub(r"\s+", "", str(name or "")).lower()
+    for item in active.get("extra_templates") or []:
+        if re.sub(r"\s+", "", item["name"]).lower() == wanted:
+            return item
+    return None
 
 
 def get_settings(conn=None) -> dict[str, Any]:
@@ -196,9 +375,24 @@ def get_settings(conn=None) -> dict[str, Any]:
             or environment["survey_template_id"]
             or SURVEY_KAKAO_TEMPLATE_ID
         ).strip(),
+        # 학부모 안내 링크 알림톡. 저장값 → 환경변수 → 코드 기본값 순서로 쓴다.
+        "parent_pf_id": str(
+            store.get("parent_pf_id") or environment["parent_pf_id"] or PARENT_KAKAO_PF_ID
+        ).strip(),
+        "parent_template_id": str(
+            store.get("parent_template_id")
+            or environment["parent_template_id"]
+            or PARENT_KAKAO_TEMPLATE_ID
+        ).strip(),
+        "parent_variable_names": effective_link_variable_names(
+            {"school": store.get("parent_var_school"), "url": store.get("parent_var_url")}
+        ),
         "updated_by": str(store.get("updated_by") or ""),
         "updated_at": str(store.get("updated_at") or ""),
     }
+    result["extra_templates"] = _normalize_extra_templates(
+        store.get("extra_templates"), default_channel=result["survey_pf_id"]
+    )
     configured_from_db = any(
         store.get(key)
         for key in (
@@ -211,7 +405,7 @@ def get_settings(conn=None) -> dict[str, Any]:
     )
     configured_from_env = any(
         value for key, value in environment.items()
-        if key not in {"survey_pf_id", "survey_template_id"}
+        if key not in {"survey_pf_id", "survey_template_id", "parent_pf_id", "parent_template_id"}
     )
     result["source"] = (
         "database" if configured_from_db else "environment" if configured_from_env else "none"
@@ -228,13 +422,39 @@ def get_settings(conn=None) -> dict[str, Any]:
     result["survey_kakao_configured"] = bool(
         result["sms_configured"] and result["survey_pf_id"] and result["survey_template_id"]
     )
+    # 학부모 안내 링크 알림톡도 문자 설정에 템플릿 ID가 더해져야 한다(채널은 설문조사 것으로 대신할 수 있다).
+    result["parent_channel_id"] = result["parent_pf_id"] or result["survey_pf_id"]
+    result["parent_kakao_configured"] = bool(
+        result["sms_configured"] and result["parent_channel_id"] and result["parent_template_id"]
+    )
     return result
+
+
+def _template_slots_for_view(settings: dict[str, Any]) -> list[dict[str, Any]]:
+    """화면에 그릴 알림톡 템플릿 칸(기능별)과 설정 여부."""
+    slots: list[dict[str, Any]] = []
+    for slot in KAKAO_TEMPLATE_SLOTS:
+        pf_id = str(settings.get(slot["pf_field"]) or "")
+        template_id = str(settings.get(slot["template_field"]) or "")
+        # 인증전자계약은 채널·템플릿이 모두 있어야 하고, 나머지는 채널을 설문조사 것으로 대신할 수 있다.
+        channel = pf_id if slot["key"] == "contract" else (pf_id or str(settings.get("survey_pf_id") or ""))
+        names = settings.get(slot.get("variable_names_key", "")) or {}
+        inputs = [
+            {**field, "default": LINK_VARIABLE_DEFAULTS[field["source"]], "value": names.get(field["source"], "")}
+            for field in slot.get("variable_fields", ())
+        ]
+        slots.append({**slot, "pf_value": pf_id, "template_value": template_id,
+                      "configured": bool(template_id and channel), "variable_inputs": inputs})
+    return slots
 
 
 def settings_for_view() -> dict[str, Any]:
     settings = get_settings()
     api_key = str(settings.get("api_key") or "")
     return {
+        "template_slots": _template_slots_for_view(settings),
+        "extra_templates": settings.get("extra_templates", []),
+        "max_extra_templates": MAX_EXTRA_TEMPLATES,
         "api_key_masked": f"{'*' * max(4, len(api_key) - 4)}{api_key[-4:]}" if api_key else "",
         "has_api_key": bool(api_key),
         "has_api_secret": bool(settings.get("api_secret")),
@@ -251,6 +471,9 @@ def settings_for_view() -> dict[str, Any]:
         "survey_pf_id": settings.get("survey_pf_id", ""),
         "survey_template_id": settings.get("survey_template_id", ""),
         "survey_kakao_configured": bool(settings.get("survey_kakao_configured")),
+        "parent_pf_id": settings.get("parent_pf_id", ""),
+        "parent_template_id": settings.get("parent_template_id", ""),
+        "parent_kakao_configured": bool(settings.get("parent_kakao_configured")),
     }
 
 
@@ -266,6 +489,11 @@ def save_settings(
     sender_name: object = None,
     survey_pf_id: object = None,
     survey_template_id: object = None,
+    parent_pf_id: object = None,
+    parent_template_id: object = None,
+    extra_templates: object = None,
+    parent_var_school: object = None,
+    parent_var_url: object = None,
     clear_credentials: bool = False,
 ) -> None:
     api_key_text = str(api_key or "").strip()
@@ -281,6 +509,19 @@ def save_settings(
     survey_template_text = (
         str(survey_template_id).strip() if survey_template_id is not None else None
     )
+    parent_pf_text = str(parent_pf_id).strip() if parent_pf_id is not None else None
+    parent_template_text = (
+        str(parent_template_id).strip() if parent_template_id is not None else None
+    )
+    # None이면 저장된 추가 템플릿을 그대로 두고, 목록(빈 목록 포함)이면 그 목록으로 바꾼다.
+    extra_rows = clean_extra_templates(extra_templates) if extra_templates is not None else None
+    # 변수 이름: None이면 그대로 두고, 비우면 기본 이름(학교명·url)으로 돌아간다.
+    var_school_text = (
+        normalize_variable_name(parent_var_school, label="학교 이름 변수") if parent_var_school is not None else None
+    )
+    var_url_text = (
+        normalize_variable_name(parent_var_url, label="안내 주소 변수") if parent_var_url is not None else None
+    )
 
     # 알림톡 항목은 문자 전용으로만 쓰는 설치본을 위해 선택 입력으로 둔다.
     for label, value, maximum in (
@@ -288,6 +529,8 @@ def save_settings(
         ("SOLAPI 템플릿 ID", template_id_text, 120),
         ("설문조사 알림톡 채널 ID", survey_pf_text or "", 120),
         ("설문조사 알림톡 템플릿 ID", survey_template_text or "", 120),
+        ("학부모 안내 알림톡 채널 ID", parent_pf_text or "", 120),
+        ("학부모 안내 알림톡 템플릿 ID", parent_template_text or "", 120),
     ):
         if value and (len(value) > maximum or re.search(r"\s", value)):
             raise ValueError(f"{label} 값을 확인해 주세요.")
@@ -342,6 +585,23 @@ def save_settings(
         if survey_template_text is not None:
             store["survey_template_id"] = survey_template_text
             _TEMPLATE_CACHE.clear()
+        if parent_pf_text is not None:
+            store["parent_pf_id"] = parent_pf_text
+        if parent_template_text is not None:
+            store["parent_template_id"] = parent_template_text
+            _TEMPLATE_CACHE.clear()
+        if extra_rows is not None:
+            store["extra_templates"] = extra_rows
+            _TEMPLATE_CACHE.clear()
+        if var_school_text is not None:
+            store["parent_var_school"] = var_school_text
+        if var_url_text is not None:
+            store["parent_var_url"] = var_url_text
+        chosen = effective_link_variable_names(
+            {"school": store.get("parent_var_school"), "url": store.get("parent_var_url")}
+        )
+        if chosen["school"].lower() == chosen["url"].lower():
+            raise ValueError("학교 이름 변수와 안내 주소 변수는 서로 다른 이름이어야 합니다.")
         conn.execute(
             """
             INSERT INTO admin_settings (key, value, updated_at)
@@ -901,6 +1161,41 @@ def fill_template_text(text: object, variables: dict[str, str]) -> str:
     return result
 
 
+def kakao_template_problem(template: dict[str, Any]) -> str:
+    """승인되지 않았거나 내용을 못 불러온 템플릿이면 사유를, 문제없으면 빈 문자열을 돌려준다."""
+    status = str(template.get("status") or "").upper()
+    if status and status != "APPROVED":
+        labels = {"PENDING": "검수 대기", "INSPECTING": "검수 중", "REJECTED": "반려"}
+        return (
+            f"알림톡 템플릿이 아직 승인되지 않았습니다(상태: {labels.get(status, status)}). "
+            "솔라피에서 승인된 뒤 발송하거나 문자로 보내 주세요."
+        )
+    if not template.get("variables") and not template.get("content"):
+        return "알림톡 템플릿 내용을 불러오지 못했습니다. 템플릿 ID를 확인해 주세요."
+    return ""
+
+
+def kakao_template_preview(template: dict[str, Any], values: dict[str, str]) -> str:
+    """수신자 화면에 보일 알림톡 모습(강조·본문·부가정보·버튼)을 글로 만든다."""
+    parts: list[str] = []
+    if template.get("emphasize_title"):
+        title = fill_template_text(template["emphasize_title"], values)
+        sub = fill_template_text(template.get("emphasize_subtitle"), values)
+        parts.append(f"【{title}】" + (f"\n{sub}" if sub else ""))
+    if template.get("header"):
+        parts.append(fill_template_text(template["header"], values))
+    parts.append(fill_template_text(template.get("content"), values))
+    if template.get("extra"):
+        parts.append(fill_template_text(template["extra"], values))
+    for button in template.get("buttons") or []:
+        link = button.get("link_mo") or button.get("link_pc")
+        label = f"[버튼] {button.get('name') or button.get('type')}"
+        if link:
+            label += f" → {fill_template_text(link, values)}"
+        parts.append(label)
+    return "\n\n".join(part for part in parts if part)
+
+
 def send_bulk_alimtalk(
     recipients: list[dict[str, Any]],
     *,
@@ -921,7 +1216,7 @@ def send_bulk_alimtalk(
     channel = str(pf_id or active.get("survey_pf_id") or "").strip()
     template = str(template_id or active.get("survey_template_id") or "").strip()
     if not channel or not template:
-        raise RuntimeError("설문조사 알림톡 채널 ID·템플릿 ID가 설정되지 않았습니다.")
+        raise RuntimeError("알림톡 채널 ID·템플릿 ID가 설정되지 않았습니다.")
 
     prepared: list[dict[str, Any]] = []
     for entry in recipients:

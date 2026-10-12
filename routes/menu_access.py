@@ -119,7 +119,7 @@ MENU_GROUPS = (
             ('ebook_library', 'e리플렛', 'fa-book-open-reader', 14),
             ('parent_notifications', '학부모알림전송', 'fa-bell', 7),
             ('school_billing', '청구업무', 'fa-file-invoice-dollar', 5),
-            ('school_instructor_hub', '강사통합지원', 'fa-chalkboard-user', 7),
+            ('school_support_hub', '학부모·강사 통합지원', 'fa-people-roof', 7),
         ),
     },
     {
@@ -268,6 +268,17 @@ def ensure_menu_access_schema(conn):
         SELECT 'school_support_group', max_level, block_north_branch, updated_by
         FROM menu_access_permissions
         WHERE menu_key='school_group'
+    ''')
+    # 강사통합지원·학부모통합지원이 [학부모·강사 통합지원] 한 메뉴로 합쳐졌다. 예전 메뉴 권한 설정을 1회 이어받는다
+    # (두 설정이 있으면 접근 범위가 넓어지지 않도록 더 엄격한 쪽(숫자가 작은 쪽)을 쓴다).
+    conn.execute('''
+        INSERT OR IGNORE INTO menu_access_permissions (
+            menu_key, max_level, block_north_branch, updated_by
+        )
+        SELECT 'school_support_hub', MIN(max_level), MAX(block_north_branch), MAX(updated_by)
+        FROM menu_access_permissions
+        WHERE menu_key IN ('school_instructor_hub', 'school_parent_hub')
+        HAVING COUNT(*) > 0
     ''')
     conn.commit()
 
@@ -553,11 +564,15 @@ def resolve_request_menu(path, endpoint='', view_args=None):
     # 설문 응답 링크는 인트라넷 계정 없이 여는 공개 주소라 메뉴 권한을 적용하지 않는다.
     if path.startswith('/survey/r/'):
         return None
-    # 강사 포털(/teacher-hub)과 학부모 링크페이지(/school-link)는 계정 없이 여는 공개 주소다.
-    if path.startswith('/teacher-hub') or path.startswith('/school-link/'):
+    # 강사 포털(/teacher-hub)은 계정 없이 여는 공개 주소다.
+    if path.startswith('/teacher-hub'):
         return None
-    if path.startswith('/instructor-hub'):
-        return 'school_instructor_hub'
+    # 학부모 학교 링크(/parent/hub)와 보호자 개인 화면(/parent/home)은 계정 없이 여는 공개 주소다.
+    if path.startswith('/parent/hub/') or path.startswith('/parent/home/'):
+        return None
+    # 강사통합지원 + 학부모통합지원 = [학부모·강사 통합지원] 한 메뉴(예전 주소도 같은 권한을 쓴다)
+    if path.startswith(('/support-hub', '/instructor-hub', '/parent-hub')):
+        return 'school_support_hub'
     if path.startswith('/survey'):
         return 'school_survey'
     # 학교회원 포털은 인트라넷 계정이 아닌 별도 로그인으로 보호한다.

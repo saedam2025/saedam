@@ -3788,12 +3788,6 @@ def complete_contract(token: str):
     finally:
         conn.close()
 
-    # 강사 전자계약이면 강사통합지원 접속 계정(링크·비밀번호)을 자동으로 만든다. 실패해도 계약은 완료된다.
-    if g.get("vc_kind") == "instructor":
-        from .instructor_hub import on_instructor_contract_completed
-
-        on_instructor_contract_completed(row, phone)
-
     signer_email = str(row["signer_email"] or "").strip().lower()
     try:
         sender_conn = get_db()

@@ -10,7 +10,7 @@ import io
 import json
 import re
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from flask import (
     Blueprint, jsonify, render_template, request, send_file, session, url_for,
@@ -42,6 +42,8 @@ QUESTION_TYPE_LABELS = {
     'scale': '5점 척도',
 }
 SURVEY_STATUSES = {'draft': '작성중', 'open': '진행중', 'closed': '마감'}
+# 종료일 판단은 한국 날짜 기준이다(운영 서버는 UTC라서 서버 시계를 그대로 쓰면 오전 9시에 마감된다).
+KST = timezone(timedelta(hours=9))
 SCALE_DEFAULT_OPTIONS = ['매우 그렇다', '그렇다', '보통이다', '아니다', '전혀 아니다']
 DEFAULT_SMS_TEMPLATE = '[{기관명}] {제목} 설문에 참여해 주세요.\n{링크}'
 # 발송방법. 기본은 카카오 알림톡이며 설문마다 문자(LMS)로 바꿀 수 있다.
@@ -330,13 +332,35 @@ def _questions_of(conn, survey_id):
     } for row in rows]
 
 
+def _today():
+    return datetime.now(KST).strftime('%Y-%m-%d')
+
+
+def _deadline_passed(row):
+    """종료일이 지났는지. 종료일 당일 23:59(한국시간)까지는 응답을 받는다."""
+    return bool(row['ends_on']) and _today() > row['ends_on']
+
+
+def _effective_status(row):
+    """저장된 상태에 종료일 경과를 반영한 상태.
+
+    진행중인 설문은 종료일이 지나면 저절로 '마감'으로 본다. DB 값은 건드리지 않으므로
+    종료일을 다시 늘리면 별도 조작 없이 진행중으로 돌아오고, 사람이 직접 마감한 설문은 그대로 남는다.
+    """
+    if row['status'] == 'open' and _deadline_passed(row):
+        return 'closed'
+    return row['status']
+
+
 def _survey_dict(row, *, response_count=0, recipient_count=0, sent_count=0):
+    status = _effective_status(row)
     return {
         'id': row['id'],
         'title': row['title'],
         'description': row['description'] or '',
-        'status': row['status'],
-        'status_label': SURVEY_STATUSES.get(row['status'], row['status']),
+        'status': status,
+        'status_label': SURVEY_STATUSES.get(status, status),
+        'auto_closed': status != row['status'],
         'public_token': row['public_token'],
         'starts_on': row['starts_on'] or '',
         'ends_on': row['ends_on'] or '',
@@ -382,10 +406,9 @@ def _survey_is_open(row):
         return False, '아직 시작되지 않은 설문입니다.'
     if row['status'] == 'closed':
         return False, '마감된 설문입니다. 참여해 주셔서 감사합니다.'
-    today = datetime.now().strftime('%Y-%m-%d')
-    if row['starts_on'] and today < row['starts_on']:
+    if row['starts_on'] and _today() < row['starts_on']:
         return False, f"{row['starts_on']}부터 참여할 수 있는 설문입니다."
-    if row['ends_on'] and today > row['ends_on']:
+    if _deadline_passed(row):
         return False, f"{row['ends_on']}에 마감된 설문입니다."
     return True, ''
 
@@ -471,7 +494,7 @@ def _kakao_context(row, *, sender_name, link, recipient=None):
         'link': link,
         'period': period,
         'ends_on': ends_on or '마감 시까지',
-        'starts_on': starts_on or datetime.now().strftime('%Y-%m-%d'),
+        'starts_on': starts_on or _today(),
         'sender': sender_name,
         'title': row['title'],
         # 알림톡 변수는 빈 값으로 보내면 템플릿과 어긋날 수 있어 기본 문구를 넣는다.
@@ -652,7 +675,16 @@ def api_list():
         if keyword:
             conditions.append('(s.title LIKE ? OR s.description LIKE ?)')
             params.extend([f'%{keyword}%', f'%{keyword}%'])
-        if status in SURVEY_STATUSES:
+        # 종료일이 지난 진행중 설문은 '마감'으로 보이므로 필터도 같은 기준으로 나눈다.
+        today = _today()
+        expired = "(s.status='open' AND COALESCE(s.ends_on,'')<>'' AND s.ends_on<?)"
+        if status == 'open':
+            conditions.append(f"(s.status='open' AND NOT {expired})")
+            params.append(today)
+        elif status == 'closed':
+            conditions.append(f"(s.status='closed' OR {expired})")
+            params.append(today)
+        elif status in SURVEY_STATUSES:
             conditions.append('s.status=?')
             params.append(status)
         if conditions:
@@ -877,6 +909,11 @@ def api_status(survey_id):
             return _json_error('설문을 찾을 수 없습니다.', 404)
         if not _can_manage(row):
             return _json_error('이 설문을 변경할 권한이 없습니다.', 403)
+        if status == 'open' and _deadline_passed(row):
+            return _json_error(
+                f"응답 종료일({row['ends_on']})이 지난 설문은 다시 진행할 수 없습니다. "
+                '[편집·발송]에서 종료일을 바꾼 뒤 진행해 주세요.'
+            )
         conn.execute(
             'UPDATE surveys SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
             (status, survey_id),
@@ -1354,8 +1391,13 @@ def api_send(survey_id):
             return _json_error('설문 문항이 없습니다. 문항을 먼저 저장해 주세요.')
         if row['status'] == 'closed':
             return _json_error('마감된 설문은 발송할 수 없습니다.')
+        if _deadline_passed(row):
+            return _json_error(
+                f"응답 종료일({row['ends_on']})이 지난 설문은 발송할 수 없습니다. "
+                '종료일을 바꾼 뒤 발송해 주세요.'
+            )
 
-        method = _clean_send_method(payload.get('send_method'), _row_send_method(row))
+        method =_clean_send_method(payload.get('send_method'), _row_send_method(row))
         overrides = _payload_overrides(payload, row)
         template = row['sms_template'] or DEFAULT_SMS_TEMPLATE
         if isinstance(payload.get('sms_template'), str) and payload['sms_template'].strip():

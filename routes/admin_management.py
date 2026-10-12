@@ -1653,6 +1653,52 @@ def solapi_settings_page():
     return _render_solapi_settings()
 
 
+def _extra_template_rows():
+    """[추가한 템플릿] 입력 줄을 모은다. 이 칸이 없는 예전 화면에서 저장하면 None(기존 값 유지)."""
+    if request.form.get('extra_present') != '1':
+        return None
+    names = request.form.getlist('extra_name')
+    pf_ids = request.form.getlist('extra_pf_id')
+    template_ids = request.form.getlist('extra_template_id')
+    memos = request.form.getlist('extra_memo')
+    count = max(len(names), len(pf_ids), len(template_ids), len(memos))
+
+    def pick(values, index):
+        return values[index] if index < len(values) else ''
+
+    return [{'name': pick(names, i), 'pf_id': pick(pf_ids, i), 'template_id': pick(template_ids, i),
+             'memo': pick(memos, i)} for i in range(count)]
+
+
+@admin_bp.route('/solapi-settings/template-check')
+def solapi_template_check():
+    """입력한 알림톡 템플릿 ID를 솔라피에서 조회해 승인 상태와 변수를 보여 준다(조회만 하고 보내지 않는다)."""
+    require_admin()
+    template_id = (request.args.get('template_id') or '').strip()
+    if not template_id:
+        return jsonify({'ok': False, 'message': '템플릿 ID를 먼저 입력해 주세요.'})
+    try:
+        template = solapi_settings.fetch_kakao_template(template_id, refresh=True)
+    except RuntimeError as exc:
+        return jsonify({'ok': False, 'message': str(exc)})
+    problem = solapi_settings.kakao_template_problem(template)
+    status = str(template.get('status') or '').upper()
+    result = {
+        'ok': not problem, 'message': problem, 'name': template.get('name') or '',
+        'status': solapi_settings.TEMPLATE_STATUS_LABELS.get(status, status or '확인 불가'),
+        'variables': [item['key'] for item in template.get('variables') or []],
+    }
+    if request.args.get('mode') == 'link':
+        # 학교 이름·안내 주소 변수를 쓰는 템플릿(학부모 안내): 입력칸의 변수 이름으로 어떻게 연결되는지 보여 준다.
+        try:
+            names = {'school': solapi_settings.normalize_variable_name(request.args.get('school_var')),
+                     'url': solapi_settings.normalize_variable_name(request.args.get('url_var'))}
+        except ValueError as exc:
+            return jsonify({'ok': False, 'message': str(exc)})
+        result['link'] = solapi_settings.match_link_variables(template.get('variables') or [], names)
+    return jsonify(result)
+
+
 @admin_bp.route('/solapi-settings/save', methods=['POST'])
 def save_solapi_settings_route():
     require_admin()
@@ -1671,6 +1717,11 @@ def save_solapi_settings_route():
             sender_name=request.form.get('sender_name'),
             survey_pf_id=request.form.get('survey_pf_id'),
             survey_template_id=request.form.get('survey_template_id'),
+            parent_pf_id=request.form.get('parent_pf_id'),
+            parent_template_id=request.form.get('parent_template_id'),
+            extra_templates=_extra_template_rows(),
+            parent_var_school=request.form.get('parent_var_school'),
+            parent_var_url=request.form.get('parent_var_url'),
             actor=session.get('emp_no') or session.get('user_name') or 'admin',
             clear_credentials=request.form.get('clear_credentials') == '1',
         )

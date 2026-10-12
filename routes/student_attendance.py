@@ -24,6 +24,7 @@ import hmac
 import logging
 import re
 import secrets
+import sqlite3
 import threading
 import time
 from calendar import monthrange
@@ -357,10 +358,6 @@ def _live_url(class_info):
 
 def _display_url(class_info):
     return _external_root() + url_for('student_attendance.display_page', display_key=class_info['display_key'])
-
-
-def _parent_url(class_info):
-    return _external_root() + url_for('student_attendance.parent_lookup', parent_key=class_info['parent_key'])
 
 
 def _svg_response(data):
@@ -855,6 +852,20 @@ def _monthly_data(conn, class_info, month_text):
 
 # ---------------------------------------------------------------- 관리 화면(인트라넷)
 
+def _hub_instructor_names(conn, info):
+    try:
+        from . import instructor_hub as hub
+        return [account['name'] for account in hub.linked_accounts(conn, info)]
+    except Exception:
+        logger.debug('강사통합지원 연결 강사 조회 실패', exc_info=True)
+        return []
+
+
+def _hub_manual_id(info):
+    emp = str(info.get('instructor_emp_no') or '')
+    return int(emp[2:]) if emp.startswith('IH') and emp[2:].isdigit() else None
+
+
 def _class_payload(conn, row):
     info = _load_class(conn, row['id'])
     counts = conn.execute('''
@@ -880,8 +891,10 @@ def _class_payload(conn, row):
         'schedule_label': _schedule_label(info),
         'today_is_class_day': today_weekday in _weekday_list(info['weekdays']),
         'live_url': _live_url(info),
-        'parent_url': _parent_url(info),
         'counts': dict(counts),
+        # 강사통합지원: 이 과목에 연결된 강사(직접 고른 강사 또는 학교·분야가 같은 강사)
+        'hub_instructors': _hub_instructor_names(conn, info),
+        'hub_manual_id': _hub_manual_id(info),
     }
 
 
@@ -919,67 +932,137 @@ def list_classes():
     return jsonify({'status': 'success', 'date': _today(), 'classes': classes})
 
 
-@student_attendance_bp.route('/student-attendance/api/classes', methods=['POST'])
-@menu_permission_required(MENU_KEY)
-def save_class():
-    data = request.get_json(silent=True) or {}
+def save_class_data(conn, data):
+    """과목 한 개를 만들거나 고친다(학교·과목명 필수). 반환: (과목 id, 오류 메시지 또는 None, HTTP 상태)."""
     school_id = _int_or_none(data.get('school_id'))
     class_id = _int_or_none(data.get('id'))
     class_name = _text(data.get('class_name'), 60)
     if not class_name:
-        return _json_error('과목명을 입력해주세요.')
+        return None, '과목명을 입력해주세요.', 400
     weekdays = ','.join(str(d) for d in _weekday_list(','.join(str(v) for v in data.get('weekdays') or [])))
     start_time, end_time = _valid_time(data.get('start_time')), _valid_time(data.get('end_time'))
     late_minutes = max(0, min(120, _int_or_none(data.get('late_minutes')) or 0))
     qr_mode = 'live' if data.get('qr_mode') == 'live' else 'daily'
     notify_parents = 0 if data.get('notify_parents') is False else 1
+    school = conn.execute('SELECT id, school_name FROM schools WHERE id=?', (school_id,)).fetchone() \
+        if school_id else None
+    if not school:
+        return None, '학교를 선택해주세요.', 400
+    duplicate = conn.execute('''
+        SELECT id FROM parent_classes
+        WHERE school_id=? AND class_name=? AND is_active=1 AND id<>?
+    ''', (school_id, class_name, class_id or 0)).fetchone()
+    if duplicate:
+        return None, f'이 학교에 같은 이름의 과목({class_name})이 이미 있습니다.', 400
+    values = (_text(data.get('department'), 40), class_name, _text(data.get('instructor_name'), 40))
+    if class_id:
+        if not conn.execute('SELECT 1 FROM parent_classes WHERE id=? AND school_id=? AND is_active=1',
+                            (class_id, school_id)).fetchone():
+            return None, '과목을 찾을 수 없습니다.', 404
+        conn.execute('''
+            UPDATE parent_classes SET department=?, class_name=?, instructor_name=?,
+                updated_at=CURRENT_TIMESTAMP WHERE id=?
+        ''', (*values, class_id))
+    else:
+        class_id = conn.execute('''
+            INSERT INTO parent_classes (school_id, school_name, department, class_name,
+                instructor_name, access_token)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (school_id, school['school_name'], *values, secrets.token_urlsafe(32))).lastrowid
+    conn.commit()
+    if 'hub_account_id' in data:
+        # 강사통합지원 강사를 직접 연결/해제한다. 비워 두면 학교·분야가 같은 강사에게 자동 연결된다.
+        hub_id = _int_or_none(data.get('hub_account_id'))
+        current_emp = (conn.execute('SELECT instructor_emp_no FROM parent_classes WHERE id=?',
+                                    (class_id,)).fetchone() or [''])[0] or ''
+        if hub_id:
+            account = conn.execute('SELECT name FROM ih_accounts WHERE id=?', (hub_id,)).fetchone()
+            if not account:
+                return None, '선택한 강사를 찾을 수 없습니다.', 400
+            conn.execute('''UPDATE parent_classes SET instructor_emp_no=?,
+                            instructor_name=CASE WHEN COALESCE(instructor_name,'')='' THEN ? ELSE instructor_name END
+                            WHERE id=?''', (f'IH{hub_id}', account['name'], class_id))
+        elif str(current_emp).startswith('IH'):
+            conn.execute("UPDATE parent_classes SET instructor_emp_no='' WHERE id=?", (class_id,))
+        conn.commit()
+    _ensure_settings(conn, class_id)
+    conn.execute('''
+        UPDATE student_att_settings SET weekdays=?, start_time=?, end_time=?, late_minutes=?,
+            qr_mode=?, notify_parents=?, updated_at=? WHERE class_id=?
+    ''', (weekdays, start_time, end_time, late_minutes, qr_mode, notify_parents, _now_text(), class_id))
+    conn.commit()
+    return class_id, None, 200
+
+
+def deactivate_class(conn, class_id):
+    """지난 출석부와 학부모 알림 기록이 남아야 하므로 과목은 사용 중지만 한다."""
+    conn.execute('UPDATE parent_classes SET is_active=0, updated_at=CURRENT_TIMESTAMP WHERE id=?', (class_id,))
+    conn.commit()
+
+
+def parse_roster_text(text):
+    """'학생명, 학년, 반, 보호자명, 보호자연락처'(쉼표·탭) 여러 줄을 학생 입력값 목록으로 바꾼다."""
+    rows = []
+    for number, line in enumerate(str(text or '').splitlines(), start=1):
+        line = line.strip()
+        if not line:
+            continue
+        parts = [part.strip() for part in re.split(r'[,\t]', line)] + [''] * 5
+        rows.append({'line': number, 'name': parts[0], 'grade': re.sub(r'학년$', '', parts[1]),
+                     'classroom': re.sub(r'반$', '', parts[2]), 'guardian_name': parts[3],
+                     'guardian_phone': parts[4]})
+    return rows
+
+
+def register_students(conn, info, rows):
+    """학생 여러 명을 한 과목 명단에 넣는다. 반환: 오류 문장 목록(비었으면 모두 성공). commit은 호출한 쪽이 한다."""
+    errors = []
+    for row in rows:
+        error = _save_student(conn, info, row)
+        if error:
+            errors.append(f"{row.get('line', '?')}번째 줄 - {error}")
+    return errors
+
+
+@student_attendance_bp.route('/student-attendance/api/classes', methods=['POST'])
+@menu_permission_required(MENU_KEY)
+def save_class():
+    data = request.get_json(silent=True) or {}
     conn = get_db()
     try:
-        school = conn.execute('SELECT id, school_name FROM schools WHERE id=?', (school_id,)).fetchone() \
-            if school_id else None
-        if not school:
-            return _json_error('학교를 선택해주세요.')
-        duplicate = conn.execute('''
-            SELECT id FROM parent_classes
-            WHERE school_id=? AND class_name=? AND is_active=1 AND id<>?
-        ''', (school_id, class_name, class_id or 0)).fetchone()
-        if duplicate:
-            return _json_error(f'이 학교에 같은 이름의 과목({class_name})이 이미 있습니다.')
-        values = (_text(data.get('department'), 40), class_name, _text(data.get('instructor_name'), 40))
-        if class_id:
-            if not conn.execute('SELECT 1 FROM parent_classes WHERE id=? AND school_id=? AND is_active=1',
-                                (class_id, school_id)).fetchone():
-                return _json_error('과목을 찾을 수 없습니다.', 404)
-            conn.execute('''
-                UPDATE parent_classes SET department=?, class_name=?, instructor_name=?,
-                    updated_at=CURRENT_TIMESTAMP WHERE id=?
-            ''', (*values, class_id))
-        else:
-            class_id = conn.execute('''
-                INSERT INTO parent_classes (school_id, school_name, department, class_name,
-                    instructor_name, access_token)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (school_id, school['school_name'], *values, secrets.token_urlsafe(32))).lastrowid
-        conn.commit()
-        _ensure_settings(conn, class_id)
-        conn.execute('''
-            UPDATE student_att_settings SET weekdays=?, start_time=?, end_time=?, late_minutes=?,
-                qr_mode=?, notify_parents=?, updated_at=? WHERE class_id=?
-        ''', (weekdays, start_time, end_time, late_minutes, qr_mode, notify_parents, _now_text(), class_id))
-        conn.commit()
+        class_id, error, status = save_class_data(conn, data)
     finally:
         conn.close()
-    return jsonify({'status': 'success', 'id': class_id, 'message': f'{class_name} 과목을 저장했습니다.'})
+    if error:
+        return _json_error(error, status)
+    return jsonify({'status': 'success', 'id': class_id,
+                    'message': f"{_text(data.get('class_name'), 60)} 과목을 저장했습니다."})
+
+
+@student_attendance_bp.route('/student-attendance/api/hub-instructors')
+@menu_permission_required(MENU_KEY)
+def hub_instructors():
+    """과목 만들기에서 고를 수 있는, 강사통합지원에 이 학교로 등록된 강사와 강의부서 이름 목록."""
+    school_id = _int_or_none(request.args.get('school_id'))
+    conn = get_db()
+    try:
+        school = conn.execute('SELECT school_name FROM schools WHERE id=?', (school_id,)).fetchone()             if school_id else None
+        if not school:
+            return jsonify({'status': 'success', 'instructors': [], 'departments': []})
+        from . import instructor_hub as hub
+        return jsonify({'status': 'success',
+                        'instructors': hub.school_instructors(conn, school['school_name']),
+                        'departments': hub.school_departments(conn, school['school_name'])})
+    finally:
+        conn.close()
 
 
 @student_attendance_bp.route('/student-attendance/api/classes/<int:class_id>/delete', methods=['POST'])
 @menu_permission_required(MENU_KEY)
 def delete_class(class_id):
-    # 지난 출석부와 학부모 알림 기록이 남아야 하므로 사용 중지만 한다.
     conn = get_db()
     try:
-        conn.execute('UPDATE parent_classes SET is_active=0, updated_at=CURRENT_TIMESTAMP WHERE id=?', (class_id,))
-        conn.commit()
+        deactivate_class(conn, class_id)
     finally:
         conn.close()
     return jsonify({'status': 'success', 'message': '과목을 삭제했습니다. 지난 출석 기록은 보존됩니다.'})
@@ -1002,10 +1085,6 @@ def reissue_link(class_id):
             conn.execute('UPDATE student_att_settings SET display_key=? WHERE class_id=?',
                          (secrets.token_urlsafe(24), class_id))
             message = '교실 QR 화면 링크를 새로 만들었습니다. 기존에 띄워 둔 화면은 더 이상 열리지 않습니다.'
-        elif target == 'parent':
-            conn.execute('UPDATE student_att_settings SET parent_key=? WHERE class_id=?',
-                         (secrets.token_urlsafe(18), class_id))
-            message = '학부모 등록 링크를 새로 만들었습니다. 기존 안내문 QR은 더 이상 쓸 수 없습니다.'
         else:
             conn.execute('DELETE FROM student_att_qr WHERE class_id=? AND qr_date=?', (class_id, _today()))
             message = '오늘 출석 QR을 재발급했습니다. 이전 QR로는 출석할 수 없습니다.'
@@ -1038,11 +1117,8 @@ def qr_info(class_id):
         'scan_url': scan_url,
         'scan_url_warning': _scan_url_warning(scan_url),
         'qr_svg_url': url_for('student_attendance.admin_qr_svg', class_id=class_id, t=token[:6]),
-        'parent_qr_svg_url': url_for('student_attendance.parent_qr_svg', class_id=class_id,
-                                     t=info['parent_key'][:6]),
         'live_url': _live_url(info),
         'display_url': _display_url(info),
-        'parent_url': _parent_url(info),
     })
 
 
@@ -1059,19 +1135,6 @@ def admin_qr_svg(class_id):
     finally:
         conn.close()
     return _svg_response(_scan_url(class_id, token))
-
-
-@student_attendance_bp.route('/student-attendance/classes/<int:class_id>/parent-qr.svg')
-@menu_permission_required(MENU_KEY)
-def parent_qr_svg(class_id):
-    conn = get_db()
-    try:
-        info = _admin_class(conn, class_id)
-    finally:
-        conn.close()
-    if not info:
-        return '과목을 찾을 수 없습니다.', 404
-    return _svg_response(_parent_url(info))
 
 
 @student_attendance_bp.route('/student-attendance/api/classes/<int:class_id>/students')
@@ -1115,33 +1178,24 @@ def save_student(class_id):
 @menu_permission_required(MENU_KEY)
 def bulk_students(class_id):
     """'학생명, 학년, 반, 보호자명, 보호자연락처' 여러 줄을 한 번에 등록한다."""
-    lines = [line.strip() for line in str((request.get_json(silent=True) or {}).get('text') or '').splitlines()
-             if line.strip()]
-    if not lines:
+    rows = parse_roster_text((request.get_json(silent=True) or {}).get('text'))
+    if not rows:
         return _json_error('등록할 학생 명단을 입력해주세요.')
-    if len(lines) > 300:
+    if len(rows) > 300:
         return _json_error('한 번에 300명까지 등록할 수 있습니다.')
     conn = get_db()
     try:
         info = _admin_class(conn, class_id)
         if not info:
             return _json_error('과목을 찾을 수 없습니다.', 404)
-        errors = []
-        for number, line in enumerate(lines, start=1):
-            parts = [part.strip() for part in re.split(r'[,\t]', line)] + [''] * 5
-            error = _save_student(conn, info, {
-                'name': parts[0], 'grade': re.sub(r'학년$', '', parts[1]), 'classroom': re.sub(r'반$', '', parts[2]),
-                'guardian_name': parts[3], 'guardian_phone': parts[4],
-            })
-            if error:
-                errors.append(f'{number}번째 줄 - {error}')
+        errors = register_students(conn, info, rows)
         if errors:
             conn.rollback()
             return _json_error('명단을 확인해주세요. 아무것도 등록하지 않았습니다.', errors=errors[:50])
         conn.commit()
     finally:
         conn.close()
-    return jsonify({'status': 'success', 'message': f'학생 {len(lines)}명을 등록했습니다.'})
+    return jsonify({'status': 'success', 'message': f'학생 {len(rows)}명을 등록했습니다.'})
 
 
 @student_attendance_bp.route('/student-attendance/api/classes/<int:class_id>/students/<int:student_id>/remove',
@@ -1663,17 +1717,31 @@ def scan_check_in(class_id):
 
 # ---------------------------------------------------------------- 학부모 알림 등록 안내(로그인 없음)
 
+def _portal_token(conn, school_name):
+    """학부모통합지원에서 공개 중인 그 학교 포털의 링크 토큰(없으면 None)."""
+    key = re.sub(r'\s+', '', str(school_name or ''))
+    try:
+        rows = conn.execute('SELECT school_name, token FROM ph_portals WHERE is_active=1').fetchall()
+    except sqlite3.OperationalError:
+        return None
+    return next((row['token'] for row in rows if re.sub(r'\s+', '', row['school_name']) == key), None)
+
+
 @student_attendance_bp.route('/student-attendance/p/<parent_key>', methods=['GET', 'POST'])
 def parent_lookup(parent_key):
-    """가정통신문 QR로 들어온 보호자를 명단과 대조해 개인 알림등록 페이지로 보낸다.
+    """예전에 인쇄해 둔 과목별 학부모 QR. 학부모의 입구는 학부모통합지원 하나이므로 그 학교 포털로 보낸다.
 
-    출결 알림은 아이의 위치 정보이므로, 관리자가 등록한 보호자 번호와 일치할 때만 연결한다.
+    포털이 아직 없는 학교에서만 예전 방식(자녀 이름 + 보호자 번호 확인)으로 열어 주고,
+    확인되면 보호자 개인 화면(/parent/home/…)으로 보낸다. 새 링크·QR은 더 이상 만들지 않는다.
     """
     conn = get_db()
     try:
         info = _class_by_key(conn, 'parent_key', parent_key)
         if not info:
             return render_template('student_attendance/parent.html', invalid=True), 404
+        portal_token = _portal_token(conn, info['school_name'])
+        if portal_token:
+            return redirect(f'/parent/hub/{portal_token}')
         error = ''
         if request.method == 'POST':
             child = re.sub(r'\s+', '', _text(request.form.get('child_name'), 40))
@@ -1694,7 +1762,7 @@ def parent_lookup(parent_key):
                 ''', (info['id'], child, phone)).fetchone()
                 if guardian:
                     invite = pn._active_invite(conn, guardian['id'])
-                    return redirect(url_for('parent_notifications.parent_register', token=invite['token']))
+                    return redirect(f"/parent/home/{invite['token']}")
                 _record_failure(limit_key)
                 error = ('수강생 명단의 보호자 정보와 일치하지 않습니다. '
                          '방과후 신청 때 적은 휴대폰번호로 입력하거나 학교 담당자에게 문의해주세요.')
