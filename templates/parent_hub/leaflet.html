@@ -1,0 +1,119 @@
+{% extends 'ebook/public_base.html' %}
+{% block title %}{{ portal.school_name }} 방과후 e리플렛{% endblock %}
+{% block body_class %}pb-viewer-body{% endblock %}
+{% block header %}{% endblock %}
+{% block head %}
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/photobook.css') }}?v=20260908-leaflet-flip">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/parent_hub.css') }}?v=20261007">
+{% endblock %}
+{% block content %}
+<main class="pb-viewer" id="pbViewer">
+  <button type="button" class="pb-immersive-exit" id="pbImmersiveExit" title="전체화면 나가기" aria-label="전체화면 나가기">
+    <i class="fa-solid fa-compress"></i>
+  </button>
+
+  <header class="pb-vbar">
+    <a class="pb-vbtn" href="{{ back_url or '#' }}" id="closeReader" aria-label="리플렛 닫기">
+      <i class="fa-solid fa-xmark"></i><span>닫기</span>
+    </a>
+    <div class="pb-vbar-title">
+      <span>e리플렛</span>
+      <h1>{{ portal.school_name }} 방과후 소개</h1>
+    </div>
+    <button type="button" class="pb-vbtn" id="pbFullscreen" title="전체화면">
+      <i class="fa-solid fa-expand"></i><span>전체화면</span>
+    </button>
+  </header>
+
+  {% if pages %}
+  <section class="pb-stage" id="pbStage" aria-label="{{ portal.school_name }} e리플렛">
+    <button type="button" class="pb-turn prev" id="pbPrev" aria-label="이전 페이지">
+      <i class="fa-solid fa-chevron-left"></i>
+    </button>
+    <div class="pb-book" id="pbBook" aria-live="polite">
+      <div class="pb-sheet left" id="pbLeft"></div>
+      <div class="pb-sheet right" id="pbRight"></div>
+      <div class="pb-spine" aria-hidden="true"></div>
+    </div>
+    <button type="button" class="pb-turn next" id="pbNext" aria-label="다음 페이지">
+      <i class="fa-solid fa-chevron-right"></i>
+    </button>
+    <div class="pb-toast" id="pbToast" role="status" aria-live="polite"></div>
+    <div class="pb-rotate-hint" aria-hidden="true">
+      <i class="fa-solid fa-mobile-screen-button"></i> 가로로 돌리면 더 크게 볼 수 있어요
+    </div>
+  </section>
+
+  {% if toc|length > 1 %}
+  <nav class="ph-toc" id="phToc" aria-label="구성 바로 가기">
+    {% for item in toc %}<button type="button" data-first="{{ item.first }}" data-last="{{ item.first + item.count - 1 }}">{{ item.title }}</button>{% endfor %}
+  </nav>
+  {% endif %}
+
+  <footer class="pb-controls">
+    <input id="pbRange" type="range" min="1" max="{{ pages|length }}" value="1" aria-label="페이지 이동">
+    <div class="pb-status"><strong id="pbCurrent">1</strong> / {{ pages|length }}페이지</div>
+  </footer>
+  {% else %}
+  <div class="pb-viewer-empty">
+    <i class="fa-regular fa-images"></i>
+    <h2>아직 올라온 쪽이 없는 e리플렛입니다.</h2>
+  </div>
+  {% endif %}
+</main>
+
+<script id="pbPageData" type="application/json">{{ page_json|safe }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/photobook_fold.js') }}?v=20260908-leaflet-flip"></script>
+<script src="{{ url_for('static', filename='js/photobook_viewer.js') }}?v=20260908-leaflet-flip"></script>
+<script>
+(() => {
+  const range = document.getElementById('pbRange');
+  const current = document.getElementById('pbCurrent');
+  const toc = document.getElementById('phToc');
+
+  // 닫기: 학부모 홈에서 왔으면 그 화면으로, 아니면 이전 화면(없으면 창 닫기)으로 돌아간다.
+  const close = document.getElementById('closeReader');
+  if (close) {
+    close.addEventListener('click', event => {
+      if (close.getAttribute('href') !== '#') return;
+      event.preventDefault();
+      if (window.history.length > 1) window.history.back();
+      else window.close();
+    });
+  }
+  if (!range) return;
+
+  // 뷰어가 이미 가지고 있는 쪽 이동 입력칸을 움직여서 해당 쪽으로 넘긴다.
+  function goTo(page) {
+    range.value = Math.max(1, Math.min(Number(range.max), page));
+    range.dispatchEvent(new Event('input'));
+  }
+
+  function highlight() {
+    if (!toc) return;
+    const shown = parseInt(String(current.textContent).split(/[–-]/)[0], 10) || 1;
+    toc.querySelectorAll('button').forEach(button => {
+      const on = shown >= Number(button.dataset.first) && shown <= Number(button.dataset.last);
+      button.classList.toggle('on', on);
+      if (on) button.scrollIntoView({block: 'nearest', inline: 'center'});
+    });
+  }
+
+  if (toc) {
+    toc.addEventListener('click', event => {
+      const button = event.target.closest('button[data-first]');
+      if (button) goTo(Number(button.dataset.first));
+    });
+    new MutationObserver(highlight).observe(current, {childList: true, characterData: true, subtree: true});
+  }
+
+  // 주소 끝의 #p=7 로 시작 쪽을 정한다(학부모 홈의 목차 링크).
+  const start = /^#p=(\d+)$/.exec(window.location.hash || '');
+  if (start) goTo(Number(start[1]));
+  highlight();
+})();
+</script>
+{% endblock %}

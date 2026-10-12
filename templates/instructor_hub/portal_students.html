@@ -14,12 +14,8 @@
   {% for category, message in messages %}<div class="msg {{ category }}">{{ message }}</div>{% endfor %}
 
   <section class="card">
-    <h2>학부모 알림 등록 안내</h2>
-    <p class="hint">이 QR(주소)을 가정통신문이나 단체방에 올리면 학부모가 자녀 이름과 휴대폰번호를 확인한 뒤 출석 알림을 등록합니다.</p>
-    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
-      <img src="{{ url_for('instructor_hub.portal_parent_qr', token=token, class_id=info.id) }}" alt="학부모 등록 QR" style="width:150px;height:150px;border:1px solid var(--line);border-radius:12px;background:#fff">
-      <div style="flex:1 1 200px;min-width:0"><div class="muted" style="word-break:break-all">{{ parent_url }}</div></div>
-    </div>
+    <h2>학부모 안내</h2>
+    <p class="hint">학부모에게 가는 안내 링크(출석 알림·출석률·강사 소개·e리플렛·교실 안내)는 본사 담당자가 문자로 한꺼번에 보냅니다. 학생을 등록하면 다음 발송부터 자동으로 포함돼요.</p>
   </section>
 
   <section class="card">

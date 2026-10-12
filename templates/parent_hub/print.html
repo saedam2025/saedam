@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{{ portal.school_name }} 학부모 안내문</title>
+    <style>
+        *{box-sizing:border-box}
+        body{margin:0;background:#f1f5f9;font-family:Pretendard,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;color:#172033;font-weight:400}
+        .bar{display:flex;gap:10px;justify-content:center;padding:14px}
+        .bar button,.bar a{padding:10px 20px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font:inherit;font-weight:500;color:#172033;cursor:pointer;text-decoration:none}
+        .bar button.primary{background:#e78100;border-color:#e78100;color:#fff}
+        .sheet{width:min(794px,100%);margin:0 auto 40px;padding:56px 48px;background:#fff;text-align:center;box-shadow:0 10px 40px rgba(15,23,42,.08)}
+        .school{margin:0;color:#9a5a00;font-size:20px;font-weight:500}
+        h1{margin:8px 0 14px;font-size:38px;font-weight:600;letter-spacing:-.03em;line-height:1.3}
+        .lead{margin:0 auto 28px;max-width:560px;color:#475569;font-size:19px;line-height:1.7}
+        .qr{width:300px;height:300px;margin:0 auto 12px;padding:10px;border:2px solid #e2e8f0;border-radius:18px}
+        .url{margin:0 0 34px;color:#64748b;font-size:15px;word-break:break-all}
+        ol{margin:0 auto;padding:0;max-width:560px;list-style:none;text-align:left;counter-reset:step}
+        li{position:relative;margin-bottom:14px;padding:6px 0 6px 52px;font-size:18px;line-height:1.6;counter-increment:step}
+        li::before{content:counter(step);position:absolute;left:0;top:4px;width:36px;height:36px;border-radius:50%;background:#fff1d9;color:#9a5a00;font-weight:500;display:grid;place-items:center}
+        .foot{margin-top:30px;color:#94a3b8;font-size:14px}
+        @media print{body{background:#fff}.bar{display:none}.sheet{width:auto;margin:0;padding:36px 28px;box-shadow:none}}
+    </style>
+</head>
+<body>
+<div class="bar"><button class="primary" onclick="window.print()">인쇄하기</button><a href="javascript:window.close()">닫기</a></div>
+<main class="sheet">
+    <p class="school">{{ portal.school_name }}</p>
+    <h1>{{ portal.title or '방과후 학부모 안내' }}</h1>
+    <p class="lead">자녀의 출석 알림과 출석률, 강사 소개, 방과후 e리플렛, 3D 교실 안내를 한곳에서 확인하세요.</p>
+    <img class="qr" src="{{ qr }}" alt="학부모 안내 QR">
+    <p class="url">{{ url }}</p>
+    <ol>
+        <li>휴대폰 카메라로 위 QR을 찍어 주세요. (앱 설치·회원가입이 필요 없습니다)</li>
+        <li><b style="font-weight:500">자녀 이름과 보호자 휴대폰번호</b>를 한 번만 입력해 주세요. 방과후 신청 때 적은 정보와 같아야 합니다.</li>
+        <li>[출석 알림 켜기]를 누르고 알림을 허용하면, 자녀가 수업에 도착·하원할 때 휴대폰으로 알려 드립니다.</li>
+        <li>아이폰은 공유 버튼 → ‘홈 화면에 추가’ 후 추가된 아이콘으로 열어 알림을 켜 주세요.</li>
+    </ol>
+    {% if portal.notice %}<p class="lead" style="margin-top:26px;white-space:pre-wrap">{{ portal.notice }}</p>{% endif %}
+    <p class="foot">(사)새담청소년교육문화원</p>
+</main>
+</body>
+</html>

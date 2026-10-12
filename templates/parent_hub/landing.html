@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="theme-color" content="#e78100">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <title>{% if invalid %}새담 방과후학교{% else %}{{ portal.title or (portal.school_name ~ ' 방과후 학부모 안내') }}{% endif %}</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='images/parent_app/icon-192.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/parent_app/apple-touch-icon.png') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/parent_hub.css') }}?v=20261007">
+</head>
+<body>
+<main class="ph-landing">
+    <a class="ph-brand" href="#"><span class="ph-mark">S</span><span><b>새담 방과후학교</b><small>학부모 통합 안내</small></span></a>
+    {% if invalid %}
+    <section class="ph-card ph-invalid">
+        <div class="icon">🔗</div>
+        <h2>사용할 수 없는 링크입니다</h2>
+        <p class="ph-hint">{{ message }}</p>
+    </section>
+    {% else %}
+    <header class="ph-hero">
+        <p class="school">{{ portal.school_name }}</p>
+        <h1>{{ portal.title or '방과후 학부모 안내' }}</h1>
+        <p class="ph-hint" style="margin:0">자녀의 출석, 강사 소개, 방과후 e리플렛, 교실 안내를 한곳에서 확인하세요. 휴대폰과 PC 모두 같은 주소로 열립니다.</p>
+        {% if portal.notice %}<div class="notice">{{ portal.notice }}</div>{% endif %}
+    </header>
+
+    <section class="ph-card" id="check">
+        <h2>우리 아이 확인하기</h2>
+        <p class="ph-hint">방과후 신청 때 등록한 정보와 같아야 합니다. 한 번 확인하면 이 기기에서는 다시 묻지 않습니다.</p>
+        {% if error %}<div class="ph-msg error" role="alert">{{ error }}</div>{% endif %}
+        <form method="post" autocomplete="off">
+            <label class="ph-label" for="childName">자녀 이름</label>
+            <input class="ph-input" id="childName" name="child_name" type="text" maxlength="40" required
+                   value="{{ form.get('child_name', '') }}" placeholder="예) 김새담" autocomplete="off">
+            <label class="ph-label" for="phone">보호자 휴대폰번호</label>
+            <input class="ph-input" id="phone" name="phone" type="tel" inputmode="numeric" maxlength="13" required
+                   value="{{ form.get('phone', '') }}" placeholder="예) 010-1234-5678" autocomplete="off">
+            <button class="ph-btn block" type="submit" style="margin-top:18px"><i class="fa-solid fa-circle-check"></i> 확인하고 들어가기</button>
+        </form>
+        <div class="ph-feature">
+            {% if show.attendance %}<div><i class="fa-solid fa-bell"></i><span><b>출석 알림·출석률</b>도착하면 바로 알림</span></div>{% endif %}
+            {% if show.profile %}<div><i class="fa-solid fa-chalkboard-user"></i><span><b>강사 프로필</b>우리 아이 강사님 소개</span></div>{% endif %}
+            {% if show.leaflet %}<div><i class="fa-solid fa-book-open-reader"></i><span><b>방과후 e리플렛</b>학교 강좌를 한 권으로</span></div>{% endif %}
+            {% if show.guide %}<div><i class="fa-solid fa-map-location-dot"></i><span><b>3D 교실 안내</b>교실 위치와 가는 길</span></div>{% endif %}
+        </div>
+    </section>
+
+    {% set has_leaflet = show.leaflet and leaflet_pages %}
+    {% set has_guide = show.guide and guide_path %}
+    {% if has_leaflet or has_guide %}
+    <section class="ph-card">
+        <h2>확인 없이 바로 보기</h2>
+        <p class="ph-hint">학교 소개 자료는 누구나 볼 수 있어요.</p>
+        <div class="ph-links">
+            {% if has_leaflet %}
+            <a class="ph-link" href="{{ url_for('parent_hub.hub_leaflet', token=token) }}">
+                <i class="fa-solid fa-book-open-reader"></i>
+                <div><strong>방과후 e리플렛</strong><span>{{ leaflet_pages }}쪽 · {{ leaflet_toc|length }}개 구성</span></div><b class="go">보기 ›</b>
+            </a>
+            {% endif %}
+            {% if has_guide %}
+            <a class="ph-link" href="{{ guide_path }}">
+                <i class="fa-solid fa-map-location-dot"></i>
+                <div><strong>3D 교실 안내도</strong><span>정문에서 교실까지 가는 길</span></div><b class="go">보기 ›</b>
+            </a>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
+    <p class="ph-privacy">자녀의 출석 정보는 확인된 보호자에게만 보입니다.<br>이 링크는 학교 안내용이며 인트라넷 계정이 필요하지 않습니다.</p>
+    {% endif %}
+</main>
+</body>
+</html>
