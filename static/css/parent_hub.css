@@ -1,0 +1,219 @@
+/* 학부모통합지원 공개 화면(학교 링크·학부모 홈·리플렛).
+   모바일을 기본으로 만들고, 960px 이상에서는 왼쪽 메뉴가 있는 PC 화면으로 바뀝니다. */
+:root{
+  color-scheme:light;
+  --ph-orange:#e78100;--ph-orange2:#ff9d1b;--ph-orange-soft:#fff1d9;--ph-orange-ink:#9a5a00;
+  --ph-ink:#172033;--ph-muted:#6b7487;--ph-line:#ece7dc;--ph-bg:#fff9f0;--ph-card:#fff;
+  --ph-ok:#169b62;--ph-ok-soft:#e5f6ee;--ph-late:#c47a00;--ph-late-soft:#fff2d6;
+  --ph-bad:#d34848;--ph-bad-soft:#fdeaea;--ph-blue:#2f6fbb;--ph-blue-soft:#e8f0fb;
+  --ph-shadow:0 10px 28px rgba(34,44,70,.09);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:linear-gradient(160deg,#fff3dc,#f6f8fc 62%);color:var(--ph-ink);min-height:100vh;
+  font-family:Pretendard,"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",sans-serif;font-size:16px;line-height:1.6;
+  -webkit-text-size-adjust:100%;word-break:keep-all;overflow-wrap:break-word}
+a{color:var(--ph-orange-ink)}
+[hidden]{display:none!important}
+button{font:inherit}
+
+/* ---- 공통 부품 ---- */
+.ph-card{background:var(--ph-card);border:1px solid rgba(231,129,0,.16);border-radius:22px;box-shadow:var(--ph-shadow);
+  padding:20px;margin-bottom:14px}
+.ph-card h2{margin:0 0 4px;font-size:1.1rem;font-weight:900}
+.ph-card h3{margin:0;font-size:1rem;font-weight:900}
+.ph-hint{margin:0 0 12px;color:var(--ph-muted);font-size:.9rem}
+.ph-note{margin:10px 0 0;color:var(--ph-muted);font-size:.84rem}
+.ph-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:11px 20px;border:0;
+  border-radius:14px;background:linear-gradient(135deg,var(--ph-orange),var(--ph-orange2));color:#fff;font-weight:900;
+  font-size:1rem;text-decoration:none;cursor:pointer;box-shadow:0 8px 18px rgba(231,129,0,.22)}
+.ph-btn.block{display:flex;width:100%}
+.ph-btn.ghost{background:#fff;color:var(--ph-orange-ink);border:2px solid #ffc46f;box-shadow:none}
+.ph-btn.sm{min-height:40px;padding:8px 14px;font-size:.9rem;border-radius:12px}
+.ph-btn:disabled{filter:grayscale(.6);opacity:.65;cursor:not-allowed}
+.ph-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 11px;border-radius:99px;font-size:.82rem;font-weight:900;
+  background:#f0eee8;color:#5d6678;white-space:nowrap}
+.ph-chip.ok{background:var(--ph-ok-soft);color:#0f7a4b}
+.ph-chip.late{background:var(--ph-late-soft);color:var(--ph-late)}
+.ph-chip.absent{background:var(--ph-bad-soft);color:#b53a3a}
+.ph-chip.info{background:var(--ph-blue-soft);color:var(--ph-blue)}
+.ph-empty{padding:18px 8px;text-align:center;color:var(--ph-muted);font-size:.92rem}
+.ph-msg{padding:12px 14px;border-radius:12px;font-weight:800;font-size:.92rem;margin:12px 0}
+.ph-msg.error{background:var(--ph-bad-soft);color:#a83232}
+.ph-msg.ok{background:var(--ph-ok-soft);color:#0f7a4b}
+.ph-mark{display:grid;place-items:center;width:40px;height:40px;border-radius:13px;background:var(--ph-orange);color:#fff;
+  font-weight:900;font-size:1.15rem;flex:none}
+.ph-brand{display:flex;align-items:center;gap:11px;color:var(--ph-ink);text-decoration:none}
+.ph-brand b{display:block;font-size:1.05rem;line-height:1.25}
+.ph-brand small{display:block;color:var(--ph-muted);font-size:.8rem;font-weight:700}
+.ph-input{width:100%;padding:14px 15px;border:1px solid #d9d3c6;border-radius:13px;background:#fffdf9;font:inherit;color:var(--ph-ink)}
+.ph-input:focus{outline:3px solid #ffd49a;border-color:var(--ph-orange)}
+.ph-label{display:block;margin:14px 0 6px;font-weight:900;font-size:.92rem}
+.ph-ring{--p:0;--c:var(--ph-ok);flex:none;width:74px;height:74px;border-radius:50%;display:grid;place-items:center;
+  background:conic-gradient(var(--c) calc(var(--p)*1%),#eee8dc 0)}
+.ph-ring span{display:grid;place-items:center;width:58px;height:58px;border-radius:50%;background:#fff;font-weight:900;font-size:1.05rem}
+.ph-ring.mid{--c:var(--ph-late)}.ph-ring.low{--c:var(--ph-bad)}.ph-ring.none{--c:#cfc8b8}
+.ph-ring.none span{font-size:.78rem;color:var(--ph-muted)}
+
+/* ---- 학교 링크(첫 화면) ---- */
+.ph-landing{width:min(680px,100%);margin:0 auto;padding:22px 16px calc(40px + env(safe-area-inset-bottom))}
+.ph-hero{background:linear-gradient(145deg,#fff,#fff3dc);border:1px solid rgba(231,129,0,.2);border-radius:26px;padding:26px 22px;
+  box-shadow:var(--ph-shadow);margin:14px 0}
+.ph-hero p.school{margin:0;font-size:.86rem;font-weight:900;color:var(--ph-orange-ink)}
+.ph-hero h1{margin:4px 0 8px;font-size:1.55rem;line-height:1.35}
+.ph-hero .notice{margin-top:12px;padding:12px 14px;background:#ffffffc8;border-radius:13px;white-space:pre-wrap;font-size:.94rem}
+.ph-feature{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 4px}
+.ph-feature div{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:14px;background:#fffaf1;border:1px solid var(--ph-line);font-size:.88rem}
+.ph-feature i{color:var(--ph-orange);margin-top:3px}
+.ph-feature b{display:block;font-size:.95rem}
+.ph-links{display:grid;gap:10px;margin-top:12px}
+.ph-link{display:flex;align-items:center;gap:12px;padding:15px 16px;border:1px solid var(--ph-line);border-radius:16px;background:#fffdf9;
+  color:var(--ph-ink);text-decoration:none}
+.ph-link i{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--ph-orange-soft);color:var(--ph-orange)}
+.ph-link strong{display:block}
+.ph-link span{font-size:.84rem;color:var(--ph-muted)}
+.ph-link .go{margin-left:auto;font-weight:900;color:var(--ph-orange-ink)}
+.ph-privacy{font-size:.78rem;color:#8a91a0;text-align:center;line-height:1.6;padding:6px 12px}
+.ph-invalid{text-align:center;padding:48px 22px}
+.ph-invalid .icon{font-size:3rem;margin-bottom:12px}
+
+/* ---- 학부모 홈(앱 틀) ---- */
+.ph-shell{min-height:100vh}
+.ph-side{display:contents}
+.ph-side .ph-brand,.ph-side .ph-who{display:none}
+.ph-nav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;background:#fff;border-top:1px solid var(--ph-line);
+  box-shadow:0 -6px 20px rgba(34,44,70,.08);padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+.ph-nav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 2px;border-radius:12px;text-decoration:none;
+  color:var(--ph-muted);font-size:.74rem;font-weight:800;min-width:0}
+.ph-nav a i{font-size:1.15rem}
+.ph-nav a.on{color:var(--ph-orange);background:var(--ph-orange-soft)}
+.ph-main{width:min(720px,100%);margin:0 auto;padding:14px 14px calc(96px + env(safe-area-inset-bottom))}
+.ph-top{display:flex;align-items:center;gap:10px;margin:2px 2px 14px}
+.ph-top .who{margin-left:auto;text-align:right;font-size:.82rem;color:var(--ph-muted);font-weight:700;line-height:1.35}
+.ph-top .who a{display:block;font-size:.76rem}
+.ph-greet{background:linear-gradient(145deg,#fff,#fff3dc);border:1px solid rgba(231,129,0,.2);border-radius:24px;padding:20px;
+  box-shadow:var(--ph-shadow);margin-bottom:14px}
+.ph-greet h1{margin:0;font-size:1.35rem;line-height:1.4}
+.ph-greet p{margin:6px 0 0;color:var(--ph-muted);font-size:.92rem}
+.ph-greet .notice{margin-top:12px;padding:11px 13px;background:#ffffffc8;border-radius:12px;white-space:pre-wrap;font-size:.92rem}
+.ph-status{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:13px;background:#f5f4ef;margin:12px 0;
+  font-size:.9rem;line-height:1.55}
+.ph-status.ok{background:var(--ph-ok-soft);color:#0f7a4b}
+.ph-status.bad{background:var(--ph-bad-soft);color:#a83232}
+.ph-status .dot{width:10px;height:10px;border-radius:50%;background:#b3b0a5;margin-top:6px;flex:none}
+.ph-status.ok .dot{background:var(--ph-ok)}.ph-status.bad .dot{background:var(--ph-bad)}
+.ph-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.ph-tile{display:flex;flex-direction:column;gap:6px;padding:14px;border-radius:16px;background:#fffaf1;border:1px solid var(--ph-line);
+  color:var(--ph-ink);text-decoration:none;font-weight:900}
+.ph-tile i{color:var(--ph-orange);font-size:1.3rem}
+.ph-tile small{font-weight:700;color:var(--ph-muted);font-size:.8rem}
+
+/* 자녀·과목 카드 */
+.ph-child-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.ph-avatar{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;background:var(--ph-orange-soft);color:var(--ph-orange);
+  font-weight:900;font-size:1.2rem;flex:none}
+.ph-child-head small{display:block;color:var(--ph-muted);font-size:.84rem;font-weight:700}
+.ph-class{display:flex;gap:14px;align-items:center;padding:14px;border:1px solid var(--ph-line);border-radius:16px;background:#fffdf9;margin-top:10px}
+.ph-class .body{flex:1;min-width:0}
+.ph-class .body strong{display:block;font-size:1.02rem}
+.ph-class .body .meta{font-size:.84rem;color:var(--ph-muted)}
+.ph-class .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.ph-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.ph-pills a{padding:9px 16px;border-radius:99px;border:1px solid #ffd49a;background:#fff;color:var(--ph-orange-ink);text-decoration:none;font-weight:900;font-size:.92rem}
+.ph-pills a.on{background:var(--ph-orange);border-color:var(--ph-orange);color:#fff}
+
+/* 출석 탭 */
+.ph-today{display:flex;gap:14px;align-items:center;padding:16px;border-radius:18px;background:#fffaf1;border:1px solid var(--ph-line);margin:12px 0}
+.ph-today .big{font-size:1.4rem;font-weight:900;line-height:1.2}
+.ph-today .big.ok{color:#0f7a4b}.ph-today .big.late{color:var(--ph-late)}.ph-today .big.absent{color:#b53a3a}
+.ph-today .sub{font-size:.88rem;color:var(--ph-muted)}
+.ph-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
+.ph-stats div{padding:10px 4px;text-align:center;border-radius:14px;background:#faf8f3;border:1px solid var(--ph-line)}
+.ph-stats b{display:block;font-size:1.25rem;line-height:1.3}
+.ph-stats span{font-size:.76rem;color:var(--ph-muted);font-weight:800}
+.ph-stats .ok b{color:#0f7a4b}.ph-stats .late b{color:var(--ph-late)}.ph-stats .absent b{color:#b53a3a}
+.ph-monthbar{display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px}
+.ph-monthbar strong{font-size:1.02rem}
+.ph-monthbar a,.ph-monthbar span.off{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;border:1px solid var(--ph-line);
+  color:var(--ph-orange-ink);text-decoration:none;font-weight:900;background:#fff}
+.ph-monthbar span.off{opacity:.3}
+.ph-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.ph-cal .dow{text-align:center;font-size:.76rem;font-weight:900;color:var(--ph-muted);padding:2px 0}
+.ph-cal .dow:first-child{color:#d34848}.ph-cal .dow:last-child{color:var(--ph-blue)}
+.ph-cal .cell{position:relative;min-height:46px;border-radius:11px;padding:4px 2px;text-align:center;background:#faf8f3;border:1px solid transparent;
+  font-size:.82rem;font-weight:800}
+.ph-cal .cell.blank{background:none}
+.ph-cal .cell .tag{display:block;margin:2px auto 0;width:22px;height:18px;line-height:18px;border-radius:6px;font-size:.7rem;font-weight:900;color:#fff}
+.ph-cal .cell.ok .tag{background:var(--ph-ok)}
+.ph-cal .cell.late .tag{background:#e2a000}
+.ph-cal .cell.absent .tag{background:var(--ph-bad)}
+.ph-cal .cell.classday{border-color:#ffd49a;background:#fff8ea}
+.ph-cal .cell.future{opacity:.45}
+.ph-cal .cell.today{outline:2px solid var(--ph-orange);outline-offset:-2px}
+.ph-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:.78rem;color:var(--ph-muted);font-weight:700}
+.ph-legend i{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:4px;vertical-align:-1px}
+.ph-recent{margin:0;padding:0;list-style:none}
+.ph-recent li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--ph-line);font-size:.92rem}
+.ph-recent li:first-child{border-top:0}
+.ph-recent .date{font-weight:800;min-width:76px}
+.ph-recent .time{margin-left:auto;color:var(--ph-muted);font-size:.84rem}
+
+/* 강사 탭 */
+.ph-teacher{display:flex;gap:14px;padding:14px 0;border-top:1px solid var(--ph-line)}
+.ph-teacher:first-of-type{border-top:0}
+.ph-teacher img,.ph-teacher .ph-photo{width:88px;height:88px;border-radius:50%;object-fit:cover;flex:0 0 88px;background:#f1ece0}
+.ph-teacher .ph-photo{display:grid;place-items:center;font-size:2rem;color:#c3b9a2}
+.ph-teacher h3{margin-bottom:4px}
+.ph-teacher p{margin:0;font-size:.93rem;white-space:pre-wrap}
+.ph-teacher .soon{color:var(--ph-muted);font-size:.88rem}
+
+/* 리플렛·교실안내 탭 */
+.ph-cover{display:flex;gap:16px;align-items:center}
+.ph-cover img,.ph-cover .ph-noimg{width:110px;aspect-ratio:3/4;object-fit:cover;border-radius:12px;border:1px solid var(--ph-line);background:#f7f2e7;flex:none;
+  box-shadow:0 8px 20px rgba(34,44,70,.12)}
+.ph-cover .ph-noimg{display:grid;place-items:center;color:#c3b9a2;font-size:2rem}
+.ph-toc-list{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 14px}
+.ph-toc-list a{padding:5px 12px;border-radius:99px;background:#fff4df;color:var(--ph-orange-ink);text-decoration:none;font-size:.82rem;font-weight:800}
+.ph-frame{width:100%;height:min(70vh,640px);min-height:380px;border:1px solid var(--ph-line);border-radius:16px;background:#eef3f9;margin-top:12px}
+.ph-roomlist{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.ph-roomlist a{display:block;padding:9px 14px;border-radius:13px;background:var(--ph-blue-soft);color:var(--ph-blue);text-decoration:none;font-weight:800;font-size:.88rem}
+.ph-roomlist a small{display:block;font-weight:700;color:#59749a}
+
+/* 알림 */
+.ph-notice{border-left:4px solid #ffc46f;padding:10px 12px;margin:12px 0;background:#fffaf2;border-radius:0 12px 12px 0}
+.ph-notice .head{display:flex;justify-content:space-between;gap:12px;font-size:.8rem;color:var(--ph-muted)}
+.ph-notice h3{margin:4px 0;font-size:.98rem}
+.ph-notice p{margin:0;white-space:pre-wrap;font-size:.92rem;line-height:1.55}
+
+/* ---- 리플렛 펼쳐 보기: 쪽 이동 목차 ---- */
+.ph-toc{flex:0 0 auto;display:flex;gap:6px;overflow-x:auto;padding:8px 12px;background:rgba(2,6,23,.58);border-top:1px solid rgba(255,255,255,.08);
+  -webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.ph-toc button{flex:none;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#e2e8f0;padding:6px 13px;border-radius:99px;
+  font-size:.8rem;font-weight:800;cursor:pointer;white-space:nowrap}
+.ph-toc button.on{background:#14b8a6;border-color:#14b8a6;color:#042f2e}
+
+/* ---- PC 화면(넓은 화면) ---- */
+@media (min-width:960px){
+  .ph-shell{display:grid;grid-template-columns:260px 1fr;align-items:start}
+  .ph-side{display:flex;flex-direction:column;gap:22px;position:sticky;top:0;height:100vh;padding:28px 18px;
+    background:#fffdf8;border-right:1px solid var(--ph-line)}
+  .ph-side .ph-brand,.ph-side .ph-who{display:flex}
+  .ph-side .ph-who{margin-top:auto;flex-direction:column;gap:2px;font-size:.88rem;color:var(--ph-muted);font-weight:700}
+  .ph-nav{position:static;display:flex;flex-direction:column;gap:4px;background:none;border:0;box-shadow:none;padding:0}
+  .ph-nav a{flex-direction:row;gap:12px;justify-content:flex-start;padding:12px 14px;font-size:.98rem;border-radius:14px}
+  .ph-nav a i{width:22px;text-align:center}
+  .ph-main{width:min(980px,100%);margin:0;padding:34px 40px 60px}
+  .ph-top{display:none}
+  .ph-greet h1{font-size:1.6rem}
+  .ph-card{padding:24px}
+  .ph-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+  .ph-cols>.ph-card{margin-bottom:0}
+  .ph-landing{padding-top:48px}
+  .ph-frame{height:70vh}
+}
+@media (max-width:420px){
+  .ph-feature{grid-template-columns:1fr}
+  .ph-stats{gap:6px}
+  .ph-class{flex-direction:column;align-items:flex-start}
+  .ph-cover img,.ph-cover .ph-noimg{width:90px}
+}
