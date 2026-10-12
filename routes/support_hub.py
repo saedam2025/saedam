@@ -85,6 +85,15 @@ def _school_state(conn):
     return schools, legacy, pending_total
 
 
+def _subject_options(conn, school_name, edit_class=None):
+    """과목명 선택 상자의 항목. 수정 중인 과목의 예전 과목명이 목록에 없어도 사라지지 않게 더한다."""
+    options = list(hub.school_departments(conn, school_name))
+    old = (edit_class or {}).get('department') or ''
+    if old and old not in options:
+        options.append(old)
+    return options
+
+
 def _roster_context(conn, selected):
     """② 과목·학생 탭: 이 학교의 과목 목록, 고른 과목의 명단, 과목 입력 양식."""
     school_name = selected['name']
@@ -98,12 +107,15 @@ def _roster_context(conn, selected):
     current = next((c for c in classes if c['id'] == wanted), classes[0] if classes else None)
     students = sa._roster(conn, current['id']) if current else []
     edit = _int(request.args.get('edit'))
+    edit_class = next((c for c in classes if c['id'] == edit), None) if edit else None
     return {
         'classes': classes, 'current': current, 'students': students,
-        'edit_class': next((c for c in classes if c['id'] == edit), None) if edit else None,
+        'edit_class': edit_class,
         'edit_student': _int(request.args.get('student')),
         'hub_people': hub.school_instructors(conn, school_name),
         'departments': hub._department_suggestions(conn, school_name),
+        # 과목명 선택 상자: [강사 등록·관리]에 이 학교 강사로 등록한 강의부서
+        'subject_options': _subject_options(conn, school_name, edit_class),
         'weekday_labels': sa.WEEKDAY_LABELS,
         'can_edit': selected['matched'],
     }
@@ -215,6 +227,12 @@ def save_class():
     conn = get_db()
     try:
         school_id, school_name = _school_by_name(conn, request.form.get('school_name'))
+        if not _text(request.form.get('department'), 40):
+            flash('과목명을 골라 주세요. 목록이 비어 있으면 [강사 등록·관리]에서 강사를 먼저 등록해 주세요.', 'error')
+            return _back('roster', school_name)
+        if not _text(request.form.get('class_name'), 60):
+            flash('강의반을 입력해 주세요. 예) 로봇과학A', 'error')
+            return _back('roster', school_name)
         data = {
             'school_id': school_id, 'id': _int(request.form.get('id')),
             'class_name': request.form.get('class_name'), 'department': request.form.get('department'),
@@ -231,7 +249,7 @@ def save_class():
     if error:
         flash(error, 'error')
         return _back('roster', school_name)
-    flash(f"{_text(data['class_name'], 60)} 과목을 저장했습니다. 아래에서 수강생을 등록해 주세요.", 'success')
+    flash(f"{_text(data['class_name'], 60)} 강의반을 저장했습니다. 아래에서 수강생을 등록해 주세요.", 'success')
     return _back('roster', school_name, **{'class': class_id})
 
 
