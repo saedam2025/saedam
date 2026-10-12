@@ -249,5 +249,26 @@ details.ih-more summary{cursor:pointer;font-size:.86rem;font-weight:500}
 .ih-method code{font-size:.74rem}
 .ih-vars{margin:0 0 4px}
 .ih-vars td,.ih-vars th{padding:7px 10px;font-size:.8rem}
+.ih-designs{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.ih-design{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--ih-border);border-radius:14px;background:#fff;color:var(--ih-text);font-weight:400;cursor:pointer}
+.ih-design:has(input:checked){border-color:var(--ih-primary);box-shadow:0 0 0 3px var(--ih-primary-ring);background:var(--ih-primary-soft)}
+.ih-design .top{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:600}
+.ih-design .top input{margin:0;width:auto}
+.ih-design small{color:var(--ih-muted);font-size:.78rem;line-height:1.5}
+.ih-design ul{margin:0;padding-left:18px;color:var(--ih-muted);font-size:.78rem;line-height:1.6}
+.ih-design .mock{height:92px;border-radius:11px;padding:9px 11px;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.ih-design .mock i{display:block;height:9px;border-radius:5px}
+.ih-design .mock .bar{display:flex;gap:5px;margin-top:auto}
+.ih-design .mock .bar b{flex:1;height:14px;border-radius:7px}
+.ih-design.classic .mock{background:linear-gradient(160deg,#fff3dc,#f6f8fc)}
+.ih-design.classic .mock i:nth-child(1){width:55%;background:#e78100}
+.ih-design.classic .mock i:nth-child(2){width:80%;background:#f3d9aa}
+.ih-design.classic .mock .bar b{background:#fff1d9}
+.ih-design.classic .mock .bar b:first-child{background:#e78100}
+.ih-design.neo .mock{background:linear-gradient(150deg,#0b1224,#1e1b4b 58%,#134e63)}
+.ih-design.neo .mock i:nth-child(1){width:55%;background:#67e8f9}
+.ih-design.neo .mock i:nth-child(2){width:80%;background:rgba(255,255,255,.28)}
+.ih-design.neo .mock .bar b{background:rgba(255,255,255,.14)}
+.ih-design.neo .mock .bar b:first-child{background:linear-gradient(135deg,#4f46e5,#0e7490)}
 @media (max-width:560px){.ih-who{grid-template-columns:auto minmax(0,1fr)}.ih-who .who-kids,.ih-who .who-tags{grid-column:2}}
 </style>
