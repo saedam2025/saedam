@@ -1,0 +1,161 @@
+/* 학부모 화면 [네오 디자인] — parent_hub.css 다음에 불러와 색·모양만 덮어씁니다.
+   (본사 [학부모 안내] 탭 > 학부모 화면 디자인에서 고른 학교에만 적용됩니다.)
+   방향: 선명한 남색 바탕 + 청록 포인트, 유리 느낌 카드, 더 진한 글자색과 또렷한 상태 색.
+   글자 대비는 흰 바탕 기준 본문 7:1 이상, 상태 글자 5:1 이상을 지켰습니다. */
+
+body.ph-d-neo{
+  --ph-orange:#4f46e5;--ph-orange2:#0e7490;--ph-orange-soft:#e9ecff;--ph-orange-ink:#3730a3;
+  --ph-ink:#0b1324;--ph-muted:#475569;--ph-line:#dde3f3;--ph-bg:#eef2fb;--ph-card:#fff;
+  --ph-ok:#059669;--ph-ok-soft:#d5f5e6;--ph-late:#b45309;--ph-late-soft:#ffecc4;
+  --ph-bad:#dc2626;--ph-bad-soft:#fee2e2;--ph-blue:#0369a1;--ph-blue-soft:#e0f2fe;
+  --ph-shadow:0 14px 34px rgba(15,23,42,.09);
+  --neo-grad:linear-gradient(135deg,#4338ca 0%,#0e7490 100%);
+  --neo-dark:linear-gradient(150deg,#0b1224 0%,#1e1b4b 58%,#134e63 100%);
+  background:#eef2fb;
+  font-size:16.5px;letter-spacing:-.012em;
+}
+/* 배경 빛: background-attachment:fixed는 아이폰에서 깨지기 쉬워 고정 막으로 깐다 */
+body.ph-d-neo::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(900px 520px at 88% -8%,rgba(34,211,238,.20),transparent 62%),
+    radial-gradient(760px 480px at -6% 4%,rgba(99,102,241,.22),transparent 60%),
+    #eef2fb}
+
+/* ---- 공통 부품 ---- */
+.ph-d-neo a:focus-visible,.ph-d-neo button:focus-visible,.ph-d-neo input:focus-visible{outline:3px solid #22d3ee;outline-offset:2px}
+.ph-d-neo .ph-card{background:rgba(255,255,255,.96);
+  border:1px solid rgba(99,102,241,.14);border-radius:24px;box-shadow:var(--ph-shadow)}
+.ph-d-neo .ph-card h2{font-size:1.14rem;font-weight:800;letter-spacing:-.02em}
+.ph-d-neo .ph-card h3{font-weight:800}
+.ph-d-neo .ph-hint{color:var(--ph-muted)}
+.ph-d-neo .ph-note{color:#52607a}
+.ph-d-neo .ph-btn{background:var(--neo-grad);border-radius:16px;font-weight:800;letter-spacing:-.01em;min-height:52px;
+  box-shadow:0 12px 26px rgba(67,56,202,.30)}
+.ph-d-neo .ph-btn.ghost{background:#fff;color:#3730a3;border:2px solid #c3c9fb;box-shadow:none}
+.ph-d-neo .ph-btn:active{transform:translateY(1px)}
+.ph-d-neo .ph-chip{font-weight:800;background:#e8ecf6;color:#334155}
+.ph-d-neo .ph-chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.75}
+.ph-d-neo .ph-chip.ok{background:#d5f5e6;color:#065f46}
+.ph-d-neo .ph-chip.late{background:#ffecc4;color:#92400e}
+.ph-d-neo .ph-chip.absent{background:#fee2e2;color:#991b1b}
+.ph-d-neo .ph-chip.info{background:#e0f2fe;color:#075985}
+.ph-d-neo .ph-empty{color:#52607a}
+.ph-d-neo .ph-msg{border-radius:14px}
+.ph-d-neo .ph-msg.error{background:#fee2e2;color:#991b1b}
+.ph-d-neo .ph-msg.ok{background:#d5f5e6;color:#065f46}
+.ph-d-neo .ph-mark{background:var(--neo-grad);border-radius:14px;box-shadow:0 8px 20px rgba(14,116,144,.35);font-weight:800}
+.ph-d-neo .ph-brand small{color:#52607a}
+.ph-d-neo .ph-input{background:#f7f9ff;border:1.5px solid #c5cde2;border-radius:15px;padding:15px 16px;font-size:1.02rem}
+.ph-d-neo .ph-input:focus{outline:3px solid rgba(79,70,229,.28);border-color:#4f46e5;background:#fff}
+.ph-d-neo .ph-label{font-weight:800;color:var(--ph-ink)}
+.ph-d-neo .ph-ring{background:conic-gradient(var(--c) calc(var(--p)*1%),#e1e6f4 0);box-shadow:0 6px 16px rgba(15,23,42,.10)}
+.ph-d-neo .ph-ring span{font-weight:800;color:var(--ph-ink)}
+.ph-d-neo .ph-ring.none{--c:#c7cfdf}
+.ph-d-neo .ph-ring.none span{color:#52607a}
+
+/* ---- 학교 링크(첫 화면)·인사 카드: 짙은 남색 + 청록 빛 ---- */
+.ph-d-neo .ph-hero,.ph-d-neo .ph-greet{position:relative;overflow:hidden;color:#fff;background:var(--neo-dark);
+  border:1px solid rgba(255,255,255,.08);border-radius:28px;box-shadow:0 22px 44px rgba(11,18,36,.30)}
+.ph-d-neo .ph-hero::after,.ph-d-neo .ph-greet::after{content:"";position:absolute;right:-70px;top:-70px;width:220px;height:220px;border-radius:50%;
+  background:radial-gradient(circle,rgba(34,211,238,.45),transparent 68%);pointer-events:none}
+.ph-d-neo .ph-hero>*,.ph-d-neo .ph-greet>*{position:relative;z-index:1}
+.ph-d-neo .ph-hero p.school{color:#67e8f9;font-weight:800;letter-spacing:.02em}
+.ph-d-neo .ph-hero h1,.ph-d-neo .ph-greet h1{color:#fff;font-weight:800;letter-spacing:-.025em}
+.ph-d-neo .ph-hero .ph-hint,.ph-d-neo .ph-greet p{color:#cfd8ea}
+.ph-d-neo .ph-hero .notice,.ph-d-neo .ph-greet .notice{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);
+  color:#fff;border-radius:16px}
+.ph-d-neo .ph-hero .notice b,.ph-d-neo .ph-greet .notice b{color:#67e8f9}
+.ph-d-neo .ph-feature div{background:#f5f7ff;border:1px solid var(--ph-line);border-radius:16px}
+.ph-d-neo .ph-feature i{color:#4f46e5}
+.ph-d-neo .ph-link{background:#f7f9ff;border:1px solid var(--ph-line);border-radius:18px}
+.ph-d-neo .ph-link i{background:var(--neo-grad);color:#fff;border-radius:13px}
+.ph-d-neo .ph-link .go{color:#3730a3}
+.ph-d-neo .ph-privacy{color:#52607a}
+
+/* ---- 앱 틀: 모바일은 떠 있는 유리 탭바, PC는 짙은 사이드바 ---- */
+.ph-d-neo .ph-nav{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));padding:6px;border:1px solid rgba(255,255,255,.10);
+  border-radius:24px;background:rgba(11,18,36,.93);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+  box-shadow:0 18px 40px rgba(11,18,36,.38)}
+.ph-d-neo .ph-nav a{color:#aab6cf;font-weight:700;border-radius:18px;padding:8px 2px;min-height:56px;justify-content:center}
+.ph-d-neo .ph-nav a i{font-size:1.2rem}
+.ph-d-neo .ph-nav a.on{color:#fff;background:linear-gradient(135deg,rgba(99,102,241,.95),rgba(14,116,144,.95));
+  box-shadow:0 8px 18px rgba(14,116,144,.35)}
+.ph-d-neo .ph-main{padding-bottom:calc(112px + env(safe-area-inset-bottom))}
+.ph-d-neo .ph-top .who{color:var(--ph-muted)}
+
+/* 자녀·과목 카드 */
+.ph-d-neo .ph-avatar{background:var(--neo-grad);color:#fff;font-weight:800;box-shadow:0 8px 18px rgba(67,56,202,.30)}
+.ph-d-neo .ph-child-head small{color:var(--ph-muted)}
+.ph-d-neo .ph-class{background:#f6f8ff;border:1px solid var(--ph-line);border-radius:18px;box-shadow:inset 4px 0 0 #4f46e5}
+.ph-d-neo .ph-class .body strong{font-weight:800}
+.ph-d-neo .ph-class .body .meta{color:var(--ph-muted)}
+.ph-d-neo .ph-pills a{border:1.5px solid #c3c9fb;color:#3730a3;font-weight:800;background:#fff}
+.ph-d-neo .ph-pills a.on{background:var(--neo-grad);border-color:transparent;color:#fff}
+.ph-d-neo .ph-tile{background:#f6f8ff;border:1px solid var(--ph-line);border-radius:18px;font-weight:800}
+.ph-d-neo .ph-tile i{color:#4f46e5}
+.ph-d-neo .ph-status{background:#eef1f8;border-radius:14px}
+.ph-d-neo .ph-status.ok{background:#d5f5e6;color:#065f46}
+.ph-d-neo .ph-status.bad{background:#fee2e2;color:#991b1b}
+
+/* 출석 탭 */
+.ph-d-neo .ph-today{background:#f1f4ff;border:1px solid #d6dcf7;border-radius:20px}
+.ph-d-neo .ph-today .big{font-weight:800}
+.ph-d-neo .ph-today .big.ok{color:#047857}.ph-d-neo .ph-today .big.late{color:#b45309}.ph-d-neo .ph-today .big.absent{color:#b91c1c}
+.ph-d-neo .ph-stats div{background:#f6f8ff;border:1px solid var(--ph-line);border-radius:16px;padding:12px 4px}
+.ph-d-neo .ph-stats b{font-size:1.45rem;font-weight:800}
+.ph-d-neo .ph-stats span{color:#475569;font-weight:700}
+.ph-d-neo .ph-stats .ok b{color:#047857}.ph-d-neo .ph-stats .late b{color:#b45309}.ph-d-neo .ph-stats .absent b{color:#b91c1c}
+.ph-d-neo .ph-monthbar a,.ph-d-neo .ph-monthbar span.off{border:1.5px solid #c3c9fb;color:#3730a3}
+.ph-d-neo .ph-cal .dow{color:#475569;font-weight:800}
+.ph-d-neo .ph-cal .dow:first-child{color:#dc2626}.ph-d-neo .ph-cal .dow:last-child{color:#0369a1}
+.ph-d-neo .ph-cal .cell{background:#f3f5fc;border-radius:12px;font-weight:700}
+.ph-d-neo .ph-cal .cell.classday{border-color:#a9b4f5;background:#e9ecff}
+.ph-d-neo .ph-cal .cell.today{outline:2.5px solid #4f46e5}
+.ph-d-neo .ph-cal .cell.ok .tag{background:#059669}
+.ph-d-neo .ph-cal .cell.late .tag{background:#d97706}
+.ph-d-neo .ph-cal .cell.absent .tag{background:#dc2626}
+.ph-d-neo .ph-cal .cell .tag{border-radius:7px;font-weight:800}
+.ph-d-neo .ph-legend{color:#475569;font-weight:700}
+.ph-d-neo .ph-legend i[style*="e2a000"]{background:#d97706!important}
+.ph-d-neo .ph-legend i[style*="fff8ea"]{background:#e9ecff!important;border-color:#a9b4f5!important}
+.ph-d-neo .ph-recent li{border-top-color:var(--ph-line)}
+.ph-d-neo .ph-recent .time{color:#52607a}
+
+/* 강사·리플렛·교실안내·알림 */
+.ph-d-neo .ph-teacher{border-top-color:var(--ph-line)}
+.ph-d-neo .ph-teacher img,.ph-d-neo .ph-teacher .ph-photo{border:3px solid #dfe4ff;background:#eef1fb}
+.ph-d-neo .ph-teacher .soon{color:#52607a}
+.ph-d-neo .ph-cover img,.ph-d-neo .ph-cover .ph-noimg{border-color:var(--ph-line);border-radius:14px;box-shadow:0 14px 28px rgba(15,23,42,.18)}
+.ph-d-neo .ph-toc-list a{background:#e9ecff;color:#3730a3;font-weight:800}
+.ph-d-neo .ph-frame{border-color:var(--ph-line);border-radius:18px;background:#eaf0fb}
+.ph-d-neo .ph-roomlist a{background:#e0f2fe;color:#075985;border-radius:14px;font-weight:800}
+.ph-d-neo .ph-roomlist a small{color:#0c6a99}
+.ph-d-neo .ph-notice{border-left:4px solid #4f46e5;background:#f5f7ff;border-radius:0 14px 14px 0}
+.ph-d-neo .ph-notice .head{color:#52607a}
+
+/* 본사 담당자용 미리보기 안내 띠 */
+.ph-d-neo .ph-demo{background:#0b1224;border:1px solid rgba(255,255,255,.12)}
+.ph-d-neo .ph-demo b{color:#67e8f9}
+
+/* 살짝 떠오르며 나타나는 효과(움직임을 줄인 기기에서는 끔) */
+@media (prefers-reduced-motion:no-preference){
+  .ph-d-neo .ph-card,.ph-d-neo .ph-greet,.ph-d-neo .ph-hero{animation:neoRise .45s cubic-bezier(.2,.7,.2,1) both}
+  .ph-d-neo .ph-card:nth-of-type(2){animation-delay:.05s}
+  .ph-d-neo .ph-card:nth-of-type(3){animation-delay:.1s}
+}
+@keyframes neoRise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* ---- PC 화면 ---- */
+@media (min-width:960px){
+  .ph-d-neo .ph-side{background:linear-gradient(180deg,#0b1224,#1a1745 70%,#12485c);border-right:0;color:#e2e8f0}
+  .ph-d-neo .ph-side .ph-brand{color:#fff}
+  .ph-d-neo .ph-side .ph-brand small{color:#9fb0cf}
+  .ph-d-neo .ph-nav{left:auto;right:auto;bottom:auto;border:0;border-radius:0;background:none;box-shadow:none;
+    -webkit-backdrop-filter:none;backdrop-filter:none;padding:0}
+  .ph-d-neo .ph-nav a{min-height:0;justify-content:flex-start;color:#b8c4dc;font-weight:700;border-radius:16px;padding:13px 15px}
+  .ph-d-neo .ph-nav a:hover{background:rgba(255,255,255,.08);color:#fff}
+  .ph-d-neo .ph-nav a.on{color:#fff;background:linear-gradient(135deg,rgba(99,102,241,.95),rgba(14,116,144,.95))}
+  .ph-d-neo .ph-side .ph-who{color:#9fb0cf}
+  .ph-d-neo .ph-side .ph-who b{color:#fff!important}
+  .ph-d-neo .ph-main{padding-bottom:60px}
+}
