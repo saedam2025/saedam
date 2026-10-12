@@ -5,20 +5,20 @@
 
 <section class="ih-section">
   <div class="ih-listhead">
-    <h2>과목 ({{ classes|length }}개)</h2>
-    <span class="ih-sub">과목·강사·수강생은 이 화면에서만 입력합니다. 출석 확인·QR·월별 출석부는 [학생출석관리]에서 봅니다.</span>
+    <h2>강의반 ({{ classes|length }}개)</h2>
+    <span class="ih-sub">강의반·강사·수강생은 이 화면에서만 입력합니다. 출석 확인·QR·월별 출석부는 [학생출석관리]에서 봅니다.</span>
   </div>
   <div style="overflow-x:auto">
   <table class="ih-table">
-    <thead><tr><th>과목</th><th>강사</th><th>수업 일정</th><th>수강생</th><th>설정</th><th>관리</th></tr></thead>
+    <thead><tr><th>강의반</th><th>강사</th><th>수업 일정</th><th>수강생</th><th>설정</th><th>관리</th></tr></thead>
     <tbody>
     {% for c in classes %}
     <tr class="ih-classrow {{ 'cur' if current and c.id == current.id }}">
-      <td class="cls">{{ c.class_name }}{% if c.department %}<div class="ih-sub">{{ c.department }}</div>{% endif %}</td>
+      <td class="cls">{{ c.class_name }}{% if c.department %}<div class="ih-sub">과목: {{ c.department }}</div>{% endif %}</td>
       <td>
         {% if c.hub_instructors %}{{ c.hub_instructors|join(', ') }} <span class="ih-badge {{ '' if c.hub_manual_id else 'ok' }}">{{ '직접 연결' if c.hub_manual_id else '자동 연결' }}</span>
         {% elif c.instructor_name %}{{ c.instructor_name }}<div class="ih-sub">강사 계정과 연결되지 않음</div>
-        {% else %}<span class="ih-badge pend">연결된 강사 없음</span><div class="ih-sub">강의부서 이름을 강사와 똑같이 쓰거나 강사를 직접 고르세요</div>{% endif %}
+        {% else %}<span class="ih-badge pend">연결된 강사 없음</span><div class="ih-sub">과목명이 강사의 강의부서와 같으면 자동으로 연결돼요. 아니면 강사를 직접 고르세요</div>{% endif %}
       </td>
       <td>{{ c.schedule_label or '-' }}{% if c.start_time %}<div class="ih-sub">지각 {{ c.late_minutes }}분 후</div>{% endif %}</td>
       <td>{{ c.counts.students }}명</td>
@@ -44,16 +44,22 @@
 
 <section class="ih-section" id="classForm">
   <h2>{{ (edit_class.class_name ~ ' 수정') if edit_class else '과목 만들기' }}</h2>
-  <p class="ih-hint">강의부서를 [강사 등록·관리]에 쓴 이름과 똑같이 쓰면 그 부서 강사에게 자동으로 연결됩니다. 이름이 다르면 담당 강사를 직접 고르세요.</p>
+  <p class="ih-hint">과목명은 [강사 등록·관리]에서 강사를 등록할 때 쓴 강의부서가 선택 목록에 나타납니다. 과목명을 고르고 강의반 이름(예: 로봇과학A)을 직접 적으면, 같은 강의부서의 강사에게 자동으로 연결됩니다.</p>
+  {% if not subject_options %}<div class="ih-warn">아직 이 학교에 등록된 강사가 없어 과목명을 고를 수 없습니다. 먼저 [강사 등록·관리] 탭에서 강사와 강의부서를 등록해 주세요.</div>{% endif %}
   <form method="post" action="{{ url_for('support_hub.save_class') }}">
     <input type="hidden" name="school_name" value="{{ selected.name }}">
     {% if edit_class %}<input type="hidden" name="id" value="{{ edit_class.id }}">{% endif %}
     <div class="ih-grid2">
-      <label>과목명 *<input class="ih-input" type="text" name="class_name" required maxlength="60" placeholder="예) 로봇과학 A반" value="{{ edit_class.class_name if edit_class }}"></label>
-      <label>강의부서<input class="ih-input" type="text" name="department" maxlength="40" list="deptList2" placeholder="예) 로봇과학" value="{{ edit_class.department if edit_class }}"></label>
+      <label>과목명 *
+        <select class="ih-input" name="department" required>
+          <option value="">과목을 고르세요</option>
+          {% for name in subject_options %}<option value="{{ name }}" {{ 'selected' if edit_class and edit_class.department == name }}>{{ name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>강의반 *<input class="ih-input" type="text" name="class_name" required maxlength="60" placeholder="예) 로봇과학A" value="{{ edit_class.class_name if edit_class }}"></label>
       <label>담당 강사
         <select class="ih-input" name="hub_account_id">
-          <option value="">자동 연결 (학교·강의부서가 같은 강사)</option>
+          <option value="">자동 연결 (학교·과목명이 같은 강사)</option>
           {% for person in hub_people %}<option value="{{ person.id }}" {{ 'selected' if edit_class and edit_class.hub_manual_id == person.id }}>{{ person.name }}{% if person.departments %} ({{ person.departments|join(', ') }}){% endif %}</option>{% endfor %}
         </select>
       </label>
@@ -79,7 +85,6 @@
       {% if edit_class %}<a class="ih-btn" href="{{ url_for('support_hub.admin_page', tab='roster', school=selected.name, **{'class': edit_class.id}) }}">수정 취소</a>{% endif %}
     </div>
   </form>
-  <datalist id="deptList2">{% for name in departments %}<option value="{{ name }}">{% endfor %}</datalist>
 </section>
 
 {% if current %}
