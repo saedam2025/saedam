@@ -1254,8 +1254,15 @@ def _school_choices(conn):
     known = {norm(s['name']) for s in catalog}
     legacy = sorted((summarize(rows[0]['school_name'], None, key, False)
                      for key, rows in by_school.items() if key not in known), key=lambda item: item['name'])
-    pending_total = sum(1 for s in profiles.values() if s == 'pending') \
-        + sum(1 for s in promos.values() if s == 'pending')
+    # 전체 승인 대기: 지금 어느 학교에든 배정된 사용 가능한 강사의 자료만 센다(학교에서 뺀 강사의 남은 자료는 제외).
+    assigned = {}
+    for rows in by_school.values():
+        for row in rows:
+            if row['account_active']:
+                assigned.setdefault(row['account_id'], set()).add(norm(row['school_name']))
+    pending_total = sum(1 for account in assigned if profiles.get(account) == 'pending') \
+        + sum(1 for (account, key), status in promos.items()
+              if status == 'pending' and key in assigned.get(account, ()))
     return schools, legacy, pending_total
 
 

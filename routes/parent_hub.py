@@ -313,31 +313,39 @@ def _guide_for_school(conn, portal):
     return {'path': url_for('classroom_guide.public_view', token=row['share_token']), 'layout': layout}
 
 
-def _room_for_class(layout, class_name, instructor_name=''):
-    """강좌가 배치된 교실을 찾는다(강좌명이 같거나 서로 포함). 반환: {'id','label'} 또는 None."""
-    want = _norm(class_name)
+def _room_for_class(layout, class_name, instructor_name='', department=''):
+    """강좌가 배치된 교실을 찾는다(강좌명이 같거나 서로 포함). 반환: {'id','label'} 또는 None.
+
+    과목명(강의부서)과 강의반 이름 둘 다로 찾는다. 배치도에는 '로봇과학'처럼 과목명으로,
+    과목에는 '로봇과학A'처럼 강의반으로 적혀 있어도 같은 교실로 이어진다. 강의반 이름이 더 정확하므로 점수를 더 준다.
+    """
+    wanted = [(_norm(class_name), 1), (_norm(department), 0)]
     teacher = _norm(instructor_name)
     best, best_score = None, 0
     for building in layout.get('buildings') or []:
         for room in building.get('rooms') or []:
             for course in room.get('courses') or []:
                 name = _norm(course.get('name'))
-                if len(name) < 2 or not want:
+                if len(name) < 2:
                     continue
-                if name == want:
-                    score = 3
-                elif name in want or want in name:
-                    score = 2
-                else:
-                    continue
-                if teacher and _norm(course.get('teacher')) == teacher:
-                    score += 1
-                if score > best_score:
-                    label = ' '.join(part for part in (
-                        building.get('name') or '',
-                        f"{room.get('floor')}층" if room.get('floor') else '',
-                        room.get('name') or room.get('no') or '') if part)
-                    best, best_score = {'id': room['id'], 'label': label}, score
+                for want, bonus in wanted:
+                    if not want:
+                        continue
+                    if name == want:
+                        score = 3
+                    elif name in want or want in name:
+                        score = 2
+                    else:
+                        continue
+                    score += bonus * 0.5
+                    if teacher and _norm(course.get('teacher')) == teacher:
+                        score += 1
+                    if score > best_score:
+                        label = ' '.join(part for part in (
+                            building.get('name') or '',
+                            f"{room.get('floor')}층" if room.get('floor') else '',
+                            room.get('name') or room.get('no') or '') if part)
+                        best, best_score = {'id': room['id'], 'label': label}, score
     return best
 
 
@@ -631,7 +639,8 @@ def home_context(conn, invite, token, tab, child_id, month_text):
                     for info in child['classes']:
                         if _norm(info['school_name']) != _norm(item['name']):
                             continue
-                        room = _room_for_class(guide['layout'], info['class_name'], info.get('instructor_name', ''))
+                        room = _room_for_class(guide['layout'], info['class_name'], info.get('instructor_name', ''),
+                                              info.get('department', ''))
                         rooms.append({
                             'child': child['name'], 'class_name': info['class_name'],
                             'room': room['label'] if room else '',
