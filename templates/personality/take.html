@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>{% if link %}{{ link['title'] }}{% else %}강사 인성·직무적합성 검사{% endif %}</title>
+<link rel="icon" href="/static/favicon.ico">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{ brand_name }}">
+<meta property="og:title" content="강사 인성·직무적합성 검사 안내">
+<meta property="og:description" content="{{ brand_name }} 강사 검사입니다. 링크를 열어 응시해 주세요.">
+<meta property="og:image" content="{{ logo_absolute_url }}">
+<meta property="og:url" content="{{ page_url }}">
+<style>
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; padding: 0 0 40px; background: #eef2f7; color: #1e293b;
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+        line-height: 1.6; -webkit-text-size-adjust: 100%;
+    }
+    .wrap { max-width: 680px; margin: 0 auto; padding: 18px 14px; }
+    .head { background: #004ea2; color: #fff; border-radius: 16px 16px 0 0; padding: 26px 22px; margin-top: 12px; }
+    .head h1 { margin: 0; font-size: 1.35rem; font-weight: 800; line-height: 1.45; word-break: keep-all; }
+    .head p { margin: 10px 0 0; font-size: .88rem; opacity: .92; }
+    .card { background: #fff; border-radius: 0 0 16px 16px; padding: 22px; box-shadow: 0 10px 30px rgba(15,23,42,.08); }
+    .notice { background: #fff; border-radius: 16px; padding: 46px 24px; text-align: center; box-shadow: 0 10px 30px rgba(15,23,42,.08); margin-top: 24px; }
+    .notice .icon { font-size: 3rem; margin-bottom: 14px; }
+    .notice h2 { margin: 0 0 10px; font-size: 1.2rem; }
+    .notice p { margin: 0; font-size: 1rem; color: #475569; font-weight: 700; word-break: keep-all; }
+    .brand { margin-top: 24px; padding-top: 20px; border-top: 1px dashed #e2e8f0; text-align: center; }
+    .brand img { height: 52px; width: auto; display: inline-block; }
+    .brand span { display: block; margin-top: 9px; font-size: .76rem; color: #94a3b8; }
+
+    .guide { margin: 0 0 18px; padding: 14px 16px; background: #f5f8ff; border: 1px solid #dbeafe; border-radius: 12px; font-size: .88rem; color: #334155; }
+    .guide ul { margin: 6px 0 0; padding-left: 18px; }
+    .field { margin-bottom: 14px; }
+    .field label.lb { display: block; font-size: .86rem; font-weight: 800; margin-bottom: 6px; }
+    .field input[type=text], .field input[type=tel], .field input[type=email], .field input[type=date] {
+        width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px;
+        font-family: inherit; font-size: 1rem; color: #1e293b; background: #fff;
+    }
+    .field input:focus { outline: 2px solid #004ea2; outline-offset: 0; border-color: #004ea2; }
+    .consent { margin-top: 18px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+    .consent-body { padding: 12px 14px; font-size: .8rem; color: #64748b; background: #f8fafc; line-height: 1.7; }
+    .consent-body b { color: #334155; }
+    .consent-check { display: flex; gap: 10px; align-items: center; padding: 13px 14px; cursor: pointer; font-weight: 800; font-size: .92rem; }
+    .consent-check input { width: 20px; height: 20px; accent-color: #004ea2; flex: none; }
+    .btn { width: 100%; padding: 15px; border: 0; border-radius: 12px; background: #004ea2; color: #fff; font-size: 1.02rem; font-weight: 800; cursor: pointer; }
+    .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+    .btn.ghost { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+    .btn-row { display: flex; gap: 10px; margin-top: 22px; }
+    .btn-row .btn { flex: 1; }
+    .btn-row .btn.ghost { flex: 0 0 34%; }
+    .error-box { display: none; margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: #fff0f0; color: #9e2525; font-size: .88rem; font-weight: 700; }
+
+    .progress { margin-bottom: 18px; }
+    .progress-top { display: flex; justify-content: space-between; font-size: .82rem; font-weight: 800; color: #475569; margin-bottom: 6px; }
+    .bar { height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+    .bar > i { display: block; height: 100%; width: 0; background: #004ea2; transition: width .25s; }
+    .scale-hint { display: flex; justify-content: space-between; font-size: .74rem; color: #94a3b8; margin: 0 0 4px; }
+    .q { padding: 16px 0; border-bottom: 1px solid #f1f5f9; scroll-margin-top: 12px; }
+    .q:last-of-type { border-bottom: 0; }
+    .q.missing { background: #fff7f5; border-radius: 10px; padding-left: 10px; padding-right: 10px; box-shadow: inset 3px 0 0 #c0392b; }
+    .q-title { font-size: .98rem; font-weight: 800; margin: 0 0 10px; word-break: keep-all; }
+    .q-title em { font-style: normal; color: #004ea2; margin-right: 4px; }
+    .choices { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .choice { position: relative; }
+    .choice input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+    .choice span {
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+        min-height: 54px; padding: 6px 2px; border: 1px solid #d5dde8; border-radius: 10px;
+        font-size: .64rem; color: #64748b; text-align: center; line-height: 1.25; word-break: keep-all; transition: all .12s;
+    }
+    .choice span b { font-size: 1rem; color: #334155; }
+    .choice input:checked + span { background: #004ea2; border-color: #004ea2; color: #fff; font-weight: 700; }
+    .choice input:checked + span b { color: #fff; }
+    .choice input:focus-visible + span { outline: 2px solid #004ea2; outline-offset: 2px; }
+    @media (min-width: 520px) { .choice span { font-size: .72rem; } }
+    .foot { text-align: center; margin-top: 20px; font-size: .76rem; color: #94a3b8; }
+    [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+{% if not link or notice %}
+    <div class="notice">
+        <div class="icon">{% if link %}🕒{% else %}⚠️{% endif %}</div>
+        <h2>{% if link %}{{ link['title'] }}{% else %}강사 인성·직무적합성 검사{% endif %}</h2>
+        <p>{{ notice }}</p>
+        <div class="brand"><img src="{{ logo_url }}" alt="{{ brand_name }}"><span>{{ brand_name }}</span></div>
+    </div>
+{% else %}
+    <div class="head">
+        <h1>{{ link['title'] }}</h1>
+        <p>강사 인성·직무적합성 검사 · 총 {{ questions|length }}문항 · 약 10분</p>
+    </div>
+    <div class="card">
+
+        <section id="stepInfo">
+            <div class="guide">
+                <b>시작하기 전에 읽어 주세요</b>
+                <ul>
+                    <li>정답이 있는 시험이 아닙니다. 평소의 나를 떠올리며 <b>솔직하게</b> 답해 주세요.</li>
+                    <li>한 문항에 오래 고민하지 말고, 먼저 떠오른 느낌대로 선택해 주세요.</li>
+                    <li>모든 문항에 답해야 제출할 수 있습니다. 제출 후에는 수정할 수 없습니다.</li>
+                </ul>
+            </div>
+            <div class="field">
+                <label class="lb" for="fName">성명</label>
+                <input type="text" id="fName" maxlength="40" autocomplete="name" placeholder="홍길동">
+            </div>
+            <div class="field">
+                <label class="lb" for="fBirth">생년월일</label>
+                <input type="date" id="fBirth" min="1900-01-01" autocomplete="bday">
+            </div>
+            <div class="field">
+                <label class="lb" for="fPhone">연락처 (휴대폰)</label>
+                <input type="tel" id="fPhone" maxlength="13" inputmode="numeric" autocomplete="tel" placeholder="010-1234-5678">
+            </div>
+            <div class="field">
+                <label class="lb" for="fEmail">이메일</label>
+                <input type="email" id="fEmail" maxlength="120" autocomplete="email" placeholder="name@example.com">
+            </div>
+            <div class="consent">
+                <div class="consent-body">
+                    <b>개인정보 수집·이용 안내</b><br>
+                    · 수집 항목: 성명, 생년월일, 연락처, 이메일, 검사 응답<br>
+                    · 이용 목적: 강사 인성·직무적합성 검사 실시와 결과 확인(면접 참고)<br>
+                    · 보관: 검사 목적을 마칠 때까지 보관하며, 담당자가 삭제하면 파기됩니다.<br>
+                    · 동의하지 않을 수 있으나, 동의하지 않으면 검사를 진행할 수 없습니다.
+                </div>
+                <label class="consent-check"><input type="checkbox" id="fConsent"> 개인정보 수집·이용에 동의합니다.</label>
+            </div>
+            <div id="infoError" class="error-box"></div>
+            <div class="btn-row"><button type="button" class="btn" id="startBtn">검사 시작하기</button></div>
+        </section>
+
+        <section id="stepQuiz" hidden>
+            <div class="progress">
+                <div class="progress-top"><span id="pageLabel"></span><span id="countLabel"></span></div>
+                <div class="bar"><i id="barFill"></i></div>
+            </div>
+            <div class="scale-hint"><span>전혀 그렇지 않다 ◀</span><span>▶ 매우 그렇다</span></div>
+            <div id="quizBody"></div>
+            <div id="quizError" class="error-box"></div>
+            <div class="btn-row">
+                <button type="button" class="btn ghost" id="prevBtn">이전</button>
+                <button type="button" class="btn" id="nextBtn">다음</button>
+            </div>
+        </section>
+
+        <section id="stepDone" hidden>
+            <div style="text-align:center;padding:24px 0 6px">
+                <div style="font-size:3rem">✅</div>
+                <h2 style="margin:10px 0 8px;font-size:1.2rem">검사가 제출되었습니다</h2>
+                <p style="margin:0;color:#475569;font-weight:700;word-break:keep-all">끝까지 응해 주셔서 감사합니다. 결과는 담당자가 확인합니다. 이 창은 닫으셔도 됩니다.</p>
+            </div>
+        </section>
+
+        <div class="brand"><img src="{{ logo_url }}" alt="{{ brand_name }}"><span>{{ brand_name }}</span></div>
+    </div>
+    <div class="foot">본 검사는 새담 인트라넷을 통해 제공됩니다.</div>
+{% endif %}
+</div>
+
+{% if link and not notice %}
+<script>
+const TOKEN = {{ token|tojson }};
+const QUESTIONS = {{ questions|tojson }};
+const LIKERT = {{ likert|tojson }};
+const SHORT = {1: '전혀\n아니다', 2: '아니다', 3: '보통', 4: '그렇다', 5: '매우\n그렇다'};
+const PAGE_SIZE = 10;
+const PAGES = Math.ceil(QUESTIONS.length / PAGE_SIZE);
+const STORE_KEY = 'personality:' + TOKEN;
+
+let answers = {};
+let page = 0;
+let startedAt = 0;
+let submitting = false;
+let inProgress = false;
+
+function storeGet() {
+    try { return JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; }
+}
+function storeSet() {
+    try { sessionStorage.setItem(STORE_KEY, JSON.stringify({ answers, startedAt })); } catch (e) {}
+}
+function storeClear() {
+    try { sessionStorage.removeItem(STORE_KEY); } catch (e) {}
+}
+
+function showError(id, message) {
+    const box = document.getElementById(id);
+    box.textContent = message;
+    box.style.display = 'block';
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function hideError(id) { document.getElementById(id).style.display = 'none'; }
+
+// 휴대폰번호는 입력하는 동안 010-1234-5678 모양으로 맞춘다.
+document.getElementById('fPhone').addEventListener('input', event => {
+    const digits = event.target.value.replace(/\D/g, '').slice(0, 11);
+    let out = digits;
+    if (digits.length > 7) out = digits.slice(0, 3) + '-' + digits.slice(3, digits.length - 4) + '-' + digits.slice(-4);
+    else if (digits.length > 3) out = digits.slice(0, 3) + '-' + digits.slice(3);
+    event.target.value = out;
+});
+
+function readInfo() {
+    return {
+        name: document.getElementById('fName').value.trim(),
+        birth_date: document.getElementById('fBirth').value,
+        phone: document.getElementById('fPhone').value.trim(),
+        email: document.getElementById('fEmail').value.trim(),
+        consent: document.getElementById('fConsent').checked,
+    };
+}
+function checkInfo(info) {
+    if (!info.name) return '성명을 입력해 주세요.';
+    if (!info.birth_date) return '생년월일을 입력해 주세요.';
+    if (!/^01[016789]-?\d{3,4}-?\d{4}$/.test(info.phone)) return '연락처는 010-1234-5678 형식으로 입력해 주세요.';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(info.email)) return '이메일 주소를 올바르게 입력해 주세요.';
+    if (!info.consent) return '개인정보 수집·이용에 동의해 주세요.';
+    return '';
+}
+
+function renderPage() {
+    const body = document.getElementById('quizBody');
+    const from = page * PAGE_SIZE;
+    const items = QUESTIONS.slice(from, from + PAGE_SIZE);
+    body.innerHTML = '';
+    items.forEach(question => {
+        const block = document.createElement('div');
+        block.className = 'q';
+        block.id = 'q' + question.no;
+        const title = document.createElement('p');
+        title.className = 'q-title';
+        const num = document.createElement('em');
+        num.textContent = question.no + '.';
+        title.append(num, document.createTextNode(question.text));
+        const choices = document.createElement('div');
+        choices.className = 'choices';
+        for (let value = 1; value <= 5; value++) {
+            const label = document.createElement('label');
+            label.className = 'choice';
+            const input = document.createElement('input');
+            input.type = 'radio';
+            input.name = 'q' + question.no;
+            input.value = value;
+            input.setAttribute('aria-label', LIKERT[value]);
+            input.checked = answers[question.no] === value;
+            input.addEventListener('change', () => {
+                answers[question.no] = value;
+                block.classList.remove('missing');
+                storeSet();
+                updateProgress();
+            });
+            const face = document.createElement('span');
+            const strong = document.createElement('b');
+            strong.textContent = value;
+            face.append(strong, document.createTextNode(SHORT[value].replace('\n', ' ')));
+            label.append(input, face);
+            choices.append(label);
+        }
+        block.append(title, choices);
+        body.append(block);
+    });
+    document.getElementById('prevBtn').style.visibility = page === 0 ? 'hidden' : 'visible';
+    const last = page === PAGES - 1;
+    const next = document.getElementById('nextBtn');
+    next.textContent = last ? '검사 완료' : '다음';
+    next.disabled = false;
+    document.getElementById('pageLabel').textContent = (page + 1) + ' / ' + PAGES + ' 쪽';
+    updateProgress();
+    hideError('quizError');
+    window.scrollTo(0, 0);
+}
+function updateProgress() {
+    const done = Object.keys(answers).length;
+    document.getElementById('countLabel').textContent = done + ' / ' + QUESTIONS.length + ' 문항';
+    document.getElementById('barFill').style.width = (done / QUESTIONS.length * 100) + '%';
+}
+
+function firstUnanswered(from, to) {
+    for (const question of QUESTIONS.slice(from, to)) {
+        if (!answers[question.no]) return question;
+    }
+    return null;
+}
+
+function startQuiz(info) {
+    window.personInfo = info;
+    document.getElementById('stepInfo').hidden = true;
+    document.getElementById('stepQuiz').hidden = false;
+    if (!startedAt) startedAt = Date.now();
+    inProgress = true;
+    storeSet();
+    renderPage();
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+    hideError('infoError');
+    const info = readInfo();
+    const problem = checkInfo(info);
+    if (problem) { showError('infoError', problem); return; }
+    startQuiz(info);
+});
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+    if (page > 0) { page -= 1; renderPage(); }
+});
+
+document.getElementById('nextBtn').addEventListener('click', async () => {
+    hideError('quizError');
+    const from = page * PAGE_SIZE;
+    const missing = QUESTIONS.slice(from, from + PAGE_SIZE).filter(question => !answers[question.no]);
+    document.querySelectorAll('.q.missing').forEach(el => el.classList.remove('missing'));
+    if (missing.length) {
+        missing.forEach(question => document.getElementById('q' + question.no).classList.add('missing'));
+        document.getElementById('q' + missing[0].no).scrollIntoView({ behavior: 'smooth', block: 'center' });
+        showError('quizError', '답하지 않은 문항이 ' + missing.length + '개 있습니다. 표시된 문항에 답해 주세요.');
+        return;
+    }
+    if (page < PAGES - 1) { page += 1; renderPage(); return; }
+
+    const skipped = firstUnanswered(0, QUESTIONS.length);
+    if (skipped) {
+        page = Math.floor((skipped.no - 1) / PAGE_SIZE);
+        renderPage();
+        showError('quizError', skipped.no + '번 문항에 답하지 않았습니다.');
+        return;
+    }
+    if (submitting) return;
+    submitting = true;
+    const button = document.getElementById('nextBtn');
+    button.disabled = true;
+    button.textContent = '제출 중...';
+    try {
+        const response = await fetch('/personality/t/' + encodeURIComponent(TOKEN), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({}, window.personInfo, {
+                answers,
+                elapsed_sec: Math.round((Date.now() - startedAt) / 1000),
+            })),
+        });
+        const data = await response.json();
+        if (!response.ok || data.status === 'error') throw new Error(data.message || '제출하지 못했습니다.');
+        inProgress = false;
+        storeClear();
+        document.getElementById('stepQuiz').hidden = true;
+        document.getElementById('stepDone').hidden = false;
+        window.scrollTo(0, 0);
+    } catch (error) {
+        showError('quizError', error.message);
+        button.disabled = false;
+        button.textContent = '검사 완료';
+    } finally {
+        submitting = false;
+    }
+});
+
+window.addEventListener('beforeunload', event => {
+    if (inProgress) { event.preventDefault(); event.returnValue = ''; }
+});
+
+// 새로고침 등으로 되돌아온 경우 풀던 답을 복원한다(개인정보는 저장하지 않으므로 다시 입력).
+const saved = storeGet();
+if (saved && saved.answers) {
+    answers = {};
+    Object.keys(saved.answers).forEach(key => { answers[Number(key)] = Number(saved.answers[key]); });
+    startedAt = Number(saved.startedAt) || 0;
+}
+</script>
+{% endif %}
+</body>
+</html>

@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --saedam-blue: var(--primary-color, #004ea2);
+        --border-color: var(--card-border, #e2e8f0);
+        --text-dark: var(--text-dark, #1e293b);
+        --text-gray: var(--text-gray, #64748b);
+    }
+    .pt-container {
+        width: 100%; min-height: 85vh; margin: 0 auto; padding: 30px;
+        background: var(--card-bg, #fff); border: 1px solid var(--border-color); border-radius: 20px;
+        box-shadow: var(--card-shadow, 0 10px 25px -5px rgba(0,0,0,.08));
+        font-family: 'Pretendard', sans-serif; box-sizing: border-box; position: relative; z-index: 2;
+    }
+    .page-header { margin-bottom: 22px; padding-bottom: 15px; border-bottom: 2px solid var(--border-color); }
+    .page-title { font-size: 1.8rem; font-weight: 800; color: var(--text-dark); margin: 0; letter-spacing: -.5px; }
+    .page-sub { margin: 6px 0 0; color: var(--text-gray); font-size: .88rem; }
+    .section { margin-bottom: 34px; }
+    .section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .section-title { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--text-dark); }
+    .step-no {
+        display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-right: 6px;
+        border-radius: 50%; background: var(--saedam-blue); color: #fff; font-size: .8rem;
+    }
+    .btn {
+        border: 1px solid var(--border-color); background: var(--input-bg, #fff); color: var(--text-dark);
+        border-radius: 9px; padding: 9px 16px; font-weight: 700; font-size: .86rem; cursor: pointer; white-space: nowrap;
+    }
+    .btn:hover { border-color: var(--saedam-blue); color: var(--saedam-blue); }
+    .btn.primary { background: var(--saedam-blue); border-color: var(--saedam-blue); color: #fff; }
+    .btn.primary:hover { opacity: .9; color: #fff; }
+    .btn.danger { color: #c0392b; }
+    .btn.danger:hover { border-color: #c0392b; color: #c0392b; }
+    .btn.small { padding: 6px 11px; font-size: .78rem; }
+    .create-box {
+        display: none; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; padding: 14px;
+        border: 1px dashed var(--saedam-blue); border-radius: 12px; background: rgba(0,78,162,.04);
+    }
+    .create-box.open { display: flex; }
+    .create-box label { display: block; font-size: .78rem; font-weight: 800; color: var(--text-gray); margin-bottom: 4px; }
+    .create-box input {
+        padding: 9px 12px; border: 1px solid var(--border-color); border-radius: 9px; font-size: .9rem;
+        background: var(--input-bg, #fff); color: var(--text-dark);
+    }
+    .tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .tbl th, .tbl td { padding: 12px 10px; border-bottom: 1px solid var(--border-color); text-align: left; vertical-align: middle; }
+    .tbl th { font-size: .8rem; color: var(--text-gray); font-weight: 800; white-space: nowrap; }
+    .tbl tbody tr:hover { background: var(--widget-hover, rgba(0,78,162,.05)); }
+    .strong { font-weight: 800; color: var(--text-dark); }
+    .sub { display: block; margin-top: 2px; color: var(--text-gray); font-size: .78rem; }
+    .chip { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: .74rem; font-weight: 800; white-space: nowrap; }
+    .chip.on { background: #e6f4ea; color: #176b36; }
+    .chip.off { background: #f1f5f9; color: #475569; }
+    .chip.warn { background: #fff4e0; color: #8a5a00; }
+    .chip.good { background: #e6f4ea; color: #176b36; }
+    .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .link-cell { display: flex; gap: 6px; align-items: center; }
+    .link-cell input {
+        width: 100%; min-width: 200px; padding: 6px 9px; border: 1px solid var(--border-color); border-radius: 8px;
+        font-size: .78rem; color: var(--text-gray); background: var(--input-bg, #fff);
+    }
+    .row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .toolbar input[type=search], .toolbar select {
+        padding: 9px 12px; border: 1px solid var(--border-color); border-radius: 9px;
+        background: var(--input-bg, #fff); color: var(--text-dark); font-size: .88rem;
+    }
+    .toolbar input[type=search] { min-width: 240px; }
+    .score-row { display: flex; gap: 4px; flex-wrap: wrap; }
+    .score {
+        display: inline-flex; gap: 4px; padding: 2px 7px; border-radius: 6px; background: #f1f5f9;
+        font-size: .72rem; color: #475569; white-space: nowrap;
+    }
+    .score b.high { color: #176b36; }
+    .score b.low { color: #b3402a; }
+    .empty { padding: 36px 20px; text-align: center; color: var(--text-gray); }
+    .empty i { font-size: 2rem; display: block; margin-bottom: 10px; opacity: .5; }
+    .howto { margin: 0 0 22px; padding: 14px 16px; border-radius: 12px; background: #f5f8ff; border: 1px solid #dbeafe; font-size: .86rem; color: #334155; line-height: 1.7; }
+    @media (max-width: 820px) {
+        .pt-container { padding: 18px; }
+        .tbl thead { display: none; }
+        .tbl, .tbl tbody, .tbl tr, .tbl td { display: block; width: 100%; }
+        .tbl tr { border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 12px; padding: 8px; }
+        .tbl td { border: 0; padding: 6px 8px; }
+        .row-actions { justify-content: flex-start; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pt-container">
+    <div class="page-header">
+        <h1 class="page-title"><i class="fa-solid fa-clipboard-question"></i> 강사 인성·직무적합성 검사</h1>
+        <p class="page-sub">검사 링크를 보내면 응시자가 성명·생년월일·연락처·이메일을 입력하고 {{ question_count }}문항에 답합니다. 제출된 개인정보·답안지·결과지를 여기서 확인합니다.</p>
+    </div>
+
+    <div class="howto">
+        <b>사용 순서</b> ① [검사 링크 만들기]로 이름을 정해 링크를 만든다 → ② [링크 복사]로 복사해 문자·카카오톡·메일로 응시자에게 보낸다 →
+        ③ 응시자가 제출하면 아래 [응시 결과]에 쌓인다 → ④ [결과지 보기]에서 점수·해석·답안지를 확인한다(인쇄 가능).
+    </div>
+
+    <div class="section">
+        <div class="section-head">
+            <h2 class="section-title"><span class="step-no">1</span>검사 링크</h2>
+            <button type="button" class="btn primary" id="toggleCreate"><i class="fa-solid fa-plus"></i> 검사 링크 만들기</button>
+        </div>
+        <div class="create-box" id="createBox">
+            <div style="flex:1;min-width:220px">
+                <label for="newTitle">검사 이름 (응시자에게도 보입니다)</label>
+                <input type="text" id="newTitle" maxlength="80" placeholder="예) 2026 하반기 방과후강사 채용" style="width:100%">
+            </div>
+            <div style="flex:1;min-width:180px">
+                <label for="newMemo">메모 (선택, 관리자만 봄)</label>
+                <input type="text" id="newMemo" maxlength="300" placeholder="예) 1차 서류합격자용" style="width:100%">
+            </div>
+            <button type="button" class="btn primary" id="createBtn">만들기</button>
+        </div>
+        <div style="overflow-x:auto">
+            <table class="tbl">
+                <thead>
+                    <tr><th>검사 이름</th><th>응시 링크</th><th>상태</th><th>응시자</th><th>만든 날</th><th></th></tr>
+                </thead>
+                <tbody id="linkBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-head">
+            <h2 class="section-title"><span class="step-no">2</span>응시 결과</h2>
+        </div>
+        <div class="toolbar">
+            <input type="search" id="keyword" placeholder="이름·연락처·이메일·생년월일 검색" onkeydown="if(event.key==='Enter')loadResults()">
+            <select id="linkFilter" onchange="loadResults()"><option value="">전체 검사</option></select>
+            <button type="button" class="btn" onclick="loadResults()"><i class="fa-solid fa-magnifying-glass"></i> 검색</button>
+        </div>
+        <div style="overflow-x:auto">
+            <table class="tbl">
+                <thead>
+                    <tr><th>응시자</th><th>생년월일</th><th>연락처 / 이메일</th><th>검사</th><th>제출일시</th><th>영역별 점수(0~100)</th><th></th></tr>
+                </thead>
+                <tbody id="resultBody"></tbody>
+            </table>
+        </div>
+        <div id="resultCount" class="sub" style="margin-top:8px"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+
+async function api(url, options) {
+    const response = await fetch(url, options);
+    let data = {};
+    try { data = await response.json(); } catch (e) {}
+    if (!response.ok || data.status === 'error') throw new Error(data.message || '요청을 처리하지 못했습니다.');
+    return data;
+}
+function postJson(url, payload) {
+    return api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) });
+}
+
+let LINKS = [];
+
+async function loadLinks() {
+    const data = await api('/personality/api/links');
+    LINKS = data.links;
+    const body = document.getElementById('linkBody');
+    if (!LINKS.length) {
+        body.innerHTML = '<tr><td colspan="6"><div class="empty"><i class="fa-solid fa-link"></i>아직 만든 검사 링크가 없습니다. [검사 링크 만들기]를 눌러 시작하세요.</div></td></tr>';
+    } else {
+        body.innerHTML = LINKS.map(link => `
+            <tr>
+                <td><span class="strong">${esc(link.title)}</span><span class="sub">${link.test_version === 'v1' ? '기존 인성검사' : '강사 인성·직무적합성 검사'}</span>${link.memo ? `<span class="sub">${esc(link.memo)}</span>` : ''}</td>
+                <td><div class="link-cell">
+                    <input type="text" readonly value="${esc(link.link)}" onclick="this.select()">
+                    <button type="button" class="btn small" data-copy="${link.id}"><i class="fa-regular fa-copy"></i> 링크 복사</button>
+                </div></td>
+                <td><span class="chip ${link.is_active ? 'on' : 'off'}">${link.is_active ? '응시 가능' : '사용 중지'}</span></td>
+                <td class="num">${link.result_count}명</td>
+                <td class="num">${esc((link.created_at || '').slice(0, 10))}<span class="sub">${esc(link.created_by_name)}</span></td>
+                <td><div class="row-actions">
+                    <button type="button" class="btn small" data-toggle="${link.id}">${link.is_active ? '사용 중지' : '다시 열기'}</button>
+                    <button type="button" class="btn small danger" data-delete="${link.id}">삭제</button>
+                </div></td>
+            </tr>`).join('');
+    }
+    const select = document.getElementById('linkFilter');
+    const current = select.value;
+    select.innerHTML = '<option value="">전체 검사</option>' + LINKS.map(link =>
+        `<option value="${link.id}">${esc(link.title)} (${link.result_count}명)</option>`).join('');
+    select.value = LINKS.some(link => String(link.id) === current) ? current : '';
+}
+
+async function copyText(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (e) {
+        const area = document.createElement('textarea');
+        area.value = text; document.body.appendChild(area); area.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (err) {}
+        area.remove();
+        return ok;
+    }
+}
+
+document.getElementById('linkBody').addEventListener('click', async event => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    try {
+        if (button.dataset.copy) {
+            const link = LINKS.find(item => String(item.id) === button.dataset.copy);
+            const ok = await copyText(link.link);
+            button.innerHTML = ok ? '<i class="fa-solid fa-check"></i> 복사됨' : '복사 실패';
+            setTimeout(() => { button.innerHTML = '<i class="fa-regular fa-copy"></i> 링크 복사'; }, 1500);
+        } else if (button.dataset.toggle) {
+            const link = LINKS.find(item => String(item.id) === button.dataset.toggle);
+            const message = link.is_active
+                ? '이 링크를 사용 중지하면 응시자가 더 이상 검사를 시작·제출할 수 없습니다. 중지할까요?'
+                : '이 링크를 다시 열까요?';
+            if (!confirm(message)) return;
+            await postJson(`/personality/api/links/${link.id}/active`, { active: !link.is_active });
+            await loadLinks();
+        } else if (button.dataset.delete) {
+            if (!confirm('이 검사 링크를 삭제할까요? 삭제하면 되돌릴 수 없습니다.')) return;
+            await postJson(`/personality/api/links/${button.dataset.delete}/delete`);
+            await loadLinks();
+        }
+    } catch (error) { alert(error.message); }
+});
+
+document.getElementById('toggleCreate').addEventListener('click', () => {
+    document.getElementById('createBox').classList.toggle('open');
+    document.getElementById('newTitle').focus();
+});
+document.getElementById('createBtn').addEventListener('click', async () => {
+    const title = document.getElementById('newTitle').value.trim();
+    if (!title) { alert('검사 이름을 입력해 주세요.'); return; }
+    try {
+        await postJson('/personality/api/links', { title, memo: document.getElementById('newMemo').value.trim() });
+        document.getElementById('newTitle').value = '';
+        document.getElementById('newMemo').value = '';
+        document.getElementById('createBox').classList.remove('open');
+        await loadLinks();
+    } catch (error) { alert(error.message); }
+});
+
+function scoreChip(scale, percent) {
+    const band = percent >= 70 ? 'high' : (percent < 40 ? 'low' : '');
+    return `<span class="score">${esc(scale.name)} <b class="${band}">${percent ?? '-'}</b></span>`;
+}
+
+async function loadResults() {
+    const params = new URLSearchParams();
+    const keyword = document.getElementById('keyword').value.trim();
+    const linkId = document.getElementById('linkFilter').value;
+    if (keyword) params.set('q', keyword);
+    if (linkId) params.set('link_id', linkId);
+    try {
+        const data = await api('/personality/api/results?' + params.toString());
+        const body = document.getElementById('resultBody');
+        document.getElementById('resultCount').textContent = `${data.results.length}명`;
+        if (!data.results.length) {
+            body.innerHTML = '<tr><td colspan="7"><div class="empty"><i class="fa-solid fa-inbox"></i>응시 결과가 없습니다.</div></td></tr>';
+            return;
+        }
+        body.innerHTML = data.results.map(item => `
+            <tr>
+                <td><span class="strong">${esc(item.name)}</span>
+                    ${item.reliable ? '' : '<span class="chip warn" title="응답 신뢰도 점검에서 의심 사유가 있습니다.">신뢰도 확인</span>'}</td>
+                <td class="num">${esc(item.birth_date)}</td>
+                <td>${esc(item.phone)}<span class="sub">${esc(item.email)}</span></td>
+                <td>${esc(item.link_title)}</td>
+                <td class="num">${esc(item.submitted_at)}</td>
+                <td>${item.total == null ? '' : `<b>${item.total}점</b>`}<div class="score-row">${item.scales.map(scale => scoreChip(scale, scale.percent)).join('')}</div></td>
+                <td><div class="row-actions">
+                    <a class="btn small primary" href="/personality/result/${item.id}">결과지 보기</a>
+                    <button type="button" class="btn small danger" data-del-result="${item.id}" data-name="${esc(item.name)}">삭제</button>
+                </div></td>
+            </tr>`).join('');
+    } catch (error) { alert(error.message); }
+}
+
+document.getElementById('resultBody').addEventListener('click', async event => {
+    const button = event.target.closest('button[data-del-result]');
+    if (!button) return;
+    if (!confirm(`${button.dataset.name}님의 개인정보·답안지·결과지를 모두 삭제할까요? 삭제하면 되돌릴 수 없습니다.`)) return;
+    try {
+        await postJson(`/personality/api/results/${button.dataset.delResult}/delete`);
+        await loadLinks();
+        await loadResults();
+    } catch (error) { alert(error.message); }
+});
+
+(async () => {
+    try { await loadLinks(); } catch (error) { alert(error.message); }
+    await loadResults();
+})();
+</script>
+{% endblock %}
