@@ -36,6 +36,8 @@ from routes.school_bp import school_bp
 from routes.school_task import school_task_bp
 from routes.classroom_guide import classroom_guide_bp, init_classroom_guide_schema
 from routes.survey import init_survey_schema, survey_bp
+from routes.personality_test import init_personality_schema, personality_bp
+from routes.bid_notice import bid_notice_bp, init_bid_notice_schema, start_bid_scheduler
 from routes.contacts import contacts_bp
 from routes.event_admin import ensure_event_schema, event_bp
 from routes.school_billing import billing_bp, ensure_billing_schema, portal_bp
@@ -122,6 +124,8 @@ with app.app_context():
         ensure_interview_schema()
         ensure_mydesk_schema()
         init_survey_schema()
+        init_personality_schema()
+        init_bid_notice_schema()
         init_classroom_guide_schema()
         init_instructor_attendance_schema()
         init_student_attendance_schema()
@@ -222,6 +226,9 @@ EXEMPT_ROUTES = [
     # 설문 대상자는 문자로 받은 링크만으로 응답한다.
     'survey.respond',
     'survey.submit_response',
+    # 인성검사 응시자는 전달받은 검사 링크만으로 응시한다.
+    'personality.take',
+    'personality.submit',
 ]
 
 # 엔드포인트 이름과 무관하게 로그인을 요구하지 않는 공개 경로.
@@ -234,6 +241,7 @@ EXEMPT_ROUTES = [
 # 학부모 알림등록 안내(보호자 번호 대조)는 계정 없이 연다.
 PUBLIC_PATH_PREFIXES = (
     '/survey/r/',
+    '/personality/t/',
     '/school/guide/p/',
     '/portal',
     '/instructor-attendance/scan/',
@@ -354,6 +362,7 @@ def _classify_menu(path):
         ('/chat_popup', '사내메신저'),
         ('/school', '학교업무메뉴'),
         ('/survey', '설문조사'),
+        ('/personality', '인성검사'),
         ('/document', '증명발급'),
         ('/gall2', '갤러리'),
         ('/gallery', '갤러리'),
@@ -370,6 +379,7 @@ def _classify_menu(path):
         ('/memo', '개인화이트보드'),
         ('/meeting', '회의센터'),
         ('/excel-generator', '입금용 엑셀 생성기'),
+        ('/bid-notice', '입찰공고관리'),
         ('/manual', '새담메뉴얼'),
         ('/ebook/books', 'eBook'),
         ('/ebook', 'e리플렛'),
@@ -1147,6 +1157,8 @@ app.register_blueprint(school_bp, url_prefix='/school')
 app.register_blueprint(school_task_bp, url_prefix='/school/tasks')
 app.register_blueprint(classroom_guide_bp, url_prefix='/school/guide')
 app.register_blueprint(survey_bp, url_prefix='/survey')
+app.register_blueprint(personality_bp, url_prefix='/personality')
+app.register_blueprint(bid_notice_bp, url_prefix='/bid-notice')
 app.register_blueprint(contacts_bp)
 app.register_blueprint(event_bp, url_prefix='/event-admin')
 app.register_blueprint(billing_bp, url_prefix='/billing')
@@ -1170,6 +1182,9 @@ app.register_blueprint(points_bp)
 app.register_blueprint(unified_search_bp)
 
 # 🚀 새로 분리한 메신저 블루프린트 등록 추가
+
+# 입찰공고관리: 매일 09:00·15:00(한국시간) 나라장터 공고 자동 수집. 운영 서버(Render)에서만 켜진다.
+start_bid_scheduler()
 
 @app.errorhandler(404)
 def page_not_found(e):
