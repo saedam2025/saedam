@@ -145,9 +145,6 @@ def _portal_context(conn, selected):
         context.update(
             portal=dict(portal), portal_url=ph._portal_url(portal),
             audience=ph.link_audience(guardians), guardians=guardians,
-            designs=[{'key': key, 'label': info['label'], 'tagline': info['tagline'], 'points': info['points']}
-                     for key, info in ph.DESIGNS.items()],
-            current_design=ph.design_of(portal),
             link_targets=ph.LINK_TARGETS, default_intro=ph.DEFAULT_LINK_INTRO,
             link_methods=ph.LINK_METHODS, kakao_ready=kakao_ready, kakao_var_keys=kakao_var_keys,
             kakao_preview_url=url_for('parent_hub.admin_kakao_preview', portal_id=portal['id']),
