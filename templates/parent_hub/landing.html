@@ -3,17 +3,16 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-    <meta name="theme-color" content="{{ theme_color|default('#e78100') }}">
+    <meta name="theme-color" content="#e78100">
     <meta name="robots" content="noindex, nofollow">
     <meta name="referrer" content="no-referrer">
     <title>{% if invalid %}새담 방과후학교{% else %}{{ portal.title or (portal.school_name ~ ' 방과후 학부모 안내') }}{% endif %}</title>
     <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='images/parent_app/icon-192.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/parent_app/apple-touch-icon.png') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/parent_hub.css') }}?v=20261012">
-    {% if design_css %}<link rel="stylesheet" href="{{ url_for('static', filename=design_css) }}?v=20261012">{% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/parent_hub.css') }}?v=20261007">
 </head>
-<body class="ph-d-{{ design|default('classic') }}">
+<body>
 <main class="ph-landing">
     <a class="ph-brand" href="#"><span class="ph-mark">S</span><span><b>새담 방과후학교</b><small>학부모 통합 안내</small></span></a>
     {% if invalid %}

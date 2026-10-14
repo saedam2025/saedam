@@ -3,26 +3,23 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-    <meta name="theme-color" content="{{ theme_color|default('#e78100') }}">
+    <meta name="theme-color" content="#e78100">
     <meta name="robots" content="noindex, nofollow">
     <meta name="referrer" content="no-referrer">
     <title>새담 학부모 홈</title>
     {# 홈 화면 아이콘을 누르면 이 보호자의 학부모 홈이 바로 열린다. #}
-    {% if not demo %}<link rel="manifest" href="{{ url_for('parent_hub.parent_home_manifest', token=token) }}">{% endif %}
+    <link rel="manifest" href="{{ url_for('parent_hub.parent_home_manifest', token=token) }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='images/parent_app/icon-192.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/parent_app/apple-touch-icon.png') }}">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="새담학부모">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/parent_hub.css') }}?v=20261012">
-    {% if design_css %}<link rel="stylesheet" href="{{ url_for('static', filename=design_css) }}?v=20261012">{% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/parent_hub.css') }}?v=20261007">
 </head>
-<body class="ph-d-{{ design|default('classic') }}">
+<body>
 {% set status_class = {'출석': 'ok', '지각': 'late', '결석': 'absent'} %}
-{# 미리보기(demo)에서는 링크가 예시 화면 안에서만 이동한다. #}
-{% macro home_link(tab, child=none, month=none) %}{% if demo %}{{ url_for('parent_hub.admin_design_preview', portal_id=demo_portal_id, design=design, tab=tab, child=child, month=month) }}{% else %}{{ url_for('parent_hub.parent_home', token=token, tab=tab, child=child, month=month) }}{% endif %}{% endmacro %}
-{% macro tab_url(key) %}{{ home_link(key) }}{% endmacro %}
+{% macro tab_url(key) %}{{ url_for('parent_hub.parent_home', token=token, tab=key) }}{% endmacro %}
 
 {% macro ring(rate) %}
   {% if rate is none %}<div class="ph-ring none" style="--p:0" aria-label="출석률 기록 없음"><span>기록<br>없음</span></div>
@@ -60,7 +57,6 @@
 </aside>
 
 <main class="ph-main">
-    {% if demo %}<div class="ph-demo"><b>예시 화면</b> · 디자인 미리보기입니다. 아래 학생·출석 정보는 실제와 다른 예시이고, 학부모에게는 보이지 않습니다.</div>{% endif %}
     <header class="ph-top">
         <a class="ph-brand" href="{{ tab_url('home') }}"><span class="ph-mark">S</span><span><b>새담 방과후학교</b><small>학부모 홈</small></span></a>
         <div class="who">{{ guardian_name }} 학부모님</div>
@@ -96,7 +92,7 @@
                 </div>
                 {% endif %}
             </div>
-            {% if report %}<a href="{{ home_link('attendance', child=child.id) }}" style="text-decoration:none;color:inherit" aria-label="{{ child.name }} {{ info.class_name }} 출석 자세히">{{ ring(report.total.rate) }}</a>{% endif %}
+            {% if report %}<a href="{{ url_for('parent_hub.parent_home', token=token, tab='attendance', child=child.id) }}" style="text-decoration:none;color:inherit" aria-label="{{ child.name }} {{ info.class_name }} 출석 자세히">{{ ring(report.total.rate) }}</a>{% endif %}
         </div>
         {% else %}<p class="ph-empty">아직 등록된 방과후 과목이 없어요.</p>{% endfor %}
     </section>
@@ -131,7 +127,7 @@
 {% elif tab == 'attendance' %}
     {% if children|length > 1 %}
     <nav class="ph-pills" aria-label="자녀 선택">
-        {% for child in children %}<a class="{{ 'on' if selected and child.id == selected.id }}" href="{{ home_link('attendance', child=child.id) }}">{{ child.name }}</a>{% endfor %}
+        {% for child in children %}<a class="{{ 'on' if selected and child.id == selected.id }}" href="{{ url_for('parent_hub.parent_home', token=token, tab='attendance', child=child.id) }}">{{ child.name }}</a>{% endfor %}
     </nav>
     {% endif %}
     {% if selected %}
@@ -163,9 +159,9 @@
         <p class="ph-note" style="margin-top:0">출석률은 지각을 출석으로 계산해요. 중간에 등록했다면 첫 출석 기록일부터 계산합니다.</p>
 
         <div class="ph-monthbar">
-            {% if report.month.previous %}<a href="{{ home_link('attendance', child=selected.id, month=report.month.previous) }}" aria-label="이전 달">‹</a>{% else %}<span class="off">‹</span>{% endif %}
+            {% if report.month.previous %}<a href="{{ url_for('parent_hub.parent_home', token=token, tab='attendance', child=selected.id, month=report.month.previous) }}" aria-label="이전 달">‹</a>{% else %}<span class="off">‹</span>{% endif %}
             <strong>{{ report.month.label }} · 출석률 {{ (report.month.rate ~ '%') if report.month.rate is not none else '-' }}</strong>
-            {% if report.month.next %}<a href="{{ home_link('attendance', child=selected.id, month=report.month.next) }}" aria-label="다음 달">›</a>{% else %}<span class="off">›</span>{% endif %}
+            {% if report.month.next %}<a href="{{ url_for('parent_hub.parent_home', token=token, tab='attendance', child=selected.id, month=report.month.next) }}" aria-label="다음 달">›</a>{% else %}<span class="off">›</span>{% endif %}
         </div>
         <div class="ph-cal" role="grid" aria-label="{{ report.month.label }} 출석표">
             {% for name in weekday_labels %}<div class="dow">{{ name }}</div>{% endfor %}
@@ -216,7 +212,7 @@
 
 {# ================================================================ e리플렛 #}
 {% elif tab == 'leaflet' %}
-    {% set back_path = home_link('leaflet') %}
+    {% set back_path = url_for('parent_hub.parent_home', token=token, tab='leaflet') %}
     <section class="ph-greet" style="margin-bottom:14px"><h1>방과후 e리플렛</h1><p>본사와 강사님들이 함께 만든 학교 방과후 소개를 한 권으로 봅니다.</p></section>
     {% for lf in leaflets %}
     {% set read_url = url_for('parent_hub.hub_leaflet', token=lf.portal.token, back=back_path) %}
@@ -269,7 +265,6 @@
 </main>
 </div>
 
-{% if not demo %}
 <script src="{{ url_for('static', filename='js/parent_app.js') }}?v=20260929-home"></script>
 <script>
 (function(){
@@ -337,6 +332,5 @@
     });
 })();
 </script>
-{% endif %}
 </body>
 </html>
