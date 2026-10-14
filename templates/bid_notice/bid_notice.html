@@ -1,35 +1,227 @@
 {% extends "base.html" %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
 <style>
-    :root {
-        --saedam-blue: var(--primary-color, #004ea2);
-        --border-color: var(--card-border, #e2e8f0);
-        --text-dark: var(--text-dark, #1e293b);
-        --text-gray: var(--text-gray, #64748b);
-    }
-    .bn-container {
-        width: 100%; min-height: 85vh; margin: 0 auto; padding: 30px;
-        background: var(--card-bg, #fff); border: 1px solid var(--border-color); border-radius: 20px;
-        box-shadow: var(--card-shadow, 0 10px 25px -5px rgba(0,0,0,.08));
-        font-family: 'Pretendard', sans-serif; box-sizing: border-box; position: relative; z-index: 2;
-    }
-    .page-header { margin-bottom: 16px; }
-    .page-title { font-size: 1.8rem; font-weight: 800; color: var(--text-dark); margin: 0; letter-spacing: -.5px; }
-    .page-sub { margin: 6px 0 0; color: var(--text-gray); font-size: .88rem; line-height: 1.6; }
+    :root { --saedam-blue: var(--primary-color, #2563eb); }
 
-    /* 화면 전환 버튼 */
-    .view-tabs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; padding-bottom: 14px; border-bottom: 2px solid var(--border-color); }
-    .view-tab {
-        padding: 10px 18px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--input-bg, #fff);
-        color: var(--text-dark); font-size: .92rem; font-weight: 700; cursor: pointer; font-family: inherit;
+    /* ============ 바탕: 강사증명 발급관리와 같은 카드(위쪽 포인트 색 띠)·Pretendard 글꼴 ============ */
+    .bn-container {
+        width: 100%; margin: 0 auto; padding: 30px; position: relative; z-index: 2; box-sizing: border-box;
+        font-family: 'Pretendard', sans-serif; color: var(--text-dark, #1e293b);
+        background: var(--card-bg, #ffffff);
+        backdrop-filter: var(--card-backdrop, none); -webkit-backdrop-filter: var(--card-backdrop, none);
+        border: 1px solid var(--card-border, #e2e8f0); border-top: 5px solid var(--primary-color, #4a90e2);
+        border-radius: 12px; box-shadow: var(--card-shadow, 0 15px 40px rgba(0, 0, 0, 0.1));
     }
-    .view-tab:hover { border-color: var(--saedam-blue); color: var(--saedam-blue); }
-    .view-tab.active { background: var(--saedam-blue); border-color: var(--saedam-blue); color: #fff; }
+    .bn-container button, .bn-container input, .bn-container select, .bn-container textarea { font-family: inherit; }
+    .page-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid rgba(0, 0, 0, 0.05);
+    }
+    .page-brand { display: flex; align-items: center; gap: 12px; }
+    .page-brand img { height: 35px; mix-blend-mode: multiply; }
+    .page-title { margin: 0; font-size: 1.3rem; font-weight: 700; color: var(--text-dark, #1e293b); }
+
+    /* ============ 버튼 ============ */
+    .btn {
+        padding: 6px 12px; font-size: .8rem; font-weight: 600; line-height: 1.3; border-radius: 5px; cursor: pointer; white-space: nowrap;
+        border: 1px solid var(--card-border, #e2e8f0); background: var(--widget-bg, #f1f5f9); color: var(--text-dark, #1e293b); transition: .2s;
+    }
+    .btn:hover:not(:disabled) { background: var(--widget-hover, #e2e8f0); }
+    .btn.primary { background: var(--primary-color, #4a90e2); border-color: var(--primary-color, #4a90e2); color: #fff; }
+    .btn.primary:hover:not(:disabled) { background: var(--primary-color, #4a90e2); filter: brightness(.92); }
+    .btn.small { padding: 4px 9px; font-size: .75rem; }
+    .btn.danger { color: #dc3545; border-color: #dc3545; }
+    .btn.danger:hover:not(:disabled) { background: #fff5f5; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ============ 화면 전환 탭 ============ */
+    .view-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+    .view-tab {
+        padding: 7px 14px; border: 1px solid var(--card-border, #e2e8f0); border-radius: 6px; background: var(--widget-bg, #fff);
+        color: var(--text-dark, #1e293b); font-size: .82rem; font-weight: 600; cursor: pointer; transition: .2s;
+    }
+    .view-tab:hover { background: var(--widget-hover, #f1f5f9); }
+    .view-tab.active { background: var(--primary-color, #4a90e2); border-color: var(--primary-color, #4a90e2); color: #fff; }
+    /* 보관함(탭) */
+    .view-tab.archive-tab { color: #92400e; border-color: #fcd34d; background: #fffbeb; }
+    .view-tab.archive-tab:hover { border-color: #d97706; color: #b45309; background: #fef3c7; }
+    .view-tab.archive-tab.active { background: #d97706; border-color: #d97706; color: #fff; }
+    .view-tab.archive-tab .cnt { margin-left: 4px; padding: 1px 7px; border-radius: 4px; background: rgba(0,0,0,.09); font-size: .72rem; font-weight: 700; }
+    .view-tab.add-tab { border-style: dashed; color: var(--text-gray, #64748b); font-weight: 500; }
     .view { display: none; }
     .view.active { display: block; }
+    .archivebar {
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; padding: 9px 14px;
+        border: 1px solid #fcd34d; border-radius: 8px; background: #fffbeb; font-size: .82rem; color: #92400e;
+    }
+    .archivebar b { color: #78350f; font-size: .95rem; }
+    .archivebar .grow { flex: 1; }
+    .archivebar .note { font-size: .75rem; }
+    .notice-bar { margin: 0 0 16px; padding: 10px 14px; border-radius: 8px; font-size: .82rem; line-height: 1.6; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; }
 
-    /* 현황 요약: 브라우저 오른쪽 벽에 붙은 색인 탭. 탭을 누르면 판이 왼쪽으로 펼쳐지고, 다시 누르면 접힌다. */
+    /* ============ 목록에서 찾기(툴바) ============ */
+    .box { margin-bottom: 14px; padding: 12px 14px; border: 1px solid var(--card-border, #e2e8f0); border-radius: 8px; background: var(--widget-bg, #fff); }
+    .tabs { display: flex; gap: 5px; flex-wrap: wrap; }
+    .tab {
+        padding: 6px 12px; border: 1px solid var(--card-border, #e2e8f0); border-radius: 5px; background: var(--widget-bg, #fff);
+        color: var(--text-gray, #64748b); font-size: .8rem; font-weight: 600; cursor: pointer; transition: .2s;
+    }
+    .tab:hover { background: var(--widget-hover, #f1f5f9); }
+    .tab.active { background: var(--primary-color, #4a90e2); border-color: var(--primary-color, #4a90e2); color: #fff; }
+    .tab-select { height: 32px; padding: 0 8px; border: 1px solid #fdba74; border-radius: 5px; background: #fff; color: #c2410c; font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; }
+    .tab-select.active { background: #ea580c; border-color: #ea580c; color: #fff; }
+    .findbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .findbar .tabs { flex-wrap: nowrap; }
+    .findbar .tab { height: 32px; padding: 0 12px; white-space: nowrap; }
+    .find-sep { width: 1px; height: 22px; background: var(--card-border, #e2e8f0); }
+    .find-dates { display: flex; align-items: center; gap: 6px; color: var(--text-gray, #64748b); white-space: nowrap; }
+    .find-dates label { font-size: .78rem; font-weight: 700; margin-right: 2px; }
+    .findbar input[type=date], .findbar .find-keyword, .page-size {
+        height: 32px; padding: 0 10px; border: 1px solid var(--card-border, #e2e8f0); border-radius: 5px; box-sizing: border-box;
+        background: var(--input-bg, #fff); color: var(--text-dark, #1e293b); font-size: .8rem; outline: none; transition: border-color .2s;
+    }
+    .findbar input[type=date]:focus, .findbar .find-keyword:focus { border-color: var(--primary-color, #4a90e2); }
+    .findbar input[type=date] { width: 134px; }
+    .findbar .find-keyword { flex: 1 1 200px; min-width: 180px; }
+    .page-size { font-weight: 600; cursor: pointer; }
+    .find-actions { display: flex; gap: 6px; align-items: center; flex: none; }
+    .findbar .find-actions .btn { height: 32px; padding-top: 0; padding-bottom: 0; }
+    .listfoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+    .listfoot .sub { margin-top: 0; }
+    .pickbanner { display: none; margin: 0 0 8px; padding: 7px 14px; border-radius: 6px; background: #eff6ff; border: 1px solid #bfdbfe; font-size: .8rem; color: #1e3a8a; text-align: center; }
+    .linkbtn { border: 0; background: none; padding: 0; margin-left: 6px; color: var(--primary-color, #4a90e2); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+    .bulkbar { display: flex; align-items: center; gap: 8px; margin: 0 0 0 auto; font-size: .8rem; color: var(--text-gray, #64748b); }
+    .bulkbar b { color: var(--primary-color, #4a90e2); font-weight: 700; }
+    .bulkbar .grow { flex: 1; }
+    #pickHint { color: #c2410c; font-weight: 600; font-size: .75rem; }
+    #pickHint:empty { display: none; }
+
+    /* ============ 표(강사증명 발급관리와 같은 구성) ============ */
+    .table-wrapper {
+        width: 100%; border: 1px solid var(--card-border, #e2e8f0); border-radius: 8px; overflow-x: auto; overflow-y: hidden;
+        background: #ffffff;
+    }
+    .tbl { width: 100%; border-collapse: collapse; }
+    .tbl th {
+        background: rgba(0, 0, 0, 0.03); color: var(--text-dark, #1e293b); font-weight: 700; padding: 12px 8px; font-size: .85rem;
+        text-align: center; white-space: nowrap; border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    .tbl td {
+        padding: 10px 6px; font-size: .85rem; vertical-align: middle; text-align: center;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05); color: var(--text-dark, #1e293b); background: #ffffff;
+    }
+    .tbl tbody tr:not(.excluded):not(.picked):hover td { background: #f8fafc; }
+    .tbl tbody tr:last-child td { border-bottom: none; }
+    .tbl td.right, .tbl th.right { text-align: right; padding-right: 14px; }
+    .tbl td.right .sub { white-space: nowrap; }
+    .tbl td.chk, .tbl th.chk { width: 1%; padding: 10px 4px 10px 12px; white-space: nowrap; }
+    input.pick { width: 15px; height: 15px; margin: 0; cursor: pointer; accent-color: var(--primary-color, #4a90e2); vertical-align: middle; }
+    tr.picked td { background: rgba(37, 99, 235, .06); }
+    /* 진행 상태가 [입찰제외]인 공고는 행 전체를 회색으로 보여 준다. */
+    tr.excluded td { background: #e5e7eb; }
+    tr.excluded.picked td { background: #d6dde9; }
+    .tbl td.no, .tbl th.no { width: 1%; color: var(--text-gray, #64748b); font-size: .8rem; white-space: nowrap; }
+    /* 공고명은 한 줄만 보여 주고 넘치면 …으로 줄인다(마우스를 올리면 전체 제목). */
+    .tbl td.title-cell { width: 100%; max-width: 0; min-width: 300px; text-align: left; }
+    .title-row { display: flex; align-items: center; min-width: 0; }
+    .title-row .chip { flex: none; }
+    .title-link {
+        font-weight: 600; color: var(--primary-color, #4a90e2); text-decoration: none; line-height: 1.45;
+        min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .title-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+    tr.is-cancelled .title-link { text-decoration: line-through; color: var(--text-gray, #64748b); font-weight: 500; }
+    .sub { display: block; margin-top: 2px; color: var(--text-gray, #64748b); font-size: .75rem; }
+    .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .result-cell { min-width: 150px; }
+    .winner {
+        display: block; max-width: 190px; margin: 0 auto; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; line-height: 1.35; text-align: center;
+        padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--primary-color, #4a90e2); cursor: pointer;
+    }
+    .winner:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .winner.pending { color: #8a5a00; }
+    .dday-inline { margin-left: 6px; font-size: .75rem; font-weight: 700; color: var(--primary-color, #4a90e2); white-space: nowrap; }
+    .dday-inline.soon { color: #c2410c; }
+    .box-title { margin: 0 0 12px; font-size: 1rem; font-weight: 700; color: var(--text-dark, #1e293b); }
+    .box-title span { margin-left: 8px; font-size: .78rem; font-weight: 500; color: var(--text-gray, #64748b); }
+    .empty { padding: 36px 20px; text-align: center; color: var(--text-gray, #64748b); line-height: 1.7; }
+    .empty i { font-size: 2rem; display: block; margin-bottom: 10px; opacity: .5; }
+
+    /* 머리글 선택 상자(지역·결과·진행 상태) */
+    .head-select {
+        padding: 4px 6px; border: 1px solid var(--card-border, #dbe3ec); border-radius: 5px; max-width: 130px;
+        background: var(--input-bg, #fff); color: var(--text-dark, #1e293b); font-size: .78rem; font-weight: 700; cursor: pointer;
+    }
+    .head-select.on { border-color: var(--primary-color, #4a90e2); color: var(--primary-color, #4a90e2); background: #eff6ff; }
+    th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    th.sortable:hover { color: var(--primary-color, #4a90e2); }
+    th.sortable .arrow { margin-left: 3px; font-size: .7rem; opacity: .45; }
+    th.sortable.sorted { color: var(--primary-color, #4a90e2); }
+    th.sortable.sorted .arrow { opacity: 1; }
+    #resultFilter { width: 128px; max-width: 128px; }
+    #regionFilter { width: 96px; max-width: 96px; }
+    #workFilter { width: 112px; max-width: 112px; }
+
+    /* 상태 배지(발급대기·발급완료 배지와 같은 모양) */
+    .chip { display: inline-block; margin-right: 4px; padding: 3px 7px; border-radius: 4px; font-size: .72rem; font-weight: 700; white-space: nowrap; }
+    .chip.new { background: #dbeafe; color: #1d4ed8; }
+    .chip.changed { background: #fff4e0; color: #8a5a00; }
+    .chip.cancelled { background: #fff5f5; color: #dc3545; }
+    .chip.closed { background: #f1f5f9; color: #475569; }
+    .chip.rebid { background: #ede9fe; color: #6d28d9; }
+    button.chip { border: 0; font-family: inherit; cursor: pointer; }
+    button.chip:hover { filter: brightness(.94); box-shadow: 0 0 0 1px currentColor inset; }
+    .chip.open { background: #e6fffa; color: #0f766e; }
+    .chip.ok { background: #f0fff4; color: #2f855a; }
+    .dday { font-weight: 700; color: var(--primary-color, #4a90e2); }
+    .dday.soon { color: #c2410c; }
+
+    .status-select {
+        padding: 5px 7px; border: 1px solid var(--card-border, #dbe3ec); border-radius: 5px; font-size: .75rem; font-weight: 600;
+        background: var(--input-bg, #fff); color: var(--text-gray, #64748b); max-width: 130px;
+    }
+    .status-select.s-plan { background: #2563eb; border-color: #1d4ed8; color: #fff; font-weight: 800; box-shadow: 0 1px 4px rgba(37, 99, 235, .45); }
+    .status-select.s-skip { background: #f1f5f9; border-color: #e2e8f0; color: #64748b; }
+    .status-select.s-doc, .status-select.s-price, .status-select.s-brief { background: #fff4e0; border-color: #fde3b0; color: #8a5a00; }
+    .status-select.s-done { background: #f0fff4; border-color: #c6e7d0; color: #2f855a; }
+
+    /* 관리 버튼은 한 줄: 주 버튼은 포인트 색 테두리, 나머지는 회색 */
+    .row-actions { display: flex; gap: 4px; flex-wrap: nowrap; align-items: center; justify-content: center; }
+    .row-actions .btn[data-file-get] { color: var(--primary-color, #4a90e2); border-color: var(--primary-color, #4a90e2); }
+    .row-actions .none { font-size: .75rem; color: var(--text-gray, #64748b); white-space: nowrap; padding: 0 6px; }
+
+    .result-detail { margin-top: 8px; padding: 9px 12px; border-radius: 6px; background: #f3faf5; border: 1px solid #c6e7d0; font-size: .8rem; line-height: 1.7; white-space: normal; text-align: left; }
+    .result-detail .items { display: flex; flex-wrap: wrap; gap: 2px 20px; margin-top: 6px; }
+    .result-detail .items span { white-space: nowrap; color: var(--text-dark, #1e293b); }
+    .result-detail .items em { font-style: normal; font-weight: 700; color: var(--text-gray, #64748b); margin-right: 5px; }
+    .history { margin-top: 8px; padding: 9px 12px; border-radius: 6px; background: rgba(0,0,0,.02); border: 1px solid var(--card-border, #e2e8f0); font-size: .8rem; line-height: 1.6; text-align: left; }
+    .history div + div { margin-top: 4px; }
+
+    /* 쪽 번호(강사증명 발급관리 쪽 번호와 같은 모양) */
+    .pager { display: flex; gap: 5px; justify-content: center; align-items: center; flex-wrap: wrap; margin-top: 22px; }
+    .pager button {
+        min-width: 34px; height: 34px; padding: 0 10px; border: 1px solid var(--card-border, #e2e8f0); border-radius: 6px;
+        background: var(--widget-bg, #fff); color: var(--text-dark, #1e293b); font-size: .85rem; font-weight: 600; cursor: pointer;
+    }
+    .pager button:hover:not(:disabled) { background: var(--widget-hover, #f1f5f9); }
+    .pager button.current { background: var(--primary-color, #4a90e2); border-color: var(--primary-color, #4a90e2); color: #fff; cursor: default; }
+    .pager button:disabled { opacity: .4; cursor: default; }
+    .pager button.current:disabled { opacity: 1; }
+
+    /* ============ 보관함 고르는 창 ============ */
+    .dlg-back { position: fixed; inset: 0; z-index: 1000; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.5); padding: 20px; }
+    .dlg { width: min(420px, 100%); padding: 26px; border-radius: 15px; background: #fff; color: var(--text-dark, #1e293b); box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+    .dlg h3 { margin: 0 0 6px; font-size: 1.05rem; font-weight: 700; }
+    .dlg label { display: block; margin: 14px 0 5px; font-size: .78rem; font-weight: 700; color: var(--text-gray, #64748b); }
+    .dlg select, .dlg input {
+        width: 100%; height: 34px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--card-border, #e2e8f0); border-radius: 5px;
+        background: var(--input-bg, #fff); color: var(--text-dark, #1e293b); font-size: .85rem;
+    }
+    .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+    /* ============ 현황 요약: 브라우저 오른쪽 벽에 붙은 색인 탭(누르면 펼쳐짐) ============ */
     .bn-dock {
         position: fixed; right: 0; top: 150px; z-index: 900; display: flex; align-items: flex-start;
         transform: translateX(calc(100% - 36px)); transition: transform .26s cubic-bezier(.2,.8,.3,1);
@@ -38,8 +230,8 @@
     .bn-dock-tab {
         /* 판의 둥근 윗모서리 아래부터 곧은 변에 붙도록 살짝 내린다(위쪽이 벌어져 보이지 않게). */
         margin-top: 16px; flex: 0 0 36px; width: 36px; min-height: 116px; padding: 14px 0; box-sizing: border-box;
-        border: 1px solid var(--border-color); border-right: 0; border-radius: 12px 0 0 12px;
-        background: linear-gradient(180deg, #24456f, #1f3a5f); color: #fff; font-family: inherit; font-size: .72rem; font-weight: 700;
+        border: 1px solid var(--card-border, #e2e8f0); border-right: 0; border-radius: 12px 0 0 12px;
+        background: linear-gradient(180deg, #24456f, #1f3a5f); color: #fff; font-size: .72rem; font-weight: 700;
         cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
         box-shadow: -3px 2px 12px rgba(20,35,58,.18); transition: background .15s;
     }
@@ -48,218 +240,81 @@
     .bn-dock-tab i { font-size: .8rem; opacity: .9; }
     .bn-summary {
         flex: 0 0 204px; width: 204px; box-sizing: border-box; padding: 15px 14px 14px;
-        border: 1px solid var(--border-color); border-right: 0; border-radius: 12px 0 0 12px;
+        border: 1px solid var(--card-border, #e2e8f0); border-right: 0; border-radius: 12px 0 0 12px;
         max-height: calc(100vh - 190px); overflow: auto;
-        background: linear-gradient(180deg, var(--card-bg, #fff), var(--widget-bg, #f7fafd)); box-shadow: -4px 6px 18px rgba(20,35,58,.14);
+        background: var(--card-bg, #fff); box-shadow: -4px 6px 18px rgba(20,35,58,.14);
     }
-    .bn-summary .bns-title { display: flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 800; color: #1f3a5f; margin-bottom: 12px; }
+    .bn-summary .bns-title { display: flex; align-items: center; gap: 6px; font-size: .82rem; font-weight: 700; color: #1f3a5f; margin-bottom: 12px; }
     .bn-summary .bns-title i { font-size: .72rem; opacity: .7; }
     .bns-grid { display: flex; flex-direction: column; gap: 8px; }
-    .bns-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: .74rem; color: var(--text-gray); }
+    .bns-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: .75rem; color: var(--text-gray, #64748b); }
     .bns-row span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
-    .bns-row b { font-size: .82rem; font-weight: 800; color: var(--text-dark); white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .bns-row.minor b { font-size: .74rem; font-weight: 700; }
+    .bns-row b { font-size: .85rem; font-weight: 700; color: var(--text-dark, #1e293b); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .bns-row.minor b { font-size: .75rem; font-weight: 600; }
     .bns-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
-    .bns-sep { margin: 13px 0 9px; padding-top: 11px; border-top: 1px dashed var(--border-color); font-size: .62rem; font-weight: 800; letter-spacing: .08em; color: var(--text-gray); }
-    .bns-note { margin-top: 10px; font-size: .66rem; color: var(--text-gray); line-height: 1.5; }
+    .bns-sep { margin: 13px 0 9px; padding-top: 11px; border-top: 1px dashed var(--card-border, #e2e8f0); font-size: .65rem; font-weight: 700; letter-spacing: .08em; color: var(--text-gray, #64748b); }
+    .bns-note { margin-top: 10px; font-size: .68rem; color: var(--text-gray, #64748b); line-height: 1.5; }
     .bns-note:empty { display: none; }
-    @media (max-width: 640px) {
-        .bn-dock { top: auto; bottom: 14px; }
-        .bn-summary { max-height: 60vh; }
-    }
-    .notice-bar { margin: 0 0 18px; padding: 12px 16px; border-radius: 12px; font-size: .86rem; line-height: 1.6; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; }
 
-    .btn {
-        border: 1px solid var(--border-color); background: var(--input-bg, #fff); color: var(--text-dark);
-        border-radius: 9px; padding: 9px 16px; font-weight: 700; font-size: .86rem; cursor: pointer; white-space: nowrap;
-        font-family: inherit;
-    }
-    .btn:hover { border-color: var(--saedam-blue); color: var(--saedam-blue); }
-    .btn.primary { background: var(--saedam-blue); border-color: var(--saedam-blue); color: #fff; }
-    .btn.primary:hover { opacity: .9; color: #fff; }
-    .btn.small { padding: 5px 9px; font-size: .76rem; border-radius: 7px; }
-    .btn:disabled { opacity: .55; cursor: wait; }
-
-    /* 목록에서 찾기 */
-    .box { margin-bottom: 16px; padding: 16px 18px; border: 1px solid var(--border-color); border-radius: 14px; background: var(--input-bg, #fff); }
-    .box-title { margin: 0 0 12px; font-size: 1rem; font-weight: 800; color: var(--text-dark); }
-    .box-title span { margin-left: 8px; font-size: .78rem; font-weight: 500; color: var(--text-gray); }
-    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
-    .tab {
-        padding: 7px 14px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--input-bg, #fff);
-        color: var(--text-gray); font-size: .84rem; font-weight: 700; cursor: pointer; font-family: inherit;
-    }
-    .tab.active { background: var(--saedam-blue); border-color: var(--saedam-blue); color: #fff; }
-    .tab.soon { color: #c2410c; border-color: #fdba74; }
-    .tab.soon.active { background: #ea580c; border-color: #ea580c; color: #fff; }
-    /* 목록에서 찾기: 상태 탭 · 게시일 · 검색어 · 버튼을 한 줄에 놓는다(좁으면 줄바꿈). */
-    .findbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; }
-    .findbar .tabs { margin: 0; flex-wrap: nowrap; }
-    .findbar .tab { height: 36px; padding: 0 13px; white-space: nowrap; }
-    .find-sep { width: 1px; height: 24px; background: var(--border-color); }
-    .find-dates { display: flex; align-items: center; gap: 6px; color: var(--text-gray); white-space: nowrap; }
-    .find-dates label { font-size: .8rem; font-weight: 800; margin-right: 2px; }
-    .findbar input[type=date], .findbar .find-keyword {
-        height: 36px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 9px; box-sizing: border-box;
-        background: var(--input-bg, #fff); color: var(--text-dark); font-size: .86rem; font-family: inherit;
-    }
-    .findbar input[type=date] { width: 138px; }
-    .findbar .find-keyword { flex: 1 1 200px; min-width: 180px; }
-    .find-actions { display: flex; gap: 6px; align-items: center; flex: none; }
-    .findbar .find-actions .btn, .findbar .page-size { height: 36px; padding-top: 0; padding-bottom: 0; }
-    .filters { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
-    .filter label, .field label { display: block; font-size: .78rem; font-weight: 800; color: var(--text-gray); margin-bottom: 5px; }
-    .filter input, .filter select {
-        padding: 8px 11px; border: 1px solid var(--border-color); border-radius: 9px; box-sizing: border-box; height: 38px;
-        background: var(--input-bg, #fff); color: var(--text-dark); font-size: .88rem; font-family: inherit;
-    }
-    .filter.grow { flex: 1; min-width: 220px; }
-    .filter.grow input { width: 100%; }
-    .filter .dates { display: flex; gap: 6px; align-items: center; color: var(--text-gray); }
-    .filter-actions { display: flex; gap: 6px; }
-    .filter-actions .btn { height: 38px; padding-top: 0; padding-bottom: 0; }
-    .page-size {
-        height: 38px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 9px; box-sizing: border-box;
-        background: var(--input-bg, #fff); color: var(--text-dark); font-size: .86rem; font-weight: 700; font-family: inherit; cursor: pointer;
-    }
-    .pager { display: flex; gap: 5px; justify-content: center; align-items: center; flex-wrap: wrap; margin-top: 16px; }
-    .pager button {
-        min-width: 36px; height: 36px; padding: 0 9px; border: 1px solid var(--border-color); border-radius: 8px;
-        background: var(--input-bg, #fff); color: var(--text-dark); font-size: .86rem; font-weight: 700; font-family: inherit; cursor: pointer;
-    }
-    .pager button:hover:not(:disabled) { border-color: var(--saedam-blue); color: var(--saedam-blue); }
-    .pager button.current { background: var(--saedam-blue); border-color: var(--saedam-blue); color: #fff; cursor: default; }
-    .pager button:disabled { opacity: .4; cursor: default; }
-    .pager button.current:disabled { opacity: 1; }
-
-    .tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
-    /* 공고 목록은 알림 메일과 같은 글꼴·크기·링크 색으로 보여 준다. */
-    #view-list .tbl { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: 13px; color: #0f172a; }
-    #view-list .tbl .title-link { font-weight: 400; color: #1d4ed8; }
-    #view-list .tbl .title-link:hover { color: #1e40af; }
-    #view-list .tbl b { font-weight: 400; }
-    #view-list .tbl .winner { font-weight: 400; color: #1d4ed8; }
-    #view-list .tbl .winner.pending { color: #8a5a00; }
-    #view-list .tbl .sub { font-size: 12px; color: #64748b; }
-    #view-list .tbl .btn.small, #view-list .tbl .status-select { font-family: inherit; }
-    .tbl th, .tbl td { padding: 10px 8px; border-bottom: 1px solid var(--border-color); text-align: left; vertical-align: top; }
-    .tbl th { font-size: .8rem; color: var(--text-gray); font-weight: 800; white-space: nowrap; }
-    .tbl tbody tr:hover { background: var(--widget-hover, rgba(0,78,162,.05)); }
-    .tbl td.right, .tbl th.right { text-align: right; }
-    .tbl td.right .sub { white-space: nowrap; }
-    .tbl td.chk, .tbl th.chk { width: 1%; padding: 10px 4px 10px 10px; text-align: center; white-space: nowrap; }
-    .tbl td.chk { padding-top: 13px; }
-    input.pick { width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--saedam-blue); }
-    tr.picked td { background: rgba(0,78,162,.06); }
-    /* 진행 상태가 [입찰제외]인 공고는 행 전체를 회색으로 보여 준다. */
-    tr.excluded td { background: #e5e7eb; }
-    tr.excluded.picked td { background: #d6dde9; }
-    .bulkbar { display: flex; align-items: center; gap: 10px; margin: 0 0 0 auto; font-size: .84rem; color: var(--text-gray); }
-    .bulkbar .btn { white-space: nowrap; }
-    #pickHint { color: #c2410c; font-weight: 700; font-size: .78rem; }
-    #pickHint:empty { display: none; }
-    .bulkbar b { color: var(--saedam-blue); font-weight: 800; }
-    .bulkbar .grow { flex: 1; }
-    .tbl td.no, .tbl th.no { width: 1%; text-align: center; color: var(--text-gray); font-size: .8rem; white-space: nowrap; }
-    /* 공고명은 한 줄만 보여 주고 넘치면 …으로 줄인다(마우스를 올리면 전체 제목). */
-    .tbl td.title-cell { width: 100%; max-width: 0; min-width: 300px; }
-    .title-row { display: flex; align-items: center; min-width: 0; }
-    .title-row .chip { flex: none; }
-    .title-link {
-        font-weight: 700; color: var(--text-dark); text-decoration: none; line-height: 1.45;
-        min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    }
-    .head-select {
-        padding: 4px 6px; border: 1px solid var(--border-color); border-radius: 7px; max-width: 130px;
-        background: var(--input-bg, #fff); color: var(--text-gray); font: inherit; font-weight: 800; cursor: pointer;
-    }
-    .head-select.on { border-color: var(--saedam-blue); color: var(--saedam-blue); background: #eff6ff; }
-    th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
-    #resultFilter { width: 128px; max-width: 128px; }
-    #regionFilter { width: 96px; max-width: 96px; }
-    #workFilter { width: 112px; max-width: 112px; }
-    th.sortable:hover { color: var(--saedam-blue); }
-    th.sortable .arrow { margin-left: 3px; font-size: .7rem; opacity: .45; }
-    th.sortable.sorted { color: var(--saedam-blue); }
-    th.sortable.sorted .arrow { opacity: 1; }
-    .winner {
-        display: inline-block; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
-        padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--saedam-blue); cursor: pointer; text-align: left;
-    }
-    .winner:hover { text-decoration: underline; }
-    .winner.pending { color: #8a5a00; }
-    .result-cell { white-space: nowrap; }
-    .title-link:hover { color: var(--saedam-blue); text-decoration: underline; }
-    .sub { display: block; margin-top: 3px; color: var(--text-gray); font-size: .78rem; }
-    .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .chip { display: inline-block; margin-right: 4px; padding: 3px 9px; border-radius: 999px; font-size: .72rem; font-weight: 800; white-space: nowrap; }
-    .chip.new { background: #dbeafe; color: #1d4ed8; }
-    .chip.changed { background: #fff4e0; color: #8a5a00; }
-    .chip.cancelled { background: #fee2e2; color: #b91c1c; }
-    .chip.closed { background: #f1f5f9; color: #475569; }
-    .chip.rebid { background: #ede9fe; color: #6d28d9; }
-    .chip.ok { background: #e6f4ea; color: #176b36; }
-    .dday { font-weight: 800; color: var(--saedam-blue); }
-    .dday.soon { color: #c2410c; }
-    tr.is-cancelled .title-link { text-decoration: line-through; color: var(--text-gray); }
-    .result-detail { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: #f3faf5; border: 1px solid #c6e7d0; font-size: .82rem; line-height: 1.7; white-space: normal; }
-    .result-detail .items { display: flex; flex-wrap: wrap; gap: 2px 20px; margin-top: 6px; }
-    .result-detail .items span { white-space: nowrap; color: var(--text-dark); }
-    .result-detail .items em { font-style: normal; font-weight: 700; color: var(--text-gray); margin-right: 5px; }
-    .history { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: #f8fafc; border: 1px solid var(--border-color); font-size: .8rem; line-height: 1.6; }
-    .history div + div { margin-top: 4px; }
-    .status-select {
-        padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 8px; font-size: .8rem; font-weight: 700;
-        background: var(--input-bg, #fff); color: var(--text-gray); font-family: inherit; max-width: 130px;
-    }
-    .status-select.s-plan { background: #dbeafe; border-color: #bfdbfe; color: #1d4ed8; }
-    .status-select.s-skip { background: #f1f5f9; border-color: #e2e8f0; color: #64748b; }
-    .status-select.s-doc, .status-select.s-price, .status-select.s-brief { background: #fff4e0; border-color: #fde3b0; color: #8a5a00; }
-    .status-select.s-done { background: #e6f4ea; border-color: #c6e7d0; color: #176b36; }
-    /* 관리 버튼은 한 줄로 */
-    .row-actions { display: flex; gap: 4px; flex-wrap: nowrap; align-items: center; justify-content: flex-end; }
-    .dday-inline { margin-left: 6px; font-size: 12px; font-weight: 700; color: var(--saedam-blue); white-space: nowrap; }
-    .dday-inline.soon { color: #c2410c; }
-    .row-actions .none { font-size: .74rem; color: var(--text-gray); white-space: nowrap; padding: 0 6px; }
-    .empty { padding: 36px 20px; text-align: center; color: var(--text-gray); line-height: 1.7; }
-    .empty i { font-size: 2rem; display: block; margin-bottom: 10px; opacity: .5; }
-
-    /* 가져오기 · 설정 */
+    /* ============ 가져오기 · 설정 ============ */
     .fetch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
-    .fetch-card { padding: 20px; border: 1px solid var(--border-color); border-radius: 14px; background: var(--input-bg, #fff); }
-    .fetch-card h3 { margin: 0 0 8px; font-size: 1.05rem; font-weight: 800; color: var(--text-dark); }
-    .fetch-card p { margin: 0 0 14px; font-size: .86rem; color: var(--text-gray); line-height: 1.65; }
-    .fetch-card .dates { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; color: var(--text-gray); }
+    .fetch-card { padding: 20px; border: 1px solid var(--card-border, #e2e8f0); border-radius: 8px; background: var(--widget-bg, #fff); }
+    .fetch-card h3 { margin: 0 0 8px; font-size: 1rem; font-weight: 700; color: var(--text-dark, #1e293b); }
+    .fetch-card p { margin: 0 0 14px; font-size: .83rem; color: var(--text-gray, #64748b); line-height: 1.65; }
+    .fetch-card .dates { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; color: var(--text-gray, #64748b); }
     .fetch-card input[type=date] {
-        padding: 8px 11px; border: 1px solid var(--border-color); border-radius: 9px; height: 38px; box-sizing: border-box;
-        background: var(--input-bg, #fff); color: var(--text-dark); font-size: .88rem; font-family: inherit;
+        padding: 0 10px; border: 1px solid var(--card-border, #e2e8f0); border-radius: 5px; height: 32px; box-sizing: border-box;
+        background: var(--input-bg, #fff); color: var(--text-dark, #1e293b); font-size: .8rem;
     }
+    .set-box { padding: 6px 22px 22px; }
+    .sec { padding: 22px 0; border-top: 2px dashed var(--card-border, #cbd5e1); }
+    .sec:first-child { border-top: 0; }
+    .sec-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px; }
+    .sec > :not(.sec-head) { margin-left: 38px; }          /* 본문을 제목 글자 줄에 맞춘다(번호 동그라미 26px + 간격 12px) */
+    .sec-no { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--primary-color, #4a90e2); color: #fff; font-size: .8rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .sec-head h2 { margin: 2px 0 3px; font-size: 1.02rem; font-weight: 700; color: var(--text-dark, #1e293b); }
+    .sec-head p { margin: 0; font-size: .8rem; color: var(--text-gray, #64748b); line-height: 1.55; }
+    .form-grid.cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .form-grid.cols2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .form-grid.gap-top { margin-top: 18px; }
+    .field.narrow { max-width: 560px; }
+    .set-box .form-actions { margin-top: 0; }
+    .set-box .fetch-card { background: #fff; }
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px 22px; }
-    .field label { color: var(--text-dark); font-size: .82rem; }
-    .field .help { margin-top: 5px; font-size: .76rem; color: var(--text-gray); line-height: 1.55; }
+    .field label { display: block; margin-bottom: 5px; font-size: .8rem; font-weight: 700; color: var(--text-dark, #1e293b); }
+    .field .help { margin-top: 5px; font-size: .75rem; color: var(--text-gray, #64748b); line-height: 1.55; }
     .field input[type=text], .field input[type=email], .field input[type=password], .field textarea {
-        width: 100%; padding: 9px 12px; border: 1px solid var(--border-color); border-radius: 9px; box-sizing: border-box;
-        background: var(--input-bg, #fff); color: var(--text-dark); font-size: .88rem; font-family: inherit;
+        width: 100%; padding: 8px 10px; border: 1px solid var(--card-border, #e2e8f0); border-radius: 5px; box-sizing: border-box;
+        background: var(--input-bg, #fff); color: var(--text-dark, #1e293b); font-size: .85rem; outline: none; transition: border-color .2s;
     }
+    .field input:focus, .field textarea:focus { border-color: var(--primary-color, #4a90e2); }
     .field textarea { min-height: 76px; resize: vertical; }
     .mail-list input { margin-bottom: 6px; }
-    .check { display: flex; gap: 8px; align-items: flex-start; font-size: .86rem; color: var(--text-dark); margin-bottom: 8px; }
-    .form-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-color); }
-    .step-title { margin: 22px 0 10px; font-size: .95rem; font-weight: 800; color: var(--saedam-blue); }
+    .check { display: flex; gap: 8px; align-items: flex-start; font-size: .83rem; color: var(--text-dark, #1e293b); margin-bottom: 8px; }
+    .form-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--card-border, #e2e8f0); }
+    .step-title { margin: 22px 0 10px; font-size: .92rem; font-weight: 700; color: var(--primary-dark, #357abd); }
     .step-title:first-child { margin-top: 0; }
+
     @media (max-width: 900px) {
+        .form-grid.cols3, .form-grid.cols2 { grid-template-columns: 1fr; }
+        .sec > :not(.sec-head) { margin-left: 0; }
+        .set-box { padding: 4px 14px 18px; }
         .bn-container { padding: 18px; }
         .tbl thead { display: none; }
         .tbl, .tbl tbody, .tbl tr, .tbl td { display: block; width: 100%; box-sizing: border-box; }
-        .tbl tr { border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 12px; padding: 8px; }
-        .tbl td { border: 0; padding: 5px 8px; }
-        .tbl td.right { text-align: left; }
-        .tbl td[data-label]::before { content: attr(data-label) ' '; font-size: .74rem; font-weight: 800; color: var(--text-gray); margin-right: 6px; }
-        .row-actions { flex-wrap: wrap; }
+        .tbl tr { border-bottom: 1px solid rgba(0,0,0,.08); padding: 8px; }
+        .tbl td { border: 0; padding: 5px 8px; text-align: left; }
+        .tbl td.right { text-align: left; padding-right: 8px; }
+        .tbl td[data-label]::before { content: attr(data-label) ' '; font-size: .74rem; font-weight: 700; color: var(--text-gray, #64748b); margin-right: 6px; }
+        .row-actions { flex-wrap: wrap; justify-content: flex-start; }
         .tbl td.title-cell { max-width: none; }
-        .tbl td.no { width: auto; text-align: left; }
+        .tbl td.no { width: auto; }
         .title-row { flex-wrap: wrap; }
         .title-link { white-space: normal; }
+    }
+    @media (max-width: 640px) {
+        .bn-dock { top: auto; bottom: 14px; }
+        .bn-summary { max-height: 60vh; }
     }
 </style>
 {% endblock %}
@@ -267,7 +322,10 @@
 {% block content %}
 <div class="bn-container">
     <div class="page-header">
-        <h1 class="page-title"><i class="fa-solid fa-gavel"></i> 입찰공고관리</h1>
+        <div class="page-brand">
+            <img src="{{ url_for('static', filename='logo01.gif') }}" alt="새담 로고">
+            <h2 class="page-title">입찰공고관리</h2>
+        </div>
     </div>
 
     <!-- 현황 요약: 브라우저 오른쪽 벽에 붙은 색인 탭(누르면 펼쳐짐) -->
@@ -291,16 +349,40 @@
         </aside>
     </div>
 
+    <!-- 보관함 고르는 창 -->
+    <div class="dlg-back" id="archiveDlg" role="dialog" aria-modal="true" aria-labelledby="archiveDlgTitle">
+        <div class="dlg">
+            <h3 id="archiveDlgTitle">보관함으로 옮기기</h3>
+            <label for="archiveTarget">옮길 보관함</label>
+            <select id="archiveTarget"></select>
+            <div id="archiveNewWrap" style="display:none">
+                <label for="archiveNewName">새 보관함 이름</label>
+                <input type="text" id="archiveNewName" maxlength="30" placeholder="예) 2025년 공고">
+            </div>
+            <div class="dlg-actions">
+                <button type="button" class="btn" id="archiveCancel">취소</button>
+                <button type="button" class="btn primary" id="archiveOk">옮기기</button>
+            </div>
+        </div>
+    </div>
+
     <div class="view-tabs" id="viewTabs">
         <button type="button" class="view-tab active" data-view="list"><i class="fa-solid fa-list"></i> 공고 목록</button>
-        <button type="button" class="view-tab" data-view="fetch"><i class="fa-solid fa-cloud-arrow-down"></i> 나라장터에서 가져오기</button>
-        {% if is_admin %}<button type="button" class="view-tab" data-view="settings"><i class="fa-solid fa-gear"></i> 수집·메일 설정</button>{% endif %}
+        <button type="button" class="view-tab" data-view="settings"><i class="fa-solid fa-gear"></i> 공고수집·메일 설정</button>
         <button type="button" class="view-tab" data-view="runs"><i class="fa-solid fa-clock-rotate-left"></i> 수집 기록</button>
-        <!-- 공고 목록에서 체크한 공고의 첨부파일을 한꺼번에 받는 막대(공고 목록 화면에서만 보인다) -->
+        <span id="archiveTabs" style="display:contents"></span>
+        <button type="button" class="view-tab add-tab" id="addArchiveBtn" title="이름을 붙인 보관함 탭을 만듭니다(예: 2025년 공고)">+ 보관함 만들기</button>
+        <!-- 공고 목록에서 체크한 공고를 보관·삭제하거나 첨부파일을 한꺼번에 받는 막대(공고 목록 화면에서만 보인다) -->
         <div class="bulkbar" id="bulkBar">
             <span title="공고 앞의 체크박스로 고릅니다(한 번에 30건까지)">선택한 공고 <b id="pickCount">0</b>건</span>
             <button type="button" class="btn small primary" id="bulkDownloadBtn" disabled
                     title="체크한 공고의 첨부파일을 모두 받아 압축파일 하나(공고마다 폴더)로 내려받습니다"><i class="fa-solid fa-file-zipper"></i> 선택한 공고 첨부 받기</button>
+            <button type="button" class="btn small" id="archiveBtn" disabled
+                    title="체크한 공고를 보관함(탭)으로 옮겨 [공고 목록]에서 치웁니다"><i class="fa-solid fa-box-archive"></i> 보관</button>
+            <button type="button" class="btn small" id="unarchiveBtn" disabled style="display:none"
+                    title="체크한 공고를 보관함에서 꺼내 [공고 목록]으로 되돌립니다"><i class="fa-solid fa-box-open"></i> 꺼내기</button>
+            {% if is_admin %}<button type="button" class="btn small danger" id="deleteBtn" disabled
+                    title="체크한 공고를 완전히 삭제합니다(관리자 전용, 되돌릴 수 없음)"><i class="fa-regular fa-trash-can"></i> 삭제</button>{% endif %}
             <button type="button" class="btn small" id="clearPickBtn" disabled>선택 해제</button>
             <span id="pickHint"></span>
         </div>
@@ -308,18 +390,32 @@
 
     <div class="notice-bar" id="keyWarning" style="display:none">
         <i class="fa-solid fa-triangle-exclamation"></i> 나라장터 인증키가 아직 저장되지 않아 공고를 수집할 수 없습니다.
-        {% if is_admin %}[수집·메일 설정]에서 공공데이터포털의 <b>일반 인증키</b>를 한 번 저장해 주세요.{% else %}관리자에게 인증키 등록을 요청해 주세요.{% endif %}
+        {% if is_admin %}[공고수집·메일 설정]에서 공공데이터포털의 <b>일반 인증키</b>를 한 번 저장해 주세요.{% else %}관리자에게 인증키 등록을 요청해 주세요.{% endif %}
     </div>
 
     <!-- ============ 공고 목록 ============ -->
     <div class="view active" id="view-list">
+        <div class="archivebar" id="archiveBar" style="display:none">
+            <i class="fa-solid fa-folder-open"></i>
+            <b id="archiveName"></b>
+            <span id="archiveCount"></span>
+            <span class="grow"></span>
+            <span class="note">이 보관함의 공고는 [공고 목록]에 나오지 않습니다. 체크한 뒤 [꺼내기]로 되돌릴 수 있습니다.</span>
+            <button type="button" class="btn small" id="renameArchiveBtn">이름 바꾸기</button>
+            <button type="button" class="btn small danger" id="deleteArchiveBtn" title="보관함 탭만 지우고, 안의 공고는 [공고 목록]으로 돌아옵니다">보관함 삭제</button>
+        </div>
         <div class="box findbar">
             <div class="tabs" id="statusTabs">
                 <button type="button" class="tab active" data-status="all">전체</button>
                 <button type="button" class="tab" data-status="open">진행 중</button>
                 <button type="button" class="tab" data-status="closed">마감</button>
                 <button type="button" class="tab" data-status="cancelled">취소</button>
-                <button type="button" class="tab soon" data-status="soon" title="입찰 마감이 오늘부터 3일 안인 공고만 봅니다">3일내 마감</button>
+                <select class="tab-select" id="soonSelect" title="마감이 가까운 공고만 봅니다">
+                    <option value="">마감 임박</option>
+                    <option value="soon">3일내 마감</option>
+                    <option value="tomorrow">내일 마감</option>
+                    <option value="week">1주내 마감</option>
+                </select>
             </div>
             <span class="find-sep"></span>
             <div class="find-dates" title="게시일 기간으로 거릅니다">
@@ -334,11 +430,13 @@
                     <option value="30">30개씩</option>
                     <option value="60">60개씩</option>
                     <option value="100">100개씩</option>
+                    <option value="all">모두 보기</option>
                 </select>
             </div>
         </div>
 
-        <div style="overflow-x:auto">
+        <div class="pickbanner" id="pickBanner"></div>
+        <div class="table-wrapper">
             <table class="tbl">
                 <thead>
                     <tr><th class="chk"><input type="checkbox" class="pick" id="checkAll" title="이 쪽의 공고를 모두 선택/해제"></th><th class="no">번호</th><th>공고명</th><th><select id="regionFilter" class="head-select" title="고른 지역의 공고만 봅니다">
@@ -350,7 +448,7 @@
                             <select id="resultFilter" class="head-select" title="결과가 있는 공고나 고른 낙찰 업체의 공고만 봅니다">
                                 <option value="">결과 (전체)</option>
                             </select><span class="arrow" title="누르면 낙찰 업체 이름순으로 정렬합니다">↕</span></th>
-                        <th class="right">관리</th>
+                        <th>관리</th>
                         <th><select id="workFilter" class="head-select" title="고른 상태의 공고만 봅니다">
                             <option value="">진행 상태 (전체)</option>
                             <option value="none">상태 미선택</option>
@@ -359,95 +457,112 @@
                 <tbody id="noticeBody"></tbody>
             </table>
         </div>
-        <div id="noticeCount" class="sub" style="margin-top:8px"></div>
+        <div class="listfoot">
+            <div id="noticeCount" class="sub"></div>
+            <button type="button" class="btn small" id="exportBtn" disabled
+                    title="지금 보이는 목록(조건·정렬 그대로, 체크한 공고가 있으면 그것만)을 엑셀 파일로 내려받습니다"><i class="fa-solid fa-file-excel"></i> 엑셀 받기</button>
+        </div>
         <div class="pager" id="pager"></div>
     </div>
 
-    <!-- ============ 나라장터에서 가져오기 ============ -->
-    <div class="view" id="view-fetch">
-        <div class="fetch-grid">
-            <div class="fetch-card">
-                <h3><i class="fa-solid fa-rotate"></i> 최근 공고 지금 가져오기</h3>
-                <p>자동 수집(오전 9시·오후 3시)을 기다리지 않고 지금 바로 새 공고와 정정·취소, 개찰이 끝난 공고의 선정 결과를 확인합니다.
-                    처음 누르면 최근 4주치를 가져옵니다. 메일은 보내지 않습니다.</p>
-                <button type="button" class="btn primary" id="collectBtn"><i class="fa-solid fa-rotate"></i> 지금 수집</button>
-            </div>
-            <div class="fetch-card">
-                <h3><i class="fa-solid fa-calendar-days"></i> 기간을 정해 가져오기</h3>
-                <p>고른 기간에 게시된 공고를 나라장터에서 직접 찾아 목록에 더합니다. 자동 수집을 시작하기 전의 지난 공고를 채워 넣을 때 씁니다.
-                    한 번에 최대 1년, 메일은 보내지 않습니다.</p>
-                <div class="dates"><input type="date" id="rangeFrom"> ~ <input type="date" id="rangeTo"></div>
-                <button type="button" class="btn primary" id="rangeCollectBtn"><i class="fa-solid fa-calendar-days"></i> 이 기간 가져오기</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ============ 수집·메일 설정 (관리자) ============ -->
-    {% if is_admin %}
+    <!-- ============ 공고수집·메일 설정 ============ -->
     <div class="view" id="view-settings">
-        <div class="box">
-            <div class="step-title">① 나라장터 인증키</div>
-            <div class="form-grid">
-                <div class="field">
+        <div class="box set-box">
+            <section class="sec">
+                <div class="sec-head"><span class="sec-no">1</span><div><h2>나라장터에서 공고 가져오기</h2>
+                    <p>자동 수집을 기다리지 않고 필요할 때 직접 가져옵니다. 가져온 결과는 [공고 목록]에서 봅니다.</p></div></div>
+            <div class="fetch-grid">
+                <div class="fetch-card">
+                    <h3><i class="fa-solid fa-rotate"></i> 최근 공고 지금 가져오기</h3>
+                    <p>자동 수집(오전 9시·오후 3시)을 기다리지 않고 지금 바로 새 공고와 정정·취소, 개찰이 끝난 공고의 선정 결과를 확인합니다.
+                        처음 누르면 최근 4주치를 가져옵니다. 메일은 보내지 않습니다.</p>
+                    <button type="button" class="btn primary" id="collectBtn"><i class="fa-solid fa-rotate"></i> 지금 수집</button>
+                </div>
+                <div class="fetch-card">
+                    <h3><i class="fa-solid fa-calendar-days"></i> 기간을 정해 가져오기</h3>
+                    <p>고른 기간에 게시된 공고를 나라장터에서 직접 찾아 목록에 더합니다. 자동 수집을 시작하기 전의 지난 공고를 채워 넣을 때 씁니다.
+                        한 번에 최대 1년, 메일은 보내지 않습니다.</p>
+                    <div class="dates"><input type="date" id="rangeFrom"> ~ <input type="date" id="rangeTo"></div>
+                    <button type="button" class="btn primary" id="rangeCollectBtn"><i class="fa-solid fa-calendar-days"></i> 이 기간 가져오기</button>
+                </div>
+                <div class="fetch-card">
+                    <h3><i class="fa-solid fa-trophy"></i> 개찰 지난 공고 결과 가져오기</h3>
+                    <p>개찰일시가 지난 공고의 낙찰 결과(낙찰 업체·낙찰금액·낙찰률)를 나라장터에서 모두 가져와 목록에 표시합니다.
+                        자동 수집 때도 가져오지만, 지난 공고를 한꺼번에 채우거나 바로 확인하고 싶을 때 씁니다.
+                        공고가 많으면 몇 분 걸릴 수 있습니다.</p>
+                    <button type="button" class="btn primary" id="resultsRefreshBtn"><i class="fa-solid fa-trophy"></i> 결과 가져오기</button>
+                </div>
+            </div>
+                </section>
+{% if is_admin %}
+            <section class="sec">
+                <div class="sec-head"><span class="sec-no">2</span><div><h2>나라장터 인증키</h2>
+                    <p>입찰공고정보서비스(공고 수집)와 낙찰정보서비스(선정 결과 조회)에 같은 인증키를 씁니다. 두 서비스 모두 활용신청이 되어 있어야 합니다.</p></div></div>
+                <div class="field narrow">
                     <label for="serviceKey">공공데이터포털 일반 인증키</label>
                     <input type="password" id="serviceKey" autocomplete="new-password" placeholder="새 키를 넣을 때만 입력 (비워 두면 기존 키 유지)">
                     <div class="help" id="keyState"></div>
-                    <div class="help">입찰공고정보서비스(공고 수집)와 낙찰정보서비스(선정 결과 자동 조회)에 같은 인증키를 씁니다. 두 서비스 모두 활용신청이 되어 있어야 합니다.</div>
                 </div>
-            </div>
+            </section>
 
-            <div class="step-title">② 어떤 공고를 모을까요</div>
-            <div class="form-grid">
-                <div class="field">
-                    <label for="keywords">검색어 (한 줄에 하나)</label>
-                    <textarea id="keywords"></textarea>
-                    <div class="help">공고명에 이 말이 들어 있으면 모읍니다(띄어쓰기는 무시). 한 줄에 낱말을 띄어 쓰면 그 낱말이 <b>모두</b> 들어 있는 공고만 찾습니다.
-                        학교마다 공고명이 달라서 "방과후 위탁운영"처럼 길게 쓰면 "방과후학교 프로그램 운영 용역" 같은 공고를 놓칩니다. 짧은 핵심 낱말을 권합니다.</div>
+            <section class="sec">
+                <div class="sec-head"><span class="sec-no">3</span><div><h2>어떤 공고를 모을까요</h2>
+                    <p>공고명·기관 이름에 아래 말이 들어 있는 공고만 모읍니다. 띄어쓰기는 무시합니다.</p></div></div>
+                <div class="form-grid cols3">
+                    <div class="field">
+                        <label for="keywords">검색어 (한 줄에 하나)</label>
+                        <textarea id="keywords"></textarea>
+                        <div class="help">한 줄에 낱말을 띄어 쓰면 그 낱말이 <b>모두</b> 들어 있는 공고만 찾습니다. 학교마다 공고명이 달라 길게 쓰면 놓칩니다. 짧은 핵심 낱말을 권합니다.</div>
+                    </div>
+                    <div class="field">
+                        <label for="excludeWords">제외할 말 (한 줄에 하나)</label>
+                        <textarea id="excludeWords"></textarea>
+                        <div class="help">공고명에 이 말이 있으면 모으지 않습니다. 예) 급식, 통학차량, 폐기물</div>
+                    </div>
+                    <div class="field">
+                        <label for="orgFreeKeywords">기관 종류와 상관없이 모을 검색어 (한 줄에 하나)</label>
+                        <textarea id="orgFreeKeywords"></textarea>
+                        <div class="help">교육지원청이 발주하는 사업을 적습니다. 공고명에 이 말이 있으면 [기관 종류] 조건을 보지 않습니다(지역·제외할 말은 적용). 예) 온동네 돌봄</div>
+                    </div>
                 </div>
-                <div class="field">
-                    <label for="excludeWords">제외할 말 (한 줄에 하나)</label>
-                    <textarea id="excludeWords"></textarea>
-                    <div class="help">공고명에 이 말이 있으면 모으지 않습니다. 예) 급식, 통학차량, 폐기물</div>
+                <div class="form-grid cols2 gap-top">
+                    <div class="field">
+                        <label for="region">지역</label>
+                        <input type="text" id="region" maxlength="20">
+                        <div class="help">공고기관·수요기관 이름에 이 말이 있는 공고만 모읍니다. 비우면 전국.</div>
+                    </div>
+                    <div class="field">
+                        <label for="orgWord">기관 종류</label>
+                        <input type="text" id="orgWord" maxlength="20">
+                        <div class="help">기관 이름이나 공고명에 이 말이 있는 공고만 모읍니다. 비우면 모든 기관.</div>
+                    </div>
                 </div>
-                <div class="field">
-                    <label for="region">지역</label>
-                    <input type="text" id="region" maxlength="20">
-                    <div class="help">공고기관·수요기관 이름에 이 말이 있는 공고만 모읍니다. 비우면 전국.</div>
-                </div>
-                <div class="field">
-                    <label for="orgWord">기관 종류</label>
-                    <input type="text" id="orgWord" maxlength="20">
-                    <div class="help">기관 이름이나 공고명에 이 말이 있는 공고만 모읍니다. 비우면 교육지원청·중학교 등 모든 기관.</div>
-                </div>
-                <div class="field">
-                    <label for="orgFreeKeywords">기관 종류와 상관없이 모을 검색어 (한 줄에 하나)</label>
-                    <textarea id="orgFreeKeywords"></textarea>
-                    <div class="help">학교가 아니라 <b>교육지원청이 발주하는 사업</b>을 적습니다. 공고명에 이 말이 있으면 위 [기관 종류] 조건을 보지 않고 모읍니다(지역·제외할 말은 그대로 적용).
-                        예) 온동네 돌봄 → "수원 온동네·돌봄 교육센터(호매실초) 위탁운영 용역"</div>
-                </div>
-            </div>
+            </section>
 
-            <div class="step-title">③ 자동 실행과 메일</div>
-            <div class="form-grid">
-                <div class="field">
-                    <label class="check"><input type="checkbox" id="autoEnabled"> <span>매일 오전 9시·오후 3시에 자동으로 수집합니다.</span></label>
-                    <label class="check"><input type="checkbox" id="mailEnabled"> <span>자동 수집에서 새 소식(신규·정정·취소)이 있으면 메일로 보냅니다. 새 소식이 없는 회차에는 보내지 않습니다.</span></label>
-                    <div class="help" id="mailSender"></div>
+            <section class="sec">
+                <div class="sec-head"><span class="sec-no">4</span><div><h2>자동 실행과 메일</h2>
+                    <p>서버가 매일 정해진 시각에 공고를 모으고, 새 소식을 메일로 알립니다.</p></div></div>
+                <div class="form-grid cols2">
+                    <div class="field">
+                        <label class="check"><input type="checkbox" id="autoEnabled"> <span>매일 오전 9시·오후 3시에 자동으로 수집합니다.</span></label>
+                        <label class="check"><input type="checkbox" id="mailEnabled"> <span>자동 수집에서 새 소식(신규·정정·취소)이 있으면 메일로 보냅니다. 새 소식이 없는 회차에는 보내지 않습니다.</span></label>
+                        <div class="help" id="mailSender"></div>
+                    </div>
+                    <div class="field">
+                        <label>받는 메일 주소 (최대 5곳)</label>
+                        <div class="mail-list" id="mailList"></div>
+                    </div>
                 </div>
-                <div class="field">
-                    <label>받는 메일 주소 (최대 5곳)</label>
-                    <div class="mail-list" id="mailList"></div>
-                </div>
-            </div>
+            </section>
 
             <div class="form-actions">
                 <button type="button" class="btn primary" id="saveBtn"><i class="fa-solid fa-floppy-disk"></i> 설정 저장</button>
                 <button type="button" class="btn" id="testMailBtn"><i class="fa-regular fa-envelope"></i> 테스트 메일 보내기</button>
                 <button type="button" class="btn" id="sendMailBtn"><i class="fa-solid fa-paper-plane"></i> 안 보낸 소식 지금 보내기 <span id="unsentCount"></span></button>
             </div>
+{% endif %}
         </div>
     </div>
-    {% endif %}
 
     <!-- ============ 수집 기록 ============ -->
     <div class="view" id="view-runs">
@@ -481,10 +596,13 @@ function postJson(url, payload) {
 }
 
 let STATUS = 'all';
+let ARCHIVE = null;          // 보고 있는 보관함 번호(없으면 [공고 목록])
+let ARCHIVES = [];
+let CURRENT_VIEW = 'list';
 let NOTICES = [];
 let WORK_STATUSES = [];
 const STATUS_CLASS = { '입찰예정': 's-plan', '입찰제외': 's-skip', '서류접수완료': 's-doc', '가격투찰완료': 's-price', '설명회완료': 's-brief', '개찰완료': 's-done' };
-const pick = id => NOTICES.find(notice => String(notice.id) === String(id));
+const pick = id => SEEN.get(Number(id)) || NOTICES.find(notice => String(notice.id) === String(id));
 
 // ---- 현황 요약 탭(브라우저 오른쪽 벽): 탭을 누르면 펼쳐지고, 바깥을 누르거나 Esc로 접힌다 ----
 function toggleDock(open) {
@@ -499,23 +617,40 @@ document.addEventListener('keydown', event => { if (event.key === 'Escape') togg
 
 // ---- 화면 전환 ----
 function showView(name) {
-    document.querySelectorAll('#viewTabs .view-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.view === name));
+    CURRENT_VIEW = name;
+    refreshTabHighlight();
     document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === 'view-' + name));
     el('bulkBar').style.display = name === 'list' ? '' : 'none';
 }
+// 위쪽 탭의 강조: [공고 목록] / 보관함 탭 중 하나만, 그 밖의 화면은 data-view로
+function refreshTabHighlight() {
+    document.querySelectorAll('#viewTabs .view-tab').forEach(tab => {
+        let active;
+        if (tab.dataset.archive) active = CURRENT_VIEW === 'list' && String(ARCHIVE) === tab.dataset.archive;
+        else if (tab.dataset.view === 'list') active = CURRENT_VIEW === 'list' && ARCHIVE === null;
+        else active = tab.dataset.view === CURRENT_VIEW;
+        tab.classList.toggle('active', Boolean(active));
+    });
+}
+
 el('viewTabs').addEventListener('click', event => {
     const tab = event.target.closest('.view-tab');
-    if (tab) showView(tab.dataset.view);
+    if (!tab) return;
+    if (tab.id === 'addArchiveBtn') { createArchive(); return; }
+    if (tab.dataset.archive) { openArchive(Number(tab.dataset.archive)); return; }
+    if (tab.dataset.view === 'list' && ARCHIVE !== null) { closeArchive(); return; }
+    showView(tab.dataset.view);
 });
 
 // ---- 공고 목록 ----
 function chips(item) {
     let html = '';
-    if (item.status === 'cancelled') html += '<span class="chip cancelled">취소</span>';
+    // 제목 맨 앞의 진행 중/마감/취소 글자를 누르면 변경 이력이 펼쳐진다.
+    const state = { cancelled: ['cancelled', '취소'], closed: ['closed', '마감'], open: ['open', '진행 중'] }[item.status];
+    if (state) html += `<button type="button" class="chip ${state[0]}" data-history="${item.id}" title="클릭하면 변경 이력을 봅니다">${state[1]}</button>`;
     if (item.is_new && item.status !== 'cancelled') html += '<span class="chip new">신규</span>';
     if (item.changed) html += `<span class="chip changed">정정 ${Number(item.bid_ord)}차</span>`;
     if (item.kind === '재공고') html += '<span class="chip rebid">재공고</span>';
-    if (item.status === 'closed') html += '<span class="chip closed">마감</span>';
     return html;
 }
 
@@ -548,9 +683,13 @@ function resultCell(item) {
     const result = item.result;
     if (!result.state) return '<span class="sub">-</span>';
     if (!result.winner_name) return `<button type="button" class="winner pending" data-result-detail="${item.id}">${esc(result.state)}</button>`;
-    const pending = result.state === '개찰완료';
-    return `<button type="button" class="winner ${pending ? 'pending' : ''}" data-result-detail="${item.id}" title="${esc(result.winner_name)} — 누르면 낙찰금액 등을 봅니다">${esc(result.winner_name)}</button>` +
-        (pending ? '<span class="sub">개찰 1순위 · 낙찰 전</span>' : '');
+    const pending = result.state === '개찰완료';           // 최종 낙찰 전: 업체·금액은 개찰 1순위의 투찰 값
+    const money = result.winner_amount
+        ? `${pending ? '투찰 ' : ''}${won(result.winner_amount)}${result.winner_rate ? ` (${esc(result.winner_rate)}%)` : ''}`
+        : (result.winner_rate ? `${esc(result.winner_rate)}%` : '');
+    return `<button type="button" class="winner ${pending ? 'pending' : ''}" data-result-detail="${item.id}" title="${esc(result.winner_name)} — 누르면 자세한 결과를 봅니다">${esc(result.winner_name)}</button>` +
+        (pending ? '<span class="sub">개찰 1순위 · 낙찰 전</span>' : '') +
+        (money ? `<span class="sub num">${money}</span>` : '');
 }
 
 function resultDetail(item) {
@@ -572,23 +711,42 @@ function actionCell(item) {
     const files = item.no_files
         ? '<span class="none">첨부 없음</span>'
         : `<button type="button" class="btn small" data-file-get="${item.id}" title="첨부파일을 모두 받아 압축파일 하나로 내려받습니다"><i class="fa-solid fa-file-zipper"></i> 첨부 받기</button>`;
-    return `<div class="row-actions">${files}
-        <button type="button" class="btn small" data-history="${item.id}">이력</button></div>`;
+    return `<div class="row-actions">${files}</div>`;
 }
 
-async function loadNotices() {
+// 목록 한 쪽을 서버에서 불러온다. 조건을 바꾸면 1쪽부터, 쪽 이동·작업 뒤에는 ``keepPage``로 그 쪽을 유지한다.
+async function loadNotices(options = {}) {
     const params = new URLSearchParams({ status: STATUS });
     const keyword = el('keyword').value.trim();
     if (keyword) params.set('q', keyword);
     if (el('dateFrom').value) params.set('date_from', el('dateFrom').value);
     if (el('dateTo').value) params.set('date_to', el('dateTo').value);
     if (el('workFilter').value) params.set('work_status', el('workFilter').value);
+    if (ARCHIVE !== null) params.set('archive', ARCHIVE);
+    if (el('regionFilter').value) params.set('region', el('regionFilter').value);
+    if (el('resultFilter').value) params.set('result', el('resultFilter').value);
+    if (SORT.key) { params.set('sort', SORT.key); params.set('dir', SORT.dir === 1 ? 'asc' : 'desc'); }
+    LAST_QUERY = Object.fromEntries(params);          // 엑셀·전체 선택에 그대로 쓰는 조건(쪽 정보 제외)
+    params.set('page', options.keepPage ? PAGE : 1);
+    params.set('per_page', PAGE_SIZE || 'all');
     let data;
     try { data = await api('/bid-notice/api/notices?' + params.toString()); }
     catch (error) { alert(error.message); return; }
 
     el('keyWarning').style.display = data.has_key ? 'none' : 'block';
     NOTICES = data.notices;
+    ARCHIVES = data.archives || [];
+    TOTAL = data.total;
+    PAGES = data.pages;
+    PAGE = data.page;
+    data.notices.forEach(item => SEEN.set(item.id, item));
+    if (ARCHIVE !== null && !ARCHIVES.some(archive => archive.id === ARCHIVE)) {      // 다른 곳에서 지워진 보관함
+        ARCHIVE = null;
+        SELECTED.clear();
+        showView('list');
+        return loadNotices();
+    }
+    renderArchiveTabs();
     if (!WORK_STATUSES.length) {
         WORK_STATUSES = data.work_statuses;
         el('workFilter').insertAdjacentHTML('beforeend', WORK_STATUSES.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join(''));
@@ -607,9 +765,8 @@ async function loadNotices() {
     if (IS_ADMIN) el('unsentCount').textContent = data.summary.unsent ? `(${data.summary.unsent}건)` : '';
 
     HAS_ANY = data.summary.total > 0;
-    fillResultFilter();
-    fillRegionFilter();
-    PAGE = 1;       // 조건을 바꿔 다시 불러오면 첫 쪽부터
+    fillResultFilter(data);
+    fillRegionFilter(data);
     renderNotices();
 
     el('runBody').innerHTML = data.runs.length ? data.runs.map(run => `
@@ -620,128 +777,141 @@ async function loadNotices() {
         : '<tr><td colspan="4"><div class="empty">수집 기록이 없습니다.</div></td></tr>';
 }
 
-// 정렬: 머리글(입찰 마감 · 결과)을 누를 때마다 오름차순 → 내림차순 → 원래 순서
+// 정렬: 머리글(입찰 마감 · 결과)을 누를 때마다 오름차순 → 내림차순 → 원래 순서(서버가 정렬한다)
 let SORT = { key: '', dir: 1 };
-// 쪽 나누기: 한 쪽에 보여 줄 수는 이 브라우저에 기억해 둔다.
+// 쪽 나누기도 서버가 한다: 한 쪽씩 받아 오고, 한 쪽에 보여 줄 수는 이 브라우저에 기억해 둔다.
 let PAGE = 1;
+let PAGES = 1;
+let TOTAL = 0;
 let PAGE_SIZE = 30;
+let LAST_QUERY = {};          // 지금 목록을 만든 조건(엑셀·'조건에 맞는 전체 선택'에 그대로 쓴다)
+const SEEN = new Map();       // 지금까지 불러온 공고(다른 쪽에서 체크한 공고의 정보를 찾는 데 쓴다)
 try {
-    const saved = Number(localStorage.getItem('bidNoticePageSize'));
-    if ([30, 60, 100].includes(saved)) PAGE_SIZE = saved;
+    const saved = localStorage.getItem('bidNoticePageSize');
+    if (saved === 'all') PAGE_SIZE = 0;                           // 0 = 모두 보기(쪽 나누기 없이 전부)
+    else if (['30', '60', '100'].includes(saved)) PAGE_SIZE = Number(saved);
 } catch (e) {}
-el('pageSize').value = String(PAGE_SIZE);
+el('pageSize').value = PAGE_SIZE ? String(PAGE_SIZE) : 'all';
 el('pageSize').addEventListener('change', () => {
-    PAGE_SIZE = Number(el('pageSize').value) || 30;
-    try { localStorage.setItem('bidNoticePageSize', String(PAGE_SIZE)); } catch (e) {}
-    PAGE = 1;
-    renderNotices();
+    const value = el('pageSize').value;
+    PAGE_SIZE = value === 'all' ? 0 : (Number(value) || 30);
+    try { localStorage.setItem('bidNoticePageSize', value); } catch (e) {}
+    loadNotices();            // 1쪽부터, 체크한 선택은 유지
 });
 
-function renderPager(pages) {
+function renderPager() {
     const pager = el('pager');
-    if (pages <= 1) { pager.innerHTML = ''; return; }
+    if (PAGES <= 1) { pager.innerHTML = ''; return; }
     // 현재 쪽을 가운데 두고 번호를 10개까지 보여 준다.
     let first = Math.max(1, PAGE - 4);
-    const last = Math.min(pages, first + 9);
+    const last = Math.min(PAGES, first + 9);
     first = Math.max(1, last - 9);
     const button = (label, page, options = {}) =>
         `<button type="button" data-page="${page}" ${options.disabled ? 'disabled' : ''} class="${options.current ? 'current' : ''}" title="${options.title || ''}">${label}</button>`;
     let html = button('«', 1, { disabled: PAGE === 1, title: '처음' }) + button('‹', PAGE - 1, { disabled: PAGE === 1, title: '이전' });
     for (let page = first; page <= last; page += 1) html += button(page, page, { current: page === PAGE, disabled: page === PAGE });
-    html += button('›', PAGE + 1, { disabled: PAGE === pages, title: '다음' }) + button('»', pages, { disabled: PAGE === pages, title: '마지막' });
+    html += button('›', PAGE + 1, { disabled: PAGE === PAGES, title: '다음' }) + button('»', PAGES, { disabled: PAGE === PAGES, title: '마지막' });
     pager.innerHTML = html;
 }
-el('pager').addEventListener('click', event => {
+el('pager').addEventListener('click', async event => {
     const button = event.target.closest('button[data-page]');
     if (!button || button.disabled) return;
     PAGE = Number(button.dataset.page);
-    renderNotices();
+    await loadNotices({ keepPage: true });
     document.querySelector('#view-list .tbl').scrollIntoView({ block: 'start' });
 });
 let HAS_ANY = false;
-const SORT_VALUE = {
-    close: item => item.bid_close || '',
-    winner: item => item.result.winner_name || '',
-};
 
-// [결과] 머리글 선택 상자: 결과 있음/없음, 유찰 등, 낙찰 업체별로 골라 본다(불러온 목록 안에서 거른다).
-const RESULT_TESTS = {
-    '': () => true,
-    '__has': item => Boolean(item.result.state),
-    '__none': item => !item.result.state,
-    '__etc': item => Boolean(item.result.state) && !item.result.winner_name,
-};
-
-function resultMatches(item, value) {
-    if (value in RESULT_TESTS) return RESULT_TESTS[value](item);
-    return item.result.winner_name === value.slice(2);          // 'w:업체 이름'
+// 검색 조건(탭·검색어·게시일·진행 상태·지역·결과·정렬)을 바꾸면 1쪽부터 다시 불러오고 선택은 해제한다
+// (조건 밖으로 밀려난 공고를 모르고 처리하지 않도록).
+function applyFilters() {
+    SELECTED.clear();
+    return loadNotices();
 }
 
-function fillResultFilter() {
-    const select = el('resultFilter');
-    const current = select.value;
-    const counts = {};
-    NOTICES.forEach(item => {
-        const name = item.result.winner_name;
-        if (name) counts[name] = (counts[name] || 0) + 1;
-    });
-    const names = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'ko'));
-    const count = value => NOTICES.filter(item => resultMatches(item, value)).length;
-    select.innerHTML = '<option value="">결과 (전체)</option>' +
-        `<option value="__has">결과 있음 (${count('__has')})</option>` +
-        `<option value="__none">결과 없음 (${count('__none')})</option>` +
-        (count('__etc') ? `<option value="__etc">유찰 등 (${count('__etc')})</option>` : '') +
-        (names.length ? `<optgroup label="낙찰 업체">${names.map(name =>
-            `<option value="w:${esc(name)}">${esc(name)} (${counts[name]})</option>`).join('')}</optgroup>` : '');
-    // 고른 값이 새 목록에도 있으면 그대로 두고, 없으면 전체로 되돌린다.
-    select.value = [...select.options].some(option => option.value === current) ? current : '';
+// 머리글 선택 상자의 목록은 서버가 건수와 함께 보내 준다(지역·결과 조건만 뺀 같은 범위).
+function selectOptions(select, head, entries, current, labelOf) {
+    select.innerHTML = head + entries;
+    if (current && ![...select.options].some(option => option.value === current)) {
+        select.insertAdjacentHTML('beforeend', `<option value="${esc(current)}">${esc(labelOf(current))} (0)</option>`);
+    }
+    select.value = current;
     select.classList.toggle('on', Boolean(select.value));
 }
 
-// [지역] 머리글 선택 상자: 불러온 목록에 있는 지역만 건수와 함께 보여 주고 고른 지역의 공고만 남긴다.
-function fillRegionFilter() {
-    const select = el('regionFilter');
-    const current = select.value;
-    const counts = {};
-    NOTICES.forEach(item => { if (item.region) counts[item.region] = (counts[item.region] || 0) + 1; });
-    const names = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'ko'));
-    select.innerHTML = '<option value="">지역 (전체)</option>' +
-        names.map(name => `<option value="${esc(name)}">${esc(name)} (${counts[name]})</option>`).join('');
-    select.value = names.includes(current) ? current : '';
-    select.classList.toggle('on', Boolean(select.value));
+function fillResultFilter(data) {
+    const counts = data.result_counts;
+    const names = { '__has': '결과 있음', '__none': '결과 없음', '__etc': '유찰 등' };
+    selectOptions(el('resultFilter'), '<option value="">결과 (전체)</option>' +
+        `<option value="__has">결과 있음 (${counts.has})</option>` +
+        `<option value="__none">결과 없음 (${counts.none})</option>` +
+        (counts.etc ? `<option value="__etc">유찰 등 (${counts.etc})</option>` : ''),
+        data.winners.length ? `<optgroup label="낙찰 업체">${data.winners.map(item =>
+            `<option value="w:${esc(item.name)}">${esc(item.name)} (${item.count})</option>`).join('')}</optgroup>` : '',
+        el('resultFilter').value, value => names[value] || (value.startsWith('w:') ? value.slice(2) : value));
 }
 
-function sortedNotices() {
-    const picked = el('resultFilter').value;
-    const region = el('regionFilter').value;
-    let list = picked ? NOTICES.filter(item => resultMatches(item, picked)) : NOTICES;
-    if (region) list = list.filter(item => item.region === region);
-    if (!SORT.key) return list;
-    const value = SORT_VALUE[SORT.key];
-    return [...list].sort((a, b) => {
-        const left = value(a), right = value(b);
-        if (!left || !right) return left ? -1 : right ? 1 : 0;     // 비어 있는 것은 항상 맨 뒤
-        return left.localeCompare(right, 'ko') * SORT.dir;
-    });
+function fillRegionFilter(data) {
+    selectOptions(el('regionFilter'), '<option value="">지역 (전체)</option>',
+        data.regions.map(item => `<option value="${esc(item.name)}">${esc(item.name)} (${item.count})</option>`).join(''),
+        el('regionFilter').value, value => value);
 }
 
-// ---- 선택(체크박스): 걸러진 전체 목록(모든 쪽) 안의 공고만 선택으로 남긴다 ----
+// ---- 선택(체크박스): 쪽을 넘겨도 유지되고, 검색 조건을 바꾸면 해제된다 ----
 const SELECTED = new Set();
+let LIST_COUNT = 0;
 const MAX_BUNDLE = 30;
-let PAGE_ITEMS = [];
+const MAX_ACTION = 500;     // 보관·삭제·엑셀(선택)을 한 번에 처리할 수 있는 건수(서버 한도)
 
 function updateBulkBar() {
     el('pickCount').textContent = SELECTED.size;
-    el('bulkDownloadBtn').disabled = SELECTED.size === 0;
-    el('clearPickBtn').disabled = SELECTED.size === 0;
-    const onPage = PAGE_ITEMS.filter(item => SELECTED.has(item.id)).length;
+    const none = SELECTED.size === 0;
+    el('bulkDownloadBtn').disabled = none;
+    el('clearPickBtn').disabled = none;
+    el('archiveBtn').disabled = none;
+    el('archiveBtn').innerHTML = '<i class="fa-solid fa-box-archive"></i> ' + (ARCHIVE === null ? '보관' : '다른 보관함으로');
+    el('unarchiveBtn').style.display = ARCHIVE === null ? 'none' : '';
+    el('unarchiveBtn').disabled = none;
+    if (el('deleteBtn')) el('deleteBtn').disabled = none;
+    el('exportBtn').disabled = LIST_COUNT === 0;
+    el('exportBtn').innerHTML = '<i class="fa-solid fa-file-excel"></i> 엑셀 받기 (' + (none ? '전체 ' + LIST_COUNT : '선택 ' + SELECTED.size) + '건)';
+    const onPage = NOTICES.filter(item => SELECTED.has(item.id)).length;
     const all = el('checkAll');
-    all.checked = PAGE_ITEMS.length > 0 && onPage === PAGE_ITEMS.length;
-    all.indeterminate = onPage > 0 && onPage < PAGE_ITEMS.length;
-    el('pickHint').textContent = SELECTED.size > MAX_BUNDLE
-        ? `한 번에 ${MAX_BUNDLE}건까지 받을 수 있습니다(${SELECTED.size - MAX_BUNDLE}건 초과)`
+    all.checked = NOTICES.length > 0 && onPage === NOTICES.length;
+    all.indeterminate = onPage > 0 && onPage < NOTICES.length;
+    updatePickBanner();
+    el('pickHint').textContent = SELECTED.size > MAX_ACTION
+        ? `보관·삭제·엑셀(선택)은 한 번에 ${MAX_ACTION}건까지 가능합니다(${SELECTED.size - MAX_ACTION}건 초과)`
+        : SELECTED.size > MAX_BUNDLE
+        ? `첨부 받기는 한 번에 ${MAX_BUNDLE}건까지 가능합니다(${SELECTED.size - MAX_BUNDLE}건 초과)`
         : '';
 }
+
+// '이 쪽 전체'를 체크하면 조건에 맞는 전체 공고(모든 쪽)를 한 번에 고르는 안내가 나온다
+function updatePickBanner() {
+    const banner = el('pickBanner');
+    const reachable = Math.min(TOTAL, MAX_ACTION);
+    const pageAll = NOTICES.length > 0 && NOTICES.every(item => SELECTED.has(item.id));
+    if (TOTAL > NOTICES.length && pageAll && SELECTED.size < reachable) {
+        banner.innerHTML = `이 쪽의 ${NOTICES.length}건이 선택되었습니다. <button type="button" class="linkbtn" id="pickAllBtn">` +
+            `조건에 맞는 전체 ${TOTAL}건 선택${TOTAL > MAX_ACTION ? ` (처음 ${MAX_ACTION}건까지)` : ''}</button>`;
+        banner.style.display = 'block';
+    } else if (TOTAL > NOTICES.length && SELECTED.size >= reachable && SELECTED.size > NOTICES.length) {
+        banner.innerHTML = `조건에 맞는 ${SELECTED.size}건이 모두 선택되었습니다. <button type="button" class="linkbtn" id="pickNoneBtn">선택 해제</button>`;
+        banner.style.display = 'block';
+    } else {
+        banner.style.display = 'none';
+    }
+}
+el('pickBanner').addEventListener('click', async event => {
+    if (event.target.id === 'pickNoneBtn') { SELECTED.clear(); renderNotices(); return; }
+    if (event.target.id !== 'pickAllBtn') return;
+    try {
+        const data = await api('/bid-notice/api/notices/ids?' + new URLSearchParams(LAST_QUERY).toString());
+        data.ids.forEach(id => SELECTED.add(id));
+        renderNotices();
+    } catch (error) { alert(error.message); }
+});
 
 function renderNotices() {
     document.querySelectorAll('th.sortable').forEach(th => {
@@ -750,30 +920,27 @@ function renderNotices() {
         th.querySelector('.arrow').textContent = active ? (SORT.dir === 1 ? '▲' : '▼') : '↕';
     });
     const body = el('noticeBody');
-    const list = sortedNotices();
-    const visibleIds = new Set(list.map(item => item.id));
-    [...SELECTED].forEach(id => { if (!visibleIds.has(id)) SELECTED.delete(id); });
-    const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
-    PAGE = Math.min(Math.max(1, PAGE), pages);
-    const offset = (PAGE - 1) * PAGE_SIZE;
-    const shown = list.slice(offset, offset + PAGE_SIZE);
-    PAGE_ITEMS = shown;
-    el('noticeCount').textContent = list.length > PAGE_SIZE
-        ? `전체 ${list.length}건 중 ${offset + 1}~${offset + shown.length}번째 (${PAGE}/${pages}쪽)`
-        : `${list.length}건`;
-    renderPager(pages);
-    if (!list.length) {
-        const text = HAS_ANY
+    LIST_COUNT = TOTAL;
+    const offset = PAGE_SIZE ? (PAGE - 1) * PAGE_SIZE : 0;
+    el('noticeCount').textContent = PAGES > 1
+        ? `전체 ${TOTAL}건 중 ${offset + 1}~${offset + NOTICES.length}번째 (${PAGE}/${PAGES}쪽)`
+        : `${TOTAL}건${PAGE_SIZE ? '' : ' (모두 보기)'}`;
+    renderPager();
+    if (!NOTICES.length) {
+        const archive = ARCHIVES.find(item => item.id === ARCHIVE);
+        const text = ARCHIVE !== null
+            ? (archive && archive.count ? '조건에 맞는 공고가 없습니다.' : '이 보관함에는 아직 공고가 없습니다. [공고 목록]에서 공고를 체크한 뒤 [보관]으로 옮겨 주세요.')
+            : HAS_ANY
             ? '조건에 맞는 공고가 없습니다.'
-            : '아직 수집한 공고가 없습니다. 위 [나라장터에서 가져오기]에서 [지금 수집]을 누르면 최근 4주 공고를 바로 찾아옵니다.';
+            : '아직 수집한 공고가 없습니다. 위 [공고수집·메일 설정]에서 [지금 수집]을 누르면 최근 4주 공고를 바로 찾아옵니다.';
         body.innerHTML = `<tr><td colspan="10"><div class="empty"><i class="fa-solid fa-inbox"></i>${text}</div></td></tr>`;
         updateBulkBar();
         return;
     }
-    body.innerHTML = shown.map((item, index) => `
+    body.innerHTML = NOTICES.map((item, index) => `
         <tr class="${item.status === 'cancelled' ? 'is-cancelled' : ''}${SELECTED.has(item.id) ? ' picked' : ''}${item.work_status === '입찰제외' ? ' excluded' : ''}">
             <td class="chk"><input type="checkbox" class="pick" data-pick="${item.id}" ${SELECTED.has(item.id) ? 'checked' : ''}></td>
-            <td class="no num" data-label="번호">${list.length - offset - index}</td>
+            <td class="no num" data-label="번호">${TOTAL - offset - index}</td>
             <td class="title-cell">
                 <div class="title-row">${chips(item)}
                     ${item.url ? `<a class="title-link" href="${esc(item.url)}" target="_blank" rel="noopener" title="${esc(item.title)}">${esc(item.title)}</a>`
@@ -793,14 +960,12 @@ function renderNotices() {
 
 el('regionFilter').addEventListener('change', () => {
     el('regionFilter').classList.toggle('on', Boolean(el('regionFilter').value));
-    PAGE = 1;
-    renderNotices();
+    applyFilters();
 });
 
 el('resultFilter').addEventListener('change', () => {
     el('resultFilter').classList.toggle('on', Boolean(el('resultFilter').value));
-    PAGE = 1;
-    renderNotices();
+    applyFilters();
 });
 
 el('noticeBody').addEventListener('change', event => {
@@ -812,7 +977,7 @@ el('noticeBody').addEventListener('change', event => {
     updateBulkBar();
 });
 el('checkAll').addEventListener('change', () => {
-    PAGE_ITEMS.forEach(item => { if (el('checkAll').checked) SELECTED.add(item.id); else SELECTED.delete(item.id); });
+    NOTICES.forEach(item => { if (el('checkAll').checked) SELECTED.add(item.id); else SELECTED.delete(item.id); });
     renderNotices();
 });
 el('clearPickBtn').addEventListener('click', () => { SELECTED.clear(); renderNotices(); });
@@ -822,7 +987,7 @@ el('bulkDownloadBtn').addEventListener('click', async () => {
     const ids = [...SELECTED];
     if (!ids.length) return;
     if (ids.length > MAX_BUNDLE) { alert(`한 번에 ${MAX_BUNDLE}건까지 받을 수 있습니다. ${ids.length - MAX_BUNDLE}건을 선택 해제하고 나눠서 받아 주세요.`); return; }
-    const withFiles = ids.filter(id => { const item = pick(id); return item && !item.no_files; });
+    const withFiles = ids.filter(id => { const item = pick(id); return !item || !item.no_files; });
     if (!withFiles.length) { alert('선택한 공고에는 받을 첨부파일이 없습니다.'); return; }
     const skip = ids.length - withFiles.length;
     if (!confirm(`선택한 ${ids.length}건의 첨부파일을 한 번에 받을까요?\n\n공고마다 폴더로 나뉜 압축파일 하나로 내려옵니다.` +
@@ -857,34 +1022,198 @@ document.querySelectorAll('th.sortable').forEach(th => th.addEventListener('clic
     if (SORT.key !== th.dataset.sort) SORT = { key: th.dataset.sort, dir: 1 };
     else if (SORT.dir === 1) SORT.dir = -1;
     else SORT = { key: '', dir: 1 };
-    PAGE = 1;
-    renderNotices();
+    applyFilters();
+}));
+
+// ---- 보관함(탭) ----
+function renderArchiveTabs() {
+    el('archiveTabs').innerHTML = ARCHIVES.map(archive =>
+        `<button type="button" class="view-tab archive-tab" data-archive="${archive.id}" title="보관함: ${esc(archive.name)}">` +
+        `<i class="fa-solid fa-folder"></i> ${esc(archive.name)} <span class="cnt">${archive.count}</span></button>`).join('');
+    refreshTabHighlight();
+    const inArchive = ARCHIVE !== null;
+    el('statusTabs').style.display = inArchive ? 'none' : '';
+    document.querySelector('.find-sep').style.display = inArchive ? 'none' : '';
+    el('archiveBar').style.display = inArchive ? 'flex' : 'none';
+    const current = ARCHIVES.find(archive => archive.id === ARCHIVE);
+    if (current) {
+        el('archiveName').textContent = current.name;
+        el('archiveCount').textContent = `${current.count}건 보관 중`;
+    }
+}
+
+async function openArchive(id) {
+    ARCHIVE = id;
+    SELECTED.clear();
+    showView('list');
+    await loadNotices();
+}
+
+async function closeArchive() {
+    ARCHIVE = null;
+    SELECTED.clear();
+    showView('list');
+    await loadNotices();
+}
+
+async function createArchive() {
+    const name = prompt('새 보관함 이름을 입력해 주세요.\n예) 2025년 공고');
+    if (name === null) return;
+    try {
+        const data = await postJson('/bid-notice/api/archives', { name });
+        await openArchive(data.archive.id);
+    } catch (error) { alert(error.message); }
+}
+
+el('renameArchiveBtn').addEventListener('click', async () => {
+    const archive = ARCHIVES.find(item => item.id === ARCHIVE);
+    if (!archive) return;
+    const name = prompt('보관함의 새 이름을 입력해 주세요.', archive.name);
+    if (name === null || name.trim() === archive.name) return;
+    try {
+        await postJson(`/bid-notice/api/archives/${archive.id}/rename`, { name });
+        await loadNotices({ keepPage: true });
+    } catch (error) { alert(error.message); }
+});
+
+el('deleteArchiveBtn').addEventListener('click', async () => {
+    const archive = ARCHIVES.find(item => item.id === ARCHIVE);
+    if (!archive) return;
+    if (!confirm(`'${archive.name}' 보관함을 삭제할까요?\n\n안에 있는 공고 ${archive.count}건은 지워지지 않고 [공고 목록]으로 돌아옵니다.`)) return;
+    try {
+        await postJson(`/bid-notice/api/archives/${archive.id}/delete`);
+        await closeArchive();
+    } catch (error) { alert(error.message); }
+});
+
+// 보관함 고르는 창: 있는 보관함을 고르거나 새로 만든다. 결과는 {archive_id} / {new_name} / null(취소)
+function askArchiveTarget(count) {
+    return new Promise(resolve => {
+        const dialog = el('archiveDlg'), select = el('archiveTarget'), input = el('archiveNewName');
+        const others = ARCHIVES.filter(archive => archive.id !== ARCHIVE);
+        select.innerHTML = others.map(archive => `<option value="${archive.id}">${esc(archive.name)} (${archive.count}건)</option>`).join('')
+            + '<option value="new">＋ 새 보관함 만들기…</option>';
+        select.value = others.length ? String(others[0].id) : 'new';
+        input.value = '';
+        el('archiveDlgTitle').textContent = `선택한 ${count}건을 보관함으로 옮깁니다`;
+        const sync = () => {
+            el('archiveNewWrap').style.display = select.value === 'new' ? 'block' : 'none';
+            if (select.value === 'new') input.focus();
+        };
+        select.onchange = sync;
+        const finish = value => { dialog.style.display = 'none'; dialog.onkeydown = null; resolve(value); };
+        el('archiveOk').onclick = () => {
+            if (select.value !== 'new') { finish({ archive_id: Number(select.value) }); return; }
+            const name = input.value.trim();
+            if (!name) { alert('새 보관함 이름을 입력해 주세요.'); input.focus(); return; }
+            finish({ new_name: name });
+        };
+        el('archiveCancel').onclick = () => finish(null);
+        dialog.onkeydown = event => {
+            if (event.key === 'Escape') finish(null);
+            if (event.key === 'Enter' && event.target === input) el('archiveOk').click();
+        };
+        dialog.style.display = 'flex';
+        sync();
+        if (select.value !== 'new') select.focus();
+    });
+}
+
+el('archiveBtn').addEventListener('click', async () => {
+    const ids = [...SELECTED];
+    if (!ids.length) return;
+    const target = await askArchiveTarget(ids.length);
+    if (!target) return;
+    try {
+        const data = await postJson('/bid-notice/api/notices/archive', { ids, ...target });
+        SELECTED.clear();
+        alert(`${data.moved}건을 '${data.archive.name}' 보관함으로 옮겼습니다.`);
+        await loadNotices({ keepPage: true });
+    } catch (error) { alert(error.message); }
+});
+
+el('unarchiveBtn').addEventListener('click', async () => {
+    const ids = [...SELECTED];
+    if (!ids.length) return;
+    if (!confirm(`선택한 ${ids.length}건을 보관함에서 꺼내 [공고 목록]으로 되돌릴까요?`)) return;
+    try {
+        await postJson('/bid-notice/api/notices/unarchive', { ids });
+        SELECTED.clear();
+        await loadNotices({ keepPage: true });
+    } catch (error) { alert(error.message); }
+});
+
+if (el('deleteBtn')) el('deleteBtn').addEventListener('click', async () => {
+    const ids = [...SELECTED];
+    if (!ids.length) return;
+    if (!confirm(`선택한 ${ids.length}건을 완전히 삭제할까요?\n\n· 삭제하면 되돌릴 수 없습니다.\n· 나라장터에서 다시 수집되지도 않습니다.\n· 나중에 다시 볼 공고라면 삭제 대신 [보관]을 쓰세요.`)) return;
+    try {
+        const data = await postJson('/bid-notice/api/notices/delete', { ids, confirm: true });
+        SELECTED.clear();
+        alert(`${data.deleted}건을 삭제했습니다.`);
+        await loadNotices({ keepPage: true });
+    } catch (error) { alert(error.message); }
+});
+
+// ---- 엑셀 받기: 지금 보이는 목록(조건·정렬 그대로). 체크한 공고가 있으면 그것만 ----
+el('exportBtn').addEventListener('click', () => withSpinner(el('exportBtn'), '만드는 중…', async () => {
+    if (!TOTAL) { alert('내려받을 공고가 없습니다.'); return; }
+    // 체크한 공고가 있으면 그것만(목록과 같은 정렬로), 없으면 조건에 맞는 전체(모든 쪽)를 서버가 만든다.
+    const payload = SELECTED.size ? { ids: [...SELECTED], query: LAST_QUERY } : { query: LAST_QUERY };
+    const response = await fetch('/bid-notice/api/export', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+        let data = {};
+        try { data = await response.json(); } catch (e) {}
+        throw new Error(data.message || '엑셀 파일을 만들지 못했습니다.');
+    }
+    const blob = await response.blob();
+    const now = new Date(), pad = n => String(n).padStart(2, '0');
+    if (response.headers.get('X-Bid-Export-Capped')) alert('공고가 너무 많아 처음 5,000건만 내려받았습니다. 조건을 좁혀 나눠서 받아 주세요.');
+    const archive = ARCHIVES.find(item => item.id === ARCHIVE);
+    const label = archive ? '_' + archive.name.replace(/[\\/:*?"<>|\s]+/g, '_') : '';
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `입찰공고_목록${label}_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 30000);
 }));
 
 function setTab(status) {
     STATUS = status;
     document.querySelectorAll('#statusTabs .tab').forEach(item => item.classList.toggle('active', item.dataset.status === status));
+    const soon = el('soonSelect');
+    const isSoon = ['soon', 'tomorrow', 'week'].includes(status);
+    soon.value = isSoon ? status : '';
+    soon.classList.toggle('active', isSoon);
 }
+el('soonSelect').addEventListener('change', event => {
+    setTab(event.target.value || 'all');
+    applyFilters();
+});
 el('statusTabs').addEventListener('click', event => {
     const tab = event.target.closest('.tab');
     if (!tab) return;
     setTab(tab.dataset.status);
-    loadNotices();
+    applyFilters();
 });
-el('searchBtn').addEventListener('click', loadNotices);
-el('keyword').addEventListener('keydown', event => { if (event.key === 'Enter') loadNotices(); });
+el('searchBtn').addEventListener('click', () => applyFilters());
+el('keyword').addEventListener('keydown', event => { if (event.key === 'Enter') applyFilters(); });
 el('workFilter').addEventListener('change', () => {
     el('workFilter').classList.toggle('on', Boolean(el('workFilter').value));
-    loadNotices();
+    applyFilters();
 });
-el('dateFrom').addEventListener('change', loadNotices);
-el('dateTo').addEventListener('change', loadNotices);
+el('dateFrom').addEventListener('change', () => applyFilters());
+el('dateTo').addEventListener('change', () => applyFilters());
 el('resetBtn').addEventListener('click', () => {
-    ['keyword', 'dateFrom', 'dateTo', 'workFilter'].forEach(id => { el(id).value = ''; });
-    el('workFilter').classList.remove('on');
-    el('resultFilter').value = '';
-    el('regionFilter').value = '';
-    loadNotices();
+    ['keyword', 'dateFrom', 'dateTo', 'workFilter', 'resultFilter', 'regionFilter'].forEach(id => {
+        el(id).value = '';
+        el(id).classList.remove('on');
+    });
+    applyFilters();
 });
 
 // 진행 상태 선택
@@ -971,6 +1300,38 @@ el('collectBtn').addEventListener('click', () => withSpinner(el('collectBtn'), '
     await loadNotices();
     showView('list');
 }));
+
+// 상단 [낙찰 결과 가져오기]: 개찰일시가 지난 공고의 결과를 모두 가져와 표시한다.
+// 서버가 100건씩 나눠 처리하므로 남은 공고가 없을 때까지 이어서 부른다(같은 공고는 한 번만 묻는다).
+el('resultsRefreshBtn').addEventListener('click', async () => {
+    const button = el('resultsRefreshBtn');
+    if (!confirm('개찰일시가 지난 공고의 낙찰 결과를 나라장터에서 모두 가져옵니다.\n\n공고가 많으면 몇 분 걸릴 수 있습니다. 진행할까요?')) return;
+    const original = button.innerHTML;
+    button.disabled = true;
+    let since = '', checked = 0, found = 0, pending = 0, note = '', failure = '';
+    try {
+        for (let round = 0; round < 500; round += 1) {
+            const data = await postJson('/bid-notice/api/results/refresh', since ? { since } : {});
+            since = data.since;
+            checked += data.checked;
+            found += data.found;
+            pending = data.pending;
+            note = data.note || '';
+            button.innerHTML = `<i class="fa-solid fa-rotate fa-spin"></i> 가져오는 중… ${checked}/${checked + data.remaining}`;
+            if (!data.remaining || !data.checked || note) break;
+        }
+    } catch (error) { failure = error.message; }
+    button.disabled = false;
+    button.innerHTML = original;
+    await loadNotices({ keepPage: true });                // 가져온 결과를 목록에 바로 표시한다
+    showView('list');
+    if (failure) { alert((checked ? `${checked}건까지 확인했습니다.\n` : '') + failure); return; }
+    alert((checked
+        ? `${checked}건을 확인해 ${found}건의 낙찰 결과를 가져왔습니다.`
+        : '결과를 가져올 공고가 없습니다(개찰일시가 지난 공고의 결과를 모두 확인했습니다).') +
+        (pending ? `\n아직 결과가 없는 공고 ${pending}건은 나라장터에 올라오면 다음에 가져옵니다.` : '') +
+        (note ? `\n${note}` : ''));
+});
 
 el('rangeCollectBtn').addEventListener('click', async () => {
     const from = el('rangeFrom').value, to = el('rangeTo').value;
