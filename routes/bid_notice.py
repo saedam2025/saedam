@@ -31,6 +31,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr
 from html import escape
+from io import BytesIO
 
 from cryptography.fernet import Fernet, InvalidToken
 from flask import Blueprint, jsonify, render_template, request, send_file, session
@@ -67,10 +68,17 @@ OVERLAP_HOURS = 24               # 지난 수집과 겹쳐서 다시 보는 시�
 BASE_AMOUNT_LIMIT = 60           # 한 번 수집할 때 기초금액을 확인할 공고 수
 BASE_AMOUNT_AFTER_CLOSE_DAYS = 14
 LIST_LIMIT = 500
+MAX_ARCHIVES = 30                # 만들 수 있는 보관함(탭) 수
+MAX_ARCHIVE_NAME = 30
+PAGE_SIZES = (30, 60, 100)       # 한 쪽에 보여 줄 공고 수(서버가 쪽을 나눠 보낸다). per_page=all 이면 쪽을 나누지 않고 모두 보낸다
+EXPORT_LIMIT = 5000              # 엑셀로 한 번에 내려받을 수 있는 최대 건수
+RESULT_LIMIT_MANUAL = 100        # [개찰 지난 공고 결과 가져오기]를 한 번 누를 때 확인하는 공고 수
 MAX_RANGE_COLLECT_DAYS = 366     # 날짜를 정해 수집할 때 한 번에 볼 수 있는 기간
+WEEK_DAYS = 7                    # [1주내 마감]: 마감일이 오늘부터 이 일수 안인 공고
 SOON_DAYS = 3                    # [3일내 마감] 탭: 마감일이 오늘부터 이 일수 안인 공고
 RESULT_LIMIT = 40                # 한 번 수집할 때 선정 결과를 확인할 공고 수
 RESULT_LIMIT_RANGE = 120         # 기간을 정해 가져올 때(지난 공고가 한꺼번에 들어온다)
+RUN_KEEP_DAYS = 60              # 수집 기록은 이 기간이 지나면 새 수집을 시작할 때 자동으로 지운다
 RESULT_RECHECK_DAYS = 60         # 개찰 뒤 이 기간까지는 최종 낙찰이 나올 때까지 다시 확인한다
 
 # 담당자가 공고마다 고르는 진행 상태(비어 있으면 '상태선택')
@@ -110,6 +118,8 @@ EXTRA_NOTICE_COLUMNS = {
     'result_updated_by': 'TEXT',
     'result_updated_at': 'TEXT',
     'result_checked_at': 'TEXT',      # 결과를 마지막으로 찾아본 때(결과가 없었어도 적는다)
+    'archive_id': 'INTEGER',          # 보관함(탭) 번호. 비어 있으면 [공고 목록]에 보인다
+    'archived_at': 'TEXT',
 }
 
 _collect_lock = threading.Lock()
@@ -196,8 +206,23 @@ def init_bid_notice_schema(conn=None):
                 mail_status TEXT,
                 message TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS bid_archives (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                created_by TEXT,
+                created_at TEXT
+            );
+
+            -- 직접 삭제한 공고의 번호. 자동 수집이 같은 공고를 다시 가져오지 않게 한다.
+            CREATE TABLE IF NOT EXISTS bid_notice_deleted (
+                bid_no TEXT PRIMARY KEY,
+                deleted_at TEXT,
+                deleted_by TEXT
+            );
         ''')
         _add_missing_columns(conn)
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_bid_notices_archive ON bid_notices(archive_id)')
         conn.commit()
     finally:
         if owns_connection:
@@ -423,8 +448,11 @@ def store_items(conn, items, settings, baseline=False):
         if notice['bid_no'] and notice['title']:
             parsed[(notice['bid_no'], notice['bid_ord'])] = notice
 
+    deleted = {row['bid_no'] for row in conn.execute('SELECT bid_no FROM bid_notice_deleted')}
     for key in sorted(parsed):
         notice = parsed[key]
+        if notice['bid_no'] in deleted:
+            continue
         existing = conn.execute('SELECT * FROM bid_notices WHERE bid_no=?', (notice['bid_no'],)).fetchone()
         cancelled = notice['kind'] == g2b.KIND_CANCEL
         if existing is None:
@@ -515,7 +543,18 @@ def _finish_run(run_id, status, message='', **values):
         conn.close()
 
 
+def _purge_old_runs(conn):
+    """``RUN_KEEP_DAYS``일이 지난 수집 기록을 지운다. 다음 수집 범위를 정하는 마지막 성공 기록은 오래돼도 남긴다."""
+    cutoff = _stamp(_now() - timedelta(days=RUN_KEEP_DAYS))
+    conn.execute(
+        'DELETE FROM bid_collect_runs WHERE started_at < ? AND id NOT IN ('
+        "SELECT id FROM bid_collect_runs WHERE status='success' AND trigger_type <> 'range' ORDER BY id DESC LIMIT 1)",
+        (cutoff,),
+    )
+
+
 def _start_run(conn, trigger, actor='', slot_key=None):
+    _purge_old_runs(conn)
     cursor = conn.execute(
         'INSERT INTO bid_collect_runs (slot_key, trigger_type, actor, started_at, status) VALUES (?, ?, ?, ?, ?)',
         (slot_key, trigger, actor, _stamp(), 'running'),
@@ -560,7 +599,7 @@ def collect_notices(trigger='manual', actor='', run_id=None, date_range=None):
             conn.close()
 
         if not settings['service_key']:
-            message = '나라장터 인증키가 설정되지 않았습니다. [수집·메일 설정]에서 인증키를 저장해 주세요.'
+            message = '나라장터 인증키가 설정되지 않았습니다. [공고수집·메일 설정]에서 인증키를 저장해 주세요.'
             _finish_run(run_id, 'error', message)
             return {'status': 'error', 'message': message, 'run_id': run_id}
 
@@ -700,7 +739,9 @@ def build_attachment_zip(notice_id):
         raise
     buffer.seek(0)
     label = re.sub(r'[\\/:*?"<>|\s]+', '_', row['school'] or '').strip('_')
-    name = f"{label + '_' if label else ''}{row['bid_no']}_첨부파일.zip"
+    closing = str(row['bid_close'] or '')[:10]            # 파일명: 학교명_마감날짜 (예: 푸른초등학교_2026-04-24)
+    name = '_'.join(part for part in (label, closing) if part) or f"{row['bid_no']}_첨부파일"
+    name += '.zip'
     return {'file': buffer, 'name': name, 'count': saved, 'failed': failed}
 
 
@@ -775,26 +816,50 @@ def build_bundle_zip(notice_ids):
 # ---------------------------------------------------------------------------
 # 선정 결과 (나라장터 낙찰정보서비스)
 # ---------------------------------------------------------------------------
-def refresh_results(service_key, limit=RESULT_LIMIT):
-    """개찰일이 지난 공고의 선정 결과를 나라장터 낙찰정보에서 가져와 저장한다.
+def _save_award(conn, notice_id, award, actor, now_text):
+    """나라장터에서 찾은 선정 결과를 공고에 저장한다(결과를 찾아본 시각도 함께 적는다)."""
+    conn.execute(
+        """UPDATE bid_notices SET winner_name=?, winner_amount=?, winner_rate=?, result_state=?,
+                  result_participants=?, result_opened_at=?, result_final_date=?,
+                  result_updated_by=?, result_updated_at=?, result_checked_at=? WHERE id=?""",
+        (award['winner_name'] or None, award['winner_amount'], award['winner_rate'] or None,
+         award['state'], award['participants'], award['opened_at'] or None,
+         award['final_date'] or None, actor, now_text, now_text, notice_id),
+    )
 
-    대상: 취소되지 않았고 개찰 예정 시각이 지났으며 아직 '최종낙찰'이 아닌 공고.
-    개찰한 지 ``RESULT_RECHECK_DAYS``일이 넘은 공고는 한 번만 확인한다(오래 확인하지 않은 것부터).
-    돌려주는 값: (결과를 새로 얻은 공고 수, 안내 문구).
+
+RESULT_ELIGIBLE_SQL = ("COALESCE(kind, '') <> ? AND COALESCE(open_dt, '') <> '' AND open_dt <= ? "
+                        "AND COALESCE(result_state, '') <> ?")
+
+
+def _run_result_refresh(service_key, limit, all_ages=False, actor='자동', since=''):
+    """개찰일시가 지난 공고의 선정 결과를 나라장터 낙찰정보에서 가져와 저장한다.
+
+    대상: 취소되지 않았고 개찰 예정 시각이 지났으며 아직 '최종낙찰'이 아닌 공고(오래 확인하지 않은 것부터).
+    자동 수집은 개찰한 지 ``RESULT_RECHECK_DAYS``일이 넘은 공고를 한 번만 확인하지만,
+    ``all_ages``(수동)이면 나이와 상관없이 보고, 아직 결과가 없는 공고를 먼저 본다.
+    ``since``(수동 일괄)를 주면 그 시각 이후에 이미 확인한 공고는 건너뛰어, 같은 공고를 한 번만 묻고 끝까지 이어 받을 수 있다.
+    돌려주는 값: {'checked': 확인한 공고 수, 'found': 결과를 얻은 공고 수, 'note': 안내 문구,
+    'remaining': 아직 확인하지 않은 공고 수(since를 줬을 때)}.
     """
     now = _now()
     now_text = _stamp(now)
     cutoff = _stamp(now - timedelta(days=RESULT_RECHECK_DAYS))
+    sql = f'SELECT id, bid_no FROM bid_notices WHERE {RESULT_ELIGIBLE_SQL}'
+    args = [g2b.KIND_CANCEL, now_text, g2b.STATE_AWARDED]
+    if not all_ages:
+        sql += ' AND (open_dt >= ? OR result_checked_at IS NULL)'
+        args.append(cutoff)
+    if since:
+        sql += " AND COALESCE(result_checked_at, '') < ?"
+        args.append(since)
+    sql += (" ORDER BY CASE WHEN COALESCE(result_state, '') = '' THEN 0 ELSE 1 END,"
+            " COALESCE(result_checked_at, '') ASC, open_dt DESC LIMIT ?" if all_ages
+            else " ORDER BY COALESCE(result_checked_at, '') ASC, open_dt DESC LIMIT ?")
+    args.append(limit)
     conn = get_db()
     try:
-        targets = conn.execute(
-            """SELECT id, bid_no FROM bid_notices
-                WHERE COALESCE(kind, '') <> ? AND COALESCE(open_dt, '') <> '' AND open_dt <= ?
-                  AND COALESCE(result_state, '') <> ?
-                  AND (open_dt >= ? OR result_checked_at IS NULL)
-                ORDER BY COALESCE(result_checked_at, '') ASC, open_dt DESC LIMIT ?""",
-            (g2b.KIND_CANCEL, now_text, g2b.STATE_AWARDED, cutoff, limit),
-        ).fetchall()
+        targets = conn.execute(sql, args).fetchall()
     finally:
         conn.close()
 
@@ -805,25 +870,43 @@ def refresh_results(service_key, limit=RESULT_LIMIT):
         except g2b.G2BError as error:
             note = f'선정 결과 확인은 일부만 했습니다({error})'
             break
-    if checked:
-        conn = get_db()
-        try:
-            for notice_id, award in checked:
+    conn = get_db()
+    try:
+        for notice_id, award in checked:
+            if award:
+                _save_award(conn, notice_id, award, actor, now_text)
+            else:
+                # 아직 결과가 안 올라온 공고는 예전 값을 그대로 두고 찾아본 시각만 남긴다.
                 conn.execute('UPDATE bid_notices SET result_checked_at=? WHERE id=?', (now_text, notice_id))
-                if not award:
-                    continue    # 아직 결과가 안 올라온 공고는 예전 값을 그대로 둔다.
-                conn.execute(
-                    """UPDATE bid_notices SET winner_name=?, winner_amount=?, winner_rate=?, result_state=?,
-                              result_participants=?, result_opened_at=?, result_final_date=?,
-                              result_updated_by=?, result_updated_at=? WHERE id=?""",
-                    (award['winner_name'] or None, award['winner_amount'], award['winner_rate'] or None,
-                     award['state'], award['participants'], award['opened_at'] or None,
-                     award['final_date'] or None, '자동', now_text, notice_id),
-                )
-            conn.commit()
-        finally:
-            conn.close()
-    return sum(1 for _, award in checked if award), note
+        conn.commit()
+        remaining = None
+        if since:
+            remaining = conn.execute(
+                f"SELECT COUNT(*) FROM bid_notices WHERE {RESULT_ELIGIBLE_SQL} AND COALESCE(result_checked_at, '') < ?",
+                (g2b.KIND_CANCEL, now_text, g2b.STATE_AWARDED, since)).fetchone()[0]
+    finally:
+        conn.close()
+    return {'checked': len(checked), 'found': sum(1 for _, award in checked if award), 'note': note,
+            'remaining': remaining}
+
+
+def refresh_results(service_key, limit=RESULT_LIMIT):
+    """수집할 때 자동으로 부르는 결과 조회. (결과를 새로 얻은 공고 수, 안내 문구)를 돌려준다."""
+    outcome = _run_result_refresh(service_key, limit)
+    return outcome['found'], outcome['note']
+
+
+def pending_result_count():
+    """개찰은 지났는데 아직 결과가 없는 공고 수(취소 공고 제외)."""
+    conn = get_db()
+    try:
+        return conn.execute(
+            """SELECT COUNT(*) FROM bid_notices
+                WHERE COALESCE(kind, '') <> ? AND COALESCE(open_dt, '') <> '' AND open_dt <= ?
+                  AND COALESCE(result_state, '') = '' AND COALESCE(winner_name, '') = ''""",
+            (g2b.KIND_CANCEL, _stamp())).fetchone()[0]
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1109,6 +1192,7 @@ def _notice_dict(row, now):
         'matched_keyword': row['matched_keyword'] or '',
         'event_count': row['event_count'] if 'event_count' in row.keys() else 0,
         'work_status': row['work_status'] or '',
+        'archive_id': row['archive_id'],
         'result': {
             'state': row['result_state'] or ('직접입력' if row['winner_name'] else ''),
             'winner_name': row['winner_name'] or '',
@@ -1148,65 +1232,151 @@ def index():
     return render_template('bid_notice/bid_notice.html', is_admin=is_admin_session())
 
 
-@bid_notice_bp.route('/api/notices')
-def api_notices():
-    status = str(request.args.get('status') or 'open')
-    keyword = str(request.args.get('q') or '').strip()
-    now = _now()
+HAS_RESULT_SQL = "(COALESCE(n.result_state, '') <> '' OR COALESCE(n.winner_name, '') <> '')"
+NO_WINNER_SQL = "COALESCE(n.winner_name, '') = ''"
+
+
+def _to_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _list_conditions(get, now, with_region_result=True):
+    """목록 조건(보관함·상태 탭·검색어·게시일·진행 상태·지역·결과) → (where 목록, params 목록, status).
+
+    ``get``은 ``request.args.get``처럼 이름으로 값을 돌려주는 함수다. ``with_region_result=False``이면
+    지역·결과 조건을 뺀다(머리글 선택 상자에 보여 줄 지역·업체 목록을 만들 때 쓴다).
+    """
     now_text = _stamp(now)
+    status = str(get('status') or 'open')
     where, params = [], []
+    archive_id = _to_int(get('archive'))
+    if archive_id:
+        # 보관함 안의 공고는 상태 탭과 상관없이 모두 보여 주고, [공고 목록]에는 나오지 않는다.
+        status = 'all'
+        where.append('n.archive_id = ?')
+        params.append(archive_id)
+    else:
+        where.append('n.archive_id IS NULL')
     if status == 'cancelled':
         where.append('n.kind = ?')
         params.append(g2b.KIND_CANCEL)
     elif status == 'closed':
         where.append("COALESCE(n.kind, '') <> ? AND n.bid_close <> '' AND n.bid_close < ?")
         params.extend([g2b.KIND_CANCEL, now_text])
-    elif status == 'soon':
-        # 3일내 마감: 아직 마감 전이고, 마감일이 오늘부터 3일 뒤(D-3)까지인 공고(화면의 D-day 계산과 같은 날짜 기준)
+    elif status in ('soon', 'tomorrow', 'week'):
+        # 마감 임박: 3일내(오늘부터 D-3까지) / 내일 마감(마감일이 내일) / 1주내(오늘부터 D-7까지). 화면의 D-day와 같은 날짜 기준
+        today = now.date()
+        if status == 'tomorrow':
+            start, end = f'{today + timedelta(days=1):%Y-%m-%d}', f'{today + timedelta(days=2):%Y-%m-%d}'
+        else:
+            start, end = now_text, f'{today + timedelta(days=(SOON_DAYS if status == "soon" else WEEK_DAYS) + 1):%Y-%m-%d}'
         where.append("COALESCE(n.kind, '') <> ? AND n.bid_close >= ? AND n.bid_close < ?")
-        params.extend([g2b.KIND_CANCEL, now_text, f'{now.date() + timedelta(days=SOON_DAYS + 1):%Y-%m-%d}'])
+        params.extend([g2b.KIND_CANCEL, start, end])
     elif status != 'all':
         where.append("COALESCE(n.kind, '') <> ? AND (COALESCE(n.bid_close, '') = '' OR n.bid_close >= ?)")
         params.extend([g2b.KIND_CANCEL, now_text])
+    keyword = str(get('q') or '').strip()
     if keyword:
         like = f'%{keyword}%'
         where.append('(n.title LIKE ? OR n.school LIKE ? OR n.region LIKE ? OR n.demand_name LIKE ? '
                      'OR n.bid_no LIKE ? OR n.winner_name LIKE ?)')
         params.extend([like] * 6)
     # 게시일 기간
-    date_from = _parse_day(request.args.get('date_from'))
-    date_to = _parse_day(request.args.get('date_to'))
+    date_from = _parse_day(get('date_from'))
+    date_to = _parse_day(get('date_to'))
     if date_from:
         where.append('n.notice_dt >= ?')
         params.append(f'{date_from:%Y-%m-%d}')
     if date_to:
         where.append('n.notice_dt < ?')
         params.append(f'{date_to + timedelta(days=1):%Y-%m-%d}')
-    work_status = str(request.args.get('work_status') or '').strip()
+    work_status = str(get('work_status') or '').strip()
     if work_status == 'none':
         where.append("COALESCE(n.work_status, '') = ''")
     elif work_status in WORK_STATUSES:
         where.append('n.work_status = ?')
         params.append(work_status)
-    sql = '''SELECT n.*, (SELECT COUNT(*) FROM bid_notice_events e WHERE e.notice_id = n.id) AS event_count
-               FROM bid_notices n'''
-    if where:
-        sql += ' WHERE ' + ' AND '.join(where)
-    # 진행 중은 마감이 가까운 순, 그 밖은 최근 공고 순
-    sql += " ORDER BY CASE WHEN COALESCE(n.bid_close, '') = '' THEN 1 ELSE 0 END, n.bid_close ASC" \
-        if status in ('open', 'soon') else ' ORDER BY n.notice_dt DESC, n.id DESC'
-    sql += f' LIMIT {LIST_LIMIT}'
+    if with_region_result:
+        region = str(get('region') or '').strip()
+        if region:
+            where.append('n.region = ?')
+            params.append(region)
+        result = str(get('result') or '').strip()
+        if result == '__has':
+            where.append(HAS_RESULT_SQL)
+        elif result == '__none':
+            where.append(f'NOT {HAS_RESULT_SQL}')
+        elif result == '__etc':
+            where.append(f'{HAS_RESULT_SQL} AND {NO_WINNER_SQL}')
+        elif result.startswith('w:') and result[2:]:
+            where.append('n.winner_name = ?')
+            params.append(result[2:])
+    return where, params, status
+
+
+def _order_sql(status, sort, direction):
+    """정렬: [입찰 마감]·[결과] 머리글(빈 값은 항상 맨 뒤), 기본은 진행 중·3일내 마감은 마감 가까운 순, 그 밖은 최근 공고 순."""
+    descending = 'DESC' if str(direction or '').lower() == 'desc' else 'ASC'
+    tail = 'n.notice_dt DESC, n.id DESC'
+    if sort == 'close':
+        return f"CASE WHEN COALESCE(n.bid_close, '') = '' THEN 1 ELSE 0 END, n.bid_close {descending}, {tail}"
+    if sort == 'winner':
+        return f"CASE WHEN COALESCE(n.winner_name, '') = '' THEN 1 ELSE 0 END, n.winner_name {descending}, {tail}"
+    if status in ('open', 'soon', 'tomorrow', 'week'):
+        return "CASE WHEN COALESCE(n.bid_close, '') = '' THEN 1 ELSE 0 END, n.bid_close ASC, n.id DESC"
+    return tail
+
+
+@bid_notice_bp.route('/api/notices')
+def api_notices():
+    """공고 목록 한 쪽(서버가 조건·정렬·쪽 나누기를 모두 처리한다)."""
+    now = _now()
+    now_text = _stamp(now)
+    get = request.args.get
+    where, params, status = _list_conditions(get, now)
+    show_all = str(get('per_page') or '').strip().lower() in ('all', '0')       # 모두 보기: 쪽을 나누지 않는다
+    per_page = _to_int(get('per_page'))
+    per_page = per_page if per_page in PAGE_SIZES else PAGE_SIZES[0]
+    order = _order_sql(status, get('sort'), get('dir'))
+    where_sql = ' WHERE ' + ' AND '.join(where)
+    base_where, base_params, _ = _list_conditions(get, now, with_region_result=False)
+    base_sql = ' WHERE ' + ' AND '.join(base_where)
 
     conn = get_db()
     try:
-        rows = conn.execute(sql, params).fetchall()
+        total = conn.execute(f'SELECT COUNT(*) FROM bid_notices n{where_sql}', params).fetchone()[0]
+        pages = 1 if show_all else max(1, -(-total // per_page))
+        page = 1 if show_all else min(max(1, _to_int(get('page')) or 1), pages)
+        limit_sql, limit_args = ('', []) if show_all else (' LIMIT ? OFFSET ?', [per_page, (page - 1) * per_page])
+        rows = conn.execute(
+            f"""SELECT n.*, (SELECT COUNT(*) FROM bid_notice_events e WHERE e.notice_id = n.id) AS event_count
+                  FROM bid_notices n{where_sql} ORDER BY {order}{limit_sql}""",
+            [*params, *limit_args]).fetchall()
+        # 머리글 선택 상자: 지역·결과 조건만 뺀 같은 범위의 지역·낙찰 업체·결과 건수
+        regions = [{'name': row['name'], 'count': row['cnt']} for row in conn.execute(
+            f"SELECT n.region AS name, COUNT(*) AS cnt FROM bid_notices n{base_sql} "
+            "AND COALESCE(n.region, '') <> '' GROUP BY n.region ORDER BY n.region", base_params)]
+        winners = [{'name': row['name'], 'count': row['cnt']} for row in conn.execute(
+            f"SELECT n.winner_name AS name, COUNT(*) AS cnt FROM bid_notices n{base_sql} "
+            "AND COALESCE(n.winner_name, '') <> '' GROUP BY n.winner_name ORDER BY n.winner_name", base_params)]
+        counts = conn.execute(
+            f"""SELECT COUNT(*) AS total,
+                       SUM(CASE WHEN {HAS_RESULT_SQL} THEN 1 ELSE 0 END) AS has_result,
+                       SUM(CASE WHEN {HAS_RESULT_SQL} AND {NO_WINNER_SQL} THEN 1 ELSE 0 END) AS etc
+                  FROM bid_notices n{base_sql}""", base_params).fetchone()
+        has_result = counts['has_result'] or 0
+        result_counts = {'has': has_result, 'none': counts['total'] - has_result, 'etc': counts['etc'] or 0}
         today = now.strftime('%Y-%m-%d')
         week_ago = _stamp(now - timedelta(days=7))
         summary = {
             'open': conn.execute(
-                "SELECT COUNT(*) FROM bid_notices WHERE COALESCE(kind, '') <> ? AND (COALESCE(bid_close, '') = '' OR bid_close >= ?)",
+                "SELECT COUNT(*) FROM bid_notices WHERE archive_id IS NULL AND COALESCE(kind, '') <> ? "
+                "AND (COALESCE(bid_close, '') = '' OR bid_close >= ?)",
                 (g2b.KIND_CANCEL, now_text)).fetchone()[0],
-            'total': conn.execute('SELECT COUNT(*) FROM bid_notices').fetchone()[0],
+            'total': conn.execute('SELECT COUNT(*) FROM bid_notices WHERE archive_id IS NULL').fetchone()[0],
             'new_today': conn.execute(
                 "SELECT COUNT(*) FROM bid_notice_events WHERE event_type='new' AND created_at >= ?",
                 (today,)).fetchone()[0],
@@ -1218,12 +1388,16 @@ def api_notices():
         }
         runs = conn.execute('SELECT * FROM bid_collect_runs ORDER BY id DESC LIMIT 10').fetchall()
         settings = get_settings(conn)
+        archives = _archive_list(conn)
     finally:
         conn.close()
     upcoming = next_run_time(now)
     return jsonify({
         'status': 'success',
         'notices': [_notice_dict(row, now) for row in rows],
+        'total': total, 'page': page, 'pages': pages, 'per_page': 0 if show_all else per_page,
+        'regions': regions, 'winners': winners, 'result_counts': result_counts,
+        'archives': archives,
         'summary': summary,
         'runs': [_run_dict(row) for row in runs],
         'next_run': upcoming.strftime('%m-%d %H:%M') if upcoming and settings['auto_enabled'] else '',
@@ -1231,6 +1405,24 @@ def api_notices():
         'scheduler_on': _scheduler_started,
         'work_statuses': list(WORK_STATUSES),
     })
+
+
+@bid_notice_bp.route('/api/notices/ids')
+def api_notice_ids():
+    """지금 조건에 맞는 공고 전체의 번호(체크박스 '조건에 맞는 전체 선택'용). 한 번에 ``LIST_LIMIT``건까지."""
+    now = _now()
+    get = request.args.get
+    where, params, status = _list_conditions(get, now)
+    order = _order_sql(status, get('sort'), get('dir'))
+    where_sql = ' WHERE ' + ' AND '.join(where)
+    conn = get_db()
+    try:
+        total = conn.execute(f'SELECT COUNT(*) FROM bid_notices n{where_sql}', params).fetchone()[0]
+        rows = conn.execute(f'SELECT n.id FROM bid_notices n{where_sql} ORDER BY {order} LIMIT ?',
+                            [*params, LIST_LIMIT]).fetchall()
+    finally:
+        conn.close()
+    return jsonify({'status': 'success', 'ids': [row['id'] for row in rows], 'total': total, 'capped': total > LIST_LIMIT})
 
 
 @bid_notice_bp.route('/api/notices/<int:notice_id>/events')
@@ -1368,6 +1560,363 @@ def api_files_bundle():
     response.headers['X-Bid-Notice-Skipped'] = str(bundle['skipped'])
     response.headers['Cache-Control'] = 'no-store'
     return response
+
+
+# ---------------------------------------------------------------------------
+# 보관함(탭) · 선택 공고 삭제 · 엑셀 내보내기
+# ---------------------------------------------------------------------------
+def _parse_ids(payload, limit=LIST_LIMIT):
+    """JSON의 ids를 중복 없는 정수 목록으로 만든다. 잘못되면 ValueError(안내 문구)."""
+    raw = payload.get('ids')
+    if not isinstance(raw, list):
+        raise ValueError('공고를 선택해 주세요.')
+    ids = []
+    for value in raw:
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            raise ValueError('선택한 공고 번호가 올바르지 않습니다.') from None
+        if number not in ids:
+            ids.append(number)
+    if not ids:
+        raise ValueError('공고를 선택해 주세요.')
+    if len(ids) > limit:
+        raise ValueError(f'한 번에 {limit}건까지 처리할 수 있습니다.')
+    return ids
+
+
+def _archive_list(conn):
+    rows = conn.execute(
+        """SELECT a.id, a.name, COUNT(n.id) AS cnt
+             FROM bid_archives a LEFT JOIN bid_notices n ON n.archive_id = a.id
+            GROUP BY a.id, a.name ORDER BY a.id"""
+    ).fetchall()
+    return [{'id': row['id'], 'name': row['name'], 'count': row['cnt']} for row in rows]
+
+
+def _clean_archive_name(value):
+    name = re.sub(r'\s+', ' ', str(value or '')).strip()
+    if not name:
+        raise ValueError('보관함 이름을 입력해 주세요.')
+    if len(name) > MAX_ARCHIVE_NAME:
+        raise ValueError(f'보관함 이름은 {MAX_ARCHIVE_NAME}자 이내로 입력해 주세요.')
+    return name
+
+
+def _archive_by_name(conn, name):
+    return conn.execute('SELECT id, name FROM bid_archives WHERE name = ? COLLATE NOCASE', (name,)).fetchone()
+
+
+def _create_archive(conn, name, actor):
+    if conn.execute('SELECT COUNT(*) FROM bid_archives').fetchone()[0] >= MAX_ARCHIVES:
+        raise ValueError(f'보관함은 {MAX_ARCHIVES}개까지 만들 수 있습니다. 안 쓰는 보관함을 삭제해 주세요.')
+    cursor = conn.execute('INSERT INTO bid_archives (name, created_by, created_at) VALUES (?, ?, ?)',
+                          (name, actor, _stamp()))
+    return cursor.lastrowid
+
+
+@bid_notice_bp.route('/api/archives', methods=['POST'])
+def api_archive_create():
+    """보관함(탭)을 만든다. 예) '2025년 공고'"""
+    payload = request.get_json(silent=True) or {}
+    try:
+        name = _clean_archive_name(payload.get('name'))
+    except ValueError as error:
+        return _json_error(str(error))
+    conn = get_db()
+    try:
+        if _archive_by_name(conn, name):
+            return _json_error('같은 이름의 보관함이 이미 있습니다.', 409)
+        try:
+            archive_id = _create_archive(conn, name, session.get('user_name') or '')
+        except ValueError as error:
+            return _json_error(str(error))
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({'status': 'success', 'archive': {'id': archive_id, 'name': name, 'count': 0}})
+
+
+@bid_notice_bp.route('/api/archives/<int:archive_id>/rename', methods=['POST'])
+def api_archive_rename(archive_id):
+    payload = request.get_json(silent=True) or {}
+    try:
+        name = _clean_archive_name(payload.get('name'))
+    except ValueError as error:
+        return _json_error(str(error))
+    conn = get_db()
+    try:
+        if not conn.execute('SELECT 1 FROM bid_archives WHERE id=?', (archive_id,)).fetchone():
+            return _json_error('보관함을 찾을 수 없습니다.', 404)
+        other = _archive_by_name(conn, name)
+        if other and other['id'] != archive_id:
+            return _json_error('같은 이름의 보관함이 이미 있습니다.', 409)
+        conn.execute('UPDATE bid_archives SET name=? WHERE id=?', (name, archive_id))
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({'status': 'success', 'name': name})
+
+
+@bid_notice_bp.route('/api/archives/<int:archive_id>/delete', methods=['POST'])
+def api_archive_delete(archive_id):
+    """보관함(탭)을 지운다. 안에 있던 공고는 지워지지 않고 [공고 목록]으로 돌아온다."""
+    conn = get_db()
+    try:
+        if not conn.execute('SELECT 1 FROM bid_archives WHERE id=?', (archive_id,)).fetchone():
+            return _json_error('보관함을 찾을 수 없습니다.', 404)
+        cursor = conn.execute(
+            'UPDATE bid_notices SET archive_id=NULL, archived_at=NULL WHERE archive_id=?', (archive_id,))
+        conn.execute('DELETE FROM bid_archives WHERE id=?', (archive_id,))
+        conn.commit()
+        moved_back = cursor.rowcount
+    finally:
+        conn.close()
+    return jsonify({'status': 'success', 'moved_back': moved_back})
+
+
+@bid_notice_bp.route('/api/notices/archive', methods=['POST'])
+def api_notices_archive():
+    """선택한 공고를 보관함으로 옮긴다. ``archive_id``(있는 보관함) 또는 ``new_name``(새로 만들거나 같은 이름 사용)."""
+    payload = request.get_json(silent=True) or {}
+    try:
+        ids = _parse_ids(payload)
+    except ValueError as error:
+        return _json_error(str(error))
+    conn = get_db()
+    try:
+        if str(payload.get('new_name') or '').strip():
+            try:
+                name = _clean_archive_name(payload.get('new_name'))
+                found = _archive_by_name(conn, name)
+                archive_id = found['id'] if found else _create_archive(conn, name, session.get('user_name') or '')
+                name = found['name'] if found else name
+            except ValueError as error:
+                return _json_error(str(error))
+        else:
+            try:
+                archive_id = int(payload.get('archive_id'))
+            except (TypeError, ValueError):
+                return _json_error('옮길 보관함을 골라 주세요.')
+            row = conn.execute('SELECT id, name FROM bid_archives WHERE id=?', (archive_id,)).fetchone()
+            if not row:
+                return _json_error('보관함을 찾을 수 없습니다.', 404)
+            name = row['name']
+        marks = ', '.join('?' * len(ids))
+        cursor = conn.execute(
+            f'UPDATE bid_notices SET archive_id=?, archived_at=? WHERE id IN ({marks})',
+            [archive_id, _stamp(), *ids])
+        conn.commit()
+        moved = cursor.rowcount
+    finally:
+        conn.close()
+    return jsonify({'status': 'success', 'moved': moved, 'archive': {'id': archive_id, 'name': name}})
+
+
+@bid_notice_bp.route('/api/notices/unarchive', methods=['POST'])
+def api_notices_unarchive():
+    """선택한 공고를 보관함에서 꺼내 [공고 목록]으로 되돌린다."""
+    payload = request.get_json(silent=True) or {}
+    try:
+        ids = _parse_ids(payload)
+    except ValueError as error:
+        return _json_error(str(error))
+    conn = get_db()
+    try:
+        marks = ', '.join('?' * len(ids))
+        cursor = conn.execute(
+            f'UPDATE bid_notices SET archive_id=NULL, archived_at=NULL WHERE id IN ({marks})', ids)
+        conn.commit()
+        moved = cursor.rowcount
+    finally:
+        conn.close()
+    return jsonify({'status': 'success', 'moved': moved})
+
+
+@bid_notice_bp.route('/api/notices/delete', methods=['POST'])
+@admin_required
+def api_notices_delete():
+    """선택한 공고를 완전히 지운다(관리자 전용, 되돌릴 수 없음). 자동 수집이 다시 가져오지 않도록 공고번호를 기억한다."""
+    payload = request.get_json(silent=True) or {}
+    if not payload.get('confirm'):
+        return _json_error('삭제를 확인해 주세요.')
+    try:
+        ids = _parse_ids(payload)
+    except ValueError as error:
+        return _json_error(str(error))
+    conn = get_db()
+    try:
+        marks = ', '.join('?' * len(ids))
+        rows = conn.execute(f'SELECT id, bid_no FROM bid_notices WHERE id IN ({marks})', ids).fetchall()
+        if not rows:
+            return _json_error('삭제할 공고를 찾을 수 없습니다. 목록을 새로 고친 뒤 다시 골라 주세요.', 404)
+        found = [row['id'] for row in rows]
+        found_marks = ', '.join('?' * len(found))
+        conn.execute(f'DELETE FROM bid_notice_events WHERE notice_id IN ({found_marks})', found)
+        conn.execute(f'DELETE FROM bid_notices WHERE id IN ({found_marks})', found)
+        actor, now_text = session.get('user_name') or '', _stamp()
+        conn.executemany('INSERT OR IGNORE INTO bid_notice_deleted (bid_no, deleted_at, deleted_by) VALUES (?, ?, ?)',
+                         [(row['bid_no'], now_text, actor) for row in rows])
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({'status': 'success', 'deleted': len(rows)})
+
+
+EXPORT_COLUMNS = (
+    # (머리글, 너비, 숫자 서식)
+    ('번호', 7, None), ('공고 구분', 10, None), ('상태', 8, None),
+    ('공고명', 62, None), ('지역', 14, None), ('학교', 20, None), ('수요기관', 36, None),
+    ('게시일시', 17, None), ('입찰 마감', 17, None), ('개찰일시', 17, None),
+    ('기초금액', 14, '#,##0'),
+    ('낙찰 업체', 28, None), ('낙찰금액', 14, '#,##0'), ('낙찰률(%)', 10, '0.000'), ('참가 업체 수', 11, '0'),
+    ('결과', 16, None), ('공고 링크', 12, None),
+)
+RESULT_STATE_LABELS = {'최종낙찰': '최종 낙찰', '개찰완료': '개찰 완료(최종 낙찰 전)'}
+NOTICE_STATUS_LABELS = {'open': '진행 중', 'closed': '마감', 'cancelled': '취소'}
+
+
+def _rate_number(value):
+    """낙찰률('80.606')을 엑셀에서 계산할 수 있게 숫자로. 숫자가 아니면 글자 그대로."""
+    text = str(value or '').strip()
+    try:
+        return float(text)
+    except ValueError:
+        return text
+
+
+def build_export_workbook(rows, archive_names):
+    """공고 목록(보이는 순서)을 엑셀 파일(bytes)로 만든다."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    now_text = _stamp()
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = '입찰공고'
+    header_fill = PatternFill('solid', fgColor='1F3A5F')
+    for column, (title, width, _fmt) in enumerate(EXPORT_COLUMNS, start=1):
+        cell = sheet.cell(row=1, column=column, value=title)
+        cell.font = Font(bold=True, color='FFFFFF')
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        sheet.column_dimensions[get_column_letter(column)].width = width
+
+    for index, row in enumerate(rows):
+        state = row['result_state'] or ('직접 입력' if row['winner_name'] else '')
+        values = (
+            len(rows) - index, row['kind'] or '',
+            NOTICE_STATUS_LABELS.get(_notice_status(row, now_text), ''),
+            row['title'], row['region'] or '', row['school'] or '', row['demand_name'] or '',
+            _short_dt(row['notice_dt']), _short_dt(row['bid_close']), _short_dt(row['open_dt']),
+            row['base_amount'],
+            row['winner_name'] or '', row['winner_amount'], _rate_number(row['winner_rate']), row['result_participants'],
+            RESULT_STATE_LABELS.get(state, state), '',
+        )
+        for column, value in enumerate(values, start=1):
+            cell = sheet.cell(row=index + 2, column=column, value=value)
+            if isinstance(value, str):
+                cell.data_type = 's'          # '='로 시작하는 공고명도 수식이 아니라 글자로 저장한다
+            number_format = EXPORT_COLUMNS[column - 1][2]
+            if number_format and value not in (None, ''):
+                cell.number_format = number_format
+        url = str(row['url'] or '')
+        if url.startswith('https://'):
+            link = sheet.cell(row=index + 2, column=len(EXPORT_COLUMNS), value='공고 보기')
+            link.hyperlink = url
+            link.font = Font(color='1D4ED8', underline='single')
+    sheet.freeze_panes = 'A2'
+    sheet.auto_filter.ref = sheet.dimensions
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+@bid_notice_bp.route('/api/export', methods=['POST'])
+def api_export():
+    """공고 목록을 엑셀로 내려 준다. ``ids``(체크한 공고)나 ``query``(지금 목록의 조건)가 필요하다.
+
+    ``query``만 있으면 조건에 맞는 공고 전체(모든 쪽, 최대 ``EXPORT_LIMIT``건)를 목록과 같은 순서로,
+    ``ids``만 있으면 그 순서대로, 둘 다 있으면 ``ids``의 공고를 ``query``의 정렬로 내려 준다.
+    """
+    payload = request.get_json(silent=True) or {}
+    query = payload.get('query') if isinstance(payload.get('query'), dict) else None
+    now = _now()
+    capped = False
+    conn = get_db()
+    try:
+        archive_names = {item['id']: item['name'] for item in _archive_list(conn)}
+        if payload.get('ids') is not None or query is None:
+            try:
+                ids = _parse_ids(payload)
+            except ValueError as error:
+                return _json_error(str(error))
+            marks = ', '.join('?' * len(ids))
+            if query is not None:
+                _, _, status = _list_conditions(query.get, now)
+                order = _order_sql(status, query.get('sort'), query.get('dir'))
+                rows = conn.execute(f'SELECT n.* FROM bid_notices n WHERE n.id IN ({marks}) ORDER BY {order}', ids).fetchall()
+            else:
+                found = {row['id']: row for row in conn.execute(
+                    f'SELECT * FROM bid_notices WHERE id IN ({marks})', ids).fetchall()}
+                rows = [found[notice_id] for notice_id in ids if notice_id in found]
+        else:
+            where, params, status = _list_conditions(query.get, now)
+            order = _order_sql(status, query.get('sort'), query.get('dir'))
+            rows = conn.execute(
+                f"SELECT n.* FROM bid_notices n WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ?",
+                [*params, EXPORT_LIMIT + 1]).fetchall()
+            if len(rows) > EXPORT_LIMIT:
+                rows, capped = rows[:EXPORT_LIMIT], True
+    finally:
+        conn.close()
+    if not rows:
+        return _json_error('내려받을 공고가 없습니다. 목록을 새로 고친 뒤 다시 눌러 주세요.', 404)
+    data = build_export_workbook(rows, archive_names)
+    name = f'입찰공고_목록_{_now():%Y%m%d_%H%M}.xlsx'
+    response = send_file(BytesIO(data), as_attachment=True, download_name=name,
+                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    if capped:
+        response.headers['X-Bid-Export-Capped'] = '1'
+    return response
+
+
+@bid_notice_bp.route('/api/results/refresh', methods=['POST'])
+def api_results_refresh():
+    """상단 [낙찰 결과 가져오기]: 개찰일시가 지난 공고의 선정 결과를 가져온다.
+
+    한 번에 ``RESULT_LIMIT_MANUAL``건씩 처리하고 ``remaining``(아직 안 본 공고 수)과 ``since``를 돌려준다.
+    화면은 ``remaining``이 0이 될 때까지 ``since``를 그대로 실어 이어서 부르므로 공고가 아무리 많아도 모두 가져온다
+    (한 요청이 오래 걸리지 않고, 같은 공고를 두 번 묻지 않는다).
+    """
+    payload = request.get_json(silent=True) or {}
+    since = str(payload.get('since') or '').strip()
+    if since and not g2b.parse_datetime(since):
+        return _json_error('이어받기 정보가 올바르지 않습니다. 다시 눌러 주세요.')
+    since = since or _stamp()
+    settings = get_settings()
+    if not settings['service_key']:
+        return _json_error('나라장터 인증키가 설정되지 않았습니다.')
+    if not _collect_lock.acquire(blocking=False):
+        return _json_error('지금 수집이 진행 중입니다. 끝난 뒤 다시 눌러 주세요.', 409)
+    try:
+        outcome = _run_result_refresh(settings['service_key'], RESULT_LIMIT_MANUAL, all_ages=True,
+                                      actor=session.get('user_name') or '', since=since)
+    finally:
+        _collect_lock.release()
+    pending = pending_result_count()
+    if outcome['checked']:
+        message = f"{outcome['checked']}건을 확인해 {outcome['found']}건의 결과를 가져왔습니다."
+    else:
+        message = '확인할 공고가 없습니다(개찰이 지난 공고의 결과를 모두 확인했습니다).'
+    if pending:
+        message += f' 아직 결과가 없는 공고가 {pending}건 남아 있습니다(나라장터에 아직 올라오지 않은 공고 포함).'
+    if outcome['note']:
+        message += f" ({outcome['note']})"
+    return jsonify({'status': 'success', 'message': message, 'since': since, 'checked': outcome['checked'],
+                    'found': outcome['found'], 'pending': pending, 'remaining': outcome['remaining'],
+                    'note': outcome['note']})
 
 
 @bid_notice_bp.route('/api/settings')
