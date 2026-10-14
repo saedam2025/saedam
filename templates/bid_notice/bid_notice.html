@@ -328,44 +328,6 @@
         </div>
     </div>
 
-    <!-- 현황 요약: 브라우저 오른쪽 벽에 붙은 색인 탭(누르면 펼쳐짐) -->
-    <div class="bn-dock" id="bnDock">
-        <button type="button" class="bn-dock-tab" id="bnDockTab" aria-expanded="false" aria-controls="bnDockPanel">
-            <i class="fa-solid fa-chart-pie"></i><span>현황 요약</span></button>
-        <aside class="bn-summary" id="bnDockPanel">
-            <div class="bns-title"><i class="fa-solid fa-chart-pie"></i>현황 요약</div>
-            <div class="bns-grid">
-                <div class="bns-row"><span><i class="bns-dot" style="background:#1d4ed8"></i>진행 중인 공고</span><b id="sumOpen">-</b></div>
-                <div class="bns-row"><span><i class="bns-dot" style="background:#137a5f"></i>오늘 새로 찾은 공고</span><b id="sumNew">-</b></div>
-                <div class="bns-row"><span><i class="bns-dot" style="background:#c08a1e"></i>최근 7일 정정·취소</span><b id="sumChanged">-</b></div>
-            </div>
-            <div class="bns-sep">누적 · 수집</div>
-            <div class="bns-grid">
-                <div class="bns-row minor"><span>누적 공고</span><b id="sumTotal">-</b></div>
-                <div class="bns-row minor"><span>마지막 수집</span><b id="lastRun">-</b></div>
-                <div class="bns-row minor"><span>다음 자동 수집</span><b id="nextRun">-</b></div>
-            </div>
-            <div class="bns-note" id="runNote"></div>
-        </aside>
-    </div>
-
-    <!-- 보관함 고르는 창 -->
-    <div class="dlg-back" id="archiveDlg" role="dialog" aria-modal="true" aria-labelledby="archiveDlgTitle">
-        <div class="dlg">
-            <h3 id="archiveDlgTitle">보관함으로 옮기기</h3>
-            <label for="archiveTarget">옮길 보관함</label>
-            <select id="archiveTarget"></select>
-            <div id="archiveNewWrap" style="display:none">
-                <label for="archiveNewName">새 보관함 이름</label>
-                <input type="text" id="archiveNewName" maxlength="30" placeholder="예) 2025년 공고">
-            </div>
-            <div class="dlg-actions">
-                <button type="button" class="btn" id="archiveCancel">취소</button>
-                <button type="button" class="btn primary" id="archiveOk">옮기기</button>
-            </div>
-        </div>
-    </div>
-
     <div class="view-tabs" id="viewTabs">
         <button type="button" class="view-tab active" data-view="list"><i class="fa-solid fa-list"></i> 공고 목록</button>
         <button type="button" class="view-tab" data-view="settings"><i class="fa-solid fa-gear"></i> 공고수집·메일 설정</button>
@@ -575,6 +537,45 @@
         </div>
     </div>
 </div>
+
+{# 현황 요약 탭과 보관함 창은 position:fixed라서 반드시 .bn-container 밖에 둔다(카드에 backdrop-filter가 있는 테마에서는 fixed가 브라우저가 아니라 카드를 기준으로 잡혀 위치가 어긋난다) #}
+    <!-- 현황 요약: 브라우저 오른쪽 벽에 붙은 색인 탭(누르면 펼쳐짐) -->
+    <div class="bn-dock" id="bnDock">
+        <button type="button" class="bn-dock-tab" id="bnDockTab" aria-expanded="false" aria-controls="bnDockPanel">
+            <i class="fa-solid fa-chart-pie"></i><span>현황 요약</span></button>
+        <aside class="bn-summary" id="bnDockPanel">
+            <div class="bns-title"><i class="fa-solid fa-chart-pie"></i>현황 요약</div>
+            <div class="bns-grid">
+                <div class="bns-row"><span><i class="bns-dot" style="background:#1d4ed8"></i>진행 중인 공고</span><b id="sumOpen">-</b></div>
+                <div class="bns-row"><span><i class="bns-dot" style="background:#137a5f"></i>오늘 새로 찾은 공고</span><b id="sumNew">-</b></div>
+                <div class="bns-row"><span><i class="bns-dot" style="background:#c08a1e"></i>최근 7일 정정·취소</span><b id="sumChanged">-</b></div>
+            </div>
+            <div class="bns-sep">누적 · 수집</div>
+            <div class="bns-grid">
+                <div class="bns-row minor"><span>누적 공고</span><b id="sumTotal">-</b></div>
+                <div class="bns-row minor"><span>마지막 수집</span><b id="lastRun">-</b></div>
+                <div class="bns-row minor"><span>다음 자동 수집</span><b id="nextRun">-</b></div>
+            </div>
+            <div class="bns-note" id="runNote"></div>
+        </aside>
+    </div>
+
+    <!-- 보관함 고르는 창 -->
+    <div class="dlg-back" id="archiveDlg" role="dialog" aria-modal="true" aria-labelledby="archiveDlgTitle">
+        <div class="dlg">
+            <h3 id="archiveDlgTitle">보관함으로 옮기기</h3>
+            <label for="archiveTarget">옮길 보관함</label>
+            <select id="archiveTarget"></select>
+            <div id="archiveNewWrap" style="display:none">
+                <label for="archiveNewName">새 보관함 이름</label>
+                <input type="text" id="archiveNewName" maxlength="30" placeholder="예) 2025년 공고">
+            </div>
+            <div class="dlg-actions">
+                <button type="button" class="btn" id="archiveCancel">취소</button>
+                <button type="button" class="btn primary" id="archiveOk">옮기기</button>
+            </div>
+        </div>
+    </div>
 {% endblock %}
 
 {% block scripts %}
