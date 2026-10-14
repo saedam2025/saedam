@@ -28,7 +28,3 @@ services:
         sync: false
       - key: SOLAPI_FROM
         sync: false
-      # 업무지원 > 입찰공고관리: 나라장터 입찰공고정보서비스 인증키(공공데이터포털 일반 인증키).
-      # 화면의 [수집·메일 설정]에 저장한 값이 우선이며, 아래 값은 저장값이 없을 때만 쓴다.
-      - key: G2B_SERVICE_KEY
-        sync: false
