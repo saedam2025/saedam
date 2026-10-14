@@ -58,26 +58,6 @@
   </div>
 </section>
 
-<section class="ih-section" id="design">
-  <h2>학부모 화면 디자인</h2>
-  <p class="ih-hint">학부모가 휴대폰으로 여는 화면(첫 화면·학부모 홈)의 모습을 고릅니다. 고른 디자인은 이 학교 학부모에게만 적용되고, 언제든 바꿀 수 있어요. 기능과 내용은 같고 색·모양만 달라집니다.</p>
-  <form method="post" action="{{ url_for('parent_hub.admin_save_design', portal_id=portal.id) }}">
-    <input type="hidden" name="next" value="{{ here }}">
-    <div class="ih-designs">
-      {% for item in designs %}
-      <label class="ih-design {{ item.key }}">
-        <span class="top"><input type="radio" name="design" value="{{ item.key }}" {{ 'checked' if item.key == current_design }}> {{ item.label }}{% if item.key == current_design %} <span class="ih-badge ok">사용 중</span>{% endif %}</span>
-        <span class="mock" aria-hidden="true"><i></i><i></i><span class="bar"><b></b><b></b><b></b></span></span>
-        <small>{{ item.tagline }}</small>
-        <ul>{% for point in item.points %}<li>{{ point }}</li>{% endfor %}</ul>
-        <a class="ih-btn sm" href="{{ url_for('parent_hub.admin_design_preview', portal_id=portal.id, design=item.key) }}" target="_blank" rel="noopener"><i class="fa-solid fa-eye"></i> 예시 화면 보기</a>
-      </label>
-      {% endfor %}
-    </div>
-    <div class="ih-row mid" style="margin-top:14px"><button class="ih-btn primary" type="submit"><i class="fa-solid fa-check"></i> 이 디자인으로 저장</button></div>
-  </form>
-</section>
-
 <section class="ih-section" id="send">
   <h2>링크 발송</h2>
   <p class="ih-hint">이 학교 학생의 보호자에게 학부모 안내 링크를 <b>문자</b> 또는 <b>카카오 알림톡</b>으로 보냅니다. 보호자마다 한 번만(자녀가 여럿이어도 한 통) 가며, 휴대폰번호가 올바른 보호자에게만 보냅니다.</p>
