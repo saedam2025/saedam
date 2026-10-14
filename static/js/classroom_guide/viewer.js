@@ -209,8 +209,7 @@ export function mountViewer(root, { layout, publicLink = '', mode = 'internal' }
         if (fromSelect && layout.gates[0]) fromSelect.value = `gate:${layout.gates[0].id}`;
     }
 
-    // focus: 'path'는 경로 전체가 보이게, 'room'은 도착 교실에 화면을 맞춘다(링크로 들어온 경우).
-    function runRoute(toKey, { scroll = true, focus = 'path' } = {}) {
+    function runRoute(toKey, { scroll = true } = {}) {
         const fromKey = fromSelect?.value || (layout.gates[0] ? `gate:${layout.gates[0].id}` : '');
         if (toSelect && toKey) toSelect.value = toKey;
         const target = toKey || toSelect?.value;
@@ -232,8 +231,7 @@ export function mountViewer(root, { layout, publicLink = '', mode = 'internal' }
         if (toRoom) selectRoom(toRoom, { focus: false });
         setFloor(route.to.floor);
         scene.setRoute(route);
-        if (focus === 'room' && toRoom) scene.focusRoom(toRoom);
-        else scene.focusPath(route.path);
+        scene.focusPath(route.path);
         if (summary) {
             summary.innerHTML = `
                 <div class="cg-route-total">
@@ -323,12 +321,8 @@ export function mountViewer(root, { layout, publicLink = '', mode = 'internal' }
     if (deepTo && findRoom(layout, deepTo)) {
         const from = params.get('from');
         if (from && fromSelect && [...fromSelect.options].some(o => o.value === from)) fromSelect.value = from;
-        // 링크로 들어온 경우: PC에서 교실을 눌렀을 때처럼 그 교실이 있는 층을 열고 교실을 강조·확대한다.
-        // (길 계산이 안 되는 학교라도 교실은 항상 안내된다.)
-        selectRoom(deepTo);
-        if (toSelect) toSelect.value = `room:${deepTo}`;
-        // 이어서 가는 길을 그리되 화면은 교실에 맞춰 둔다. 3D 안내도부터 보이도록 화면을 내리지 않는다.
-        setTimeout(() => runRoute(`room:${deepTo}`, { scroll: false, focus: 'room' }), 350);
+        // 링크로 들어온 경우에는 3D 안내도부터 보이도록 화면을 내리지 않는다.
+        setTimeout(() => runRoute(`room:${deepTo}`, { scroll: false }), 350);
     }
 
     return {

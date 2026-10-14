@@ -203,7 +203,7 @@
 .cg-label--minor span { font-size: 10px; }
 .cg-label.is-far { opacity: .55; }
 .cg-label.is-selected {
-    background: var(--cg-select, var(--cg-primary, #1d6fe0)); border-color: #fff; color: #fff; opacity: 1; z-index: 3;
+    background: var(--cg-primary, #1d6fe0); border-color: #fff; color: #fff; opacity: 1; z-index: 3;
     padding: 6px 12px; box-shadow: 0 10px 20px -8px rgba(29, 78, 216, .8); transform-origin: bottom center;
 }
 .cg-label.is-selected b, .cg-label.is-selected span { color: #fff; font-size: 14px; }
