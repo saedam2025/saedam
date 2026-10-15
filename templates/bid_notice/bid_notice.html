@@ -134,9 +134,21 @@
     /* 진행 상태가 [입찰제외]인 공고는 행 전체를 회색으로 보여 준다. */
     tr.excluded td { background: #e5e7eb; }
     tr.excluded.picked td { background: #d6dde9; }
+    .tbl td.posted { width: 1%; white-space: nowrap; color: var(--text-gray, #475569); font-size: .8rem; }
+    /* [공고가져오기]로 새로 기록된 공고: 하루 동안 공고명 앞에 반짝이는 N */
+    .new-n {
+        flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; margin-right: 6px; border-radius: 50%;
+        background: #ef4444; color: #fff; font-size: .68rem; font-weight: 800; line-height: 1;
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, .55); animation: new-n-blink 1.4s ease-in-out infinite;
+    }
+    @keyframes new-n-blink {
+        0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, .55); }
+        50% { opacity: .35; box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
+    }
+    @media (prefers-reduced-motion: reduce) { .new-n { animation: none; } }
     .tbl td.no, .tbl th.no { width: 1%; color: var(--text-gray, #64748b); font-size: .8rem; white-space: nowrap; }
     /* 공고명은 한 줄만 보여 주고 넘치면 …으로 줄인다(마우스를 올리면 전체 제목). */
-    .tbl td.title-cell { width: 100%; max-width: 0; min-width: 300px; text-align: left; }
+    .tbl td.title-cell { width: 100%; max-width: 0; min-width: 240px; text-align: left; }
     .title-row { display: flex; align-items: center; min-width: 0; }
     .title-row .chip { flex: none; }
     .title-link {
@@ -183,10 +195,16 @@
     .chip.cancelled { background: #fff5f5; color: #dc3545; }
     .chip.closed { background: #f1f5f9; color: #475569; }
     .chip.rebid { background: #ede9fe; color: #6d28d9; }
-    /* 정정·취소 후 며칠 동안 공고명 아래에 바뀐 내용을 한 줄로 보여 준다 */
-    .change-note { margin-top: 3px; font-size: .74rem; line-height: 1.45; color: #8a5a00; white-space: normal; }
-    .change-note i { margin-right: 4px; font-size: .68rem; }
-    tr.is-cancelled .change-note { color: #b42318; }
+    /* 낙찰 상세: 참가 업체 전체 */
+    .bidders { margin-top: 10px; max-width: 760px; max-height: 320px; overflow: auto; border: 1px solid #c6e7d0; border-radius: 6px; background: #fff; }
+    .bidders table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+    .bidders th { position: sticky; top: 0; padding: 6px 8px; background: #eef8f1; color: var(--text-gray, #475569); font-weight: 700; text-align: center; white-space: nowrap; }
+    .bidders td { padding: 5px 8px; border-top: 1px solid #edf2f7; text-align: center; white-space: nowrap; }
+    .bidders td.name { min-width: 120px; }
+    .bidders td.name { text-align: left; white-space: normal; word-break: keep-all; }
+    .bidders td.right { text-align: right; font-variant-numeric: tabular-nums; }
+    .bidders tr.top td { background: #f0fff4; font-weight: 700; }
+    .bidders-note { margin-top: 8px; font-size: .75rem; color: var(--text-gray, #64748b); }
     button.chip { border: 0; font-family: inherit; cursor: pointer; }
     button.chip:hover { filter: brightness(.94); box-shadow: 0 0 0 1px currentColor inset; }
     .chip.open { background: #e6fffa; color: #0f766e; }
@@ -199,6 +217,8 @@
         background: var(--input-bg, #fff); color: var(--text-gray, #64748b); max-width: 130px;
     }
     .status-select.s-plan { background: #2563eb; border-color: #1d4ed8; color: #fff; font-weight: 800; box-shadow: 0 1px 4px rgba(37, 99, 235, .45); }
+    .status-select.s-hq { background: #4d7c0f; border-color: #3f6212; color: #fff; font-weight: 800; }        /* 본부입찰: 진한 연두 */
+    .status-select.s-branch { background: #f97316; border-color: #ea580c; color: #fff; font-weight: 800; }   /* 지점입찰: 주황 */
     .status-select.s-skip { background: #f1f5f9; border-color: #e2e8f0; color: #64748b; }
     .status-select.s-doc, .status-select.s-price, .status-select.s-brief { background: #fff4e0; border-color: #fde3b0; color: #8a5a00; }
     .status-select.s-done { background: #f0fff4; border-color: #c6e7d0; color: #2f855a; }
@@ -208,7 +228,9 @@
     .row-actions .btn[data-file-get] { color: var(--primary-color, #4a90e2); border-color: var(--primary-color, #4a90e2); }
     .row-actions .none { font-size: .75rem; color: var(--text-gray, #64748b); white-space: nowrap; padding: 0 6px; }
 
-    .result-detail { margin-top: 8px; padding: 9px 12px; border-radius: 6px; background: #f3faf5; border: 1px solid #c6e7d0; font-size: .8rem; line-height: 1.7; white-space: normal; text-align: left; }
+    .tbl tr.detail-row td { padding: 0 14px 14px 52px; background: #fff; text-align: left; }
+    .tbl tbody tr.detail-row:hover td { background: #fff; }
+    .result-detail { margin-top: 0; padding: 12px 16px; border-radius: 6px; background: #f3faf5; border: 1px solid #c6e7d0; font-size: .8rem; line-height: 1.7; white-space: normal; text-align: left; }
     .result-detail .items { display: flex; flex-wrap: wrap; gap: 2px 20px; margin-top: 6px; }
     .result-detail .items span { white-space: nowrap; color: var(--text-dark, #1e293b); }
     .result-detail .items em { font-style: normal; font-weight: 700; color: var(--text-gray, #64748b); margin-right: 5px; }
@@ -440,7 +462,7 @@
         <div class="table-wrapper">
             <table class="tbl">
                 <thead>
-                    <tr><th class="chk"><input type="checkbox" class="pick" id="checkAll" title="이 쪽의 공고를 모두 선택/해제"></th><th class="no">번호</th><th>공고명</th><th><select id="regionFilter" class="head-select" title="고른 지역의 공고만 봅니다">
+                    <tr><th class="chk"><input type="checkbox" class="pick" id="checkAll" title="이 쪽의 공고를 모두 선택/해제"></th><th class="no">번호</th><th class="sortable" data-sort="posted" title="누르면 공고 게시일 순으로 정렬합니다">게시일<span class="arrow">↕</span></th><th>공고명</th><th><select id="regionFilter" class="head-select" title="고른 지역의 공고만 봅니다">
                             <option value="">지역 (전체)</option>
                         </select></th><th>학교</th>
                         <th class="sortable" data-sort="close" title="누르면 입찰 마감일시 순으로 정렬합니다">입찰 마감<span class="arrow">↕</span></th>
@@ -664,7 +686,7 @@ let ARCHIVES = [];
 let CURRENT_VIEW = 'list';
 let NOTICES = [];
 let WORK_STATUSES = [];
-const STATUS_CLASS = { '입찰예정': 's-plan', '입찰제외': 's-skip', '서류접수완료': 's-doc', '가격투찰완료': 's-price', '설명회완료': 's-brief', '개찰완료': 's-done' };
+const STATUS_CLASS = { '입찰예정': 's-plan', '본부입찰': 's-hq', '지점입찰': 's-branch', '입찰제외': 's-skip', '서류접수완료': 's-doc', '가격투찰완료': 's-price', '설명회완료': 's-brief', '개찰완료': 's-done' };
 const pick = id => SEEN.get(Number(id)) || NOTICES.find(notice => String(notice.id) === String(id));
 
 // ---- 현황 요약 탭(브라우저 오른쪽 벽): 탭을 누르면 펼쳐지고, 바깥을 누르거나 Esc로 접힌다 ----
@@ -716,11 +738,8 @@ function chips(item) {
     let html = '';
     // 제목 맨 앞의 진행 중/마감/취소 글자를 누르면 변경 이력이 펼쳐진다.
     const state = { cancelled: ['cancelled', '취소'], closed: ['closed', '마감'], open: ['open', '진행 중'] }[item.status];
-    const changedDay = item.changed_at ? item.changed_at.slice(5, 10) : '';     // 'MM-DD'
-    const stateText = state && item.status === 'cancelled' && changedDay ? `${state[1]} · ${changedDay}` : state && state[1];
-    if (state) html += `<button type="button" class="chip ${state[0]}" data-history="${item.id}" title="클릭하면 변경 이력을 봅니다">${stateText}</button>`;
-    if (item.is_new && item.status !== 'cancelled') html += '<span class="chip new">신규</span>';
-    if (item.changed) html += `<span class="chip changed" title="정정공고를 확인한 날">정정공고 ${Number(item.bid_ord)}차${changedDay ? ' · ' + changedDay : ''}</span>`;
+    if (state) html += `<button type="button" class="chip ${state[0]}" data-history="${item.id}" title="클릭하면 변경 이력을 봅니다">${state[1]}</button>`;
+    if (item.changed) html += `<span class="chip changed">정정공고 ${Number(item.bid_ord)}차</span>`;
     if (item.kind === '재공고') html += '<span class="chip rebid">재공고</span>';
     return html;
 }
@@ -775,7 +794,32 @@ function resultDetail(item) {
     if (result.opened_at) rows.push(['개찰', esc(result.opened_at)]);
     if (result.final_date) rows.push(['최종 낙찰일', esc(result.final_date)]);
     if (result.checked_at) rows.push(['조회한 때', esc(result.checked_at)]);
-    return `<span class="chip ok">선정 결과</span><div class="items">${rows.map(row => `<span><em>${row[0]}</em>${row[1]}</span>`).join('')}</div>`;
+    return `<span class="chip ok">선정 결과</span><div class="items">${rows.map(row => `<span><em>${row[0]}</em>${row[1]}</span>`).join('')}</div>`
+        + `<div class="bidders-box" data-bidders-for="${item.id}"><div class="bidders-note">참가 업체를 불러오는 중…</div></div>`;
+}
+
+// 상세를 펼치면 저장된 참가 업체 전체를 불러와 표로 보여 준다(1순위·낙찰 업체 줄 강조).
+async function loadBidders(item) {
+    const box = document.querySelector(`[data-bidders-for="${item.id}"]`);
+    if (!box) return;
+    try {
+        const data = await api(`/bid-notice/api/notices/${item.id}/bidders`);
+        if (!data.bidders.length) {
+            box.innerHTML = `<div class="bidders-note">${data.loaded ? '나라장터에 참가 업체 정보가 없습니다.'
+                : '참가 업체는 [공고가져오기] → [낙찰 결과 가져오기]를 누르면 함께 가져옵니다.'}</div>`;
+            return;
+        }
+        const winner = item.result.winner_name;
+        box.innerHTML = `<div class="bidders"><table><thead><tr><th>순위</th><th>업체</th><th>투찰금액</th><th>투찰률</th><th>비고</th></tr></thead><tbody>${
+            data.bidders.map(row => `<tr class="${row.name === winner ? 'top' : ''}">
+                <td>${row.rank || '-'}</td>
+                <td class="name" title="${esc([row.ceo && '대표 ' + row.ceo, row.bizno && '사업자번호 ' + row.bizno].filter(Boolean).join(' · '))}">${esc(row.name)}</td>
+                <td class="right">${row.amount ? won(row.amount) : '-'}</td>
+                <td class="num">${row.rate ? esc(row.rate) + '%' : '-'}</td><td class="name">${esc(row.note)}</td></tr>`).join('')
+        }</tbody></table></div><div class="bidders-note">참가 업체 ${data.bidders.length}곳 · 개찰 순위 순</div>`;
+    } catch (error) {
+        box.innerHTML = `<div class="bidders-note">${esc(error.message)}</div>`;
+    }
 }
 
 function actionCell(item) {
@@ -1000,7 +1044,7 @@ function renderNotices() {
             : HAS_ANY
             ? '조건에 맞는 공고가 없습니다.'
             : '아직 수집한 공고가 없습니다. 위쪽 [공고가져오기]를 누르면 최근 4주 공고를 바로 찾아옵니다.';
-        body.innerHTML = `<tr><td colspan="10"><div class="empty"><i class="fa-solid fa-inbox"></i>${text}</div></td></tr>`;
+        body.innerHTML = `<tr><td colspan="11"><div class="empty"><i class="fa-solid fa-inbox"></i>${text}</div></td></tr>`;
         updateBulkBar();
         return;
     }
@@ -1008,15 +1052,14 @@ function renderNotices() {
         <tr class="${item.status === 'cancelled' ? 'is-cancelled' : ''}${SELECTED.has(item.id) ? ' picked' : ''}${item.work_status === '입찰제외' ? ' excluded' : ''}">
             <td class="chk"><input type="checkbox" class="pick" data-pick="${item.id}" ${SELECTED.has(item.id) ? 'checked' : ''}></td>
             <td class="no num" data-label="번호">${TOTAL - offset - index}</td>
+            <td class="posted num" data-label="게시일" title="${esc(item.notice_dt)}">${esc((item.notice_dt || '').slice(0, 10)) || '-'}</td>
             <td class="title-cell">
-                <div class="title-row">${chips(item)}
+                <div class="title-row">${item.is_new ? '<span class="new-n" title="오늘 새로 가져온 공고">N</span>' : ''}${chips(item)}
                     ${item.url ? `<a class="title-link" href="${esc(item.url)}" target="_blank" rel="noopener" title="${esc(item.title)}">${esc(item.title)}</a>`
                                : `<span class="title-link" title="${esc(item.title)}">${esc(item.title)}</span>`}</div>
-                ${item.change_note ? `<div class="change-note"><i class="fa-solid fa-pen"></i>${esc(item.change_note)}</div>` : ''}
-                <div class="result-detail" id="result-${item.id}" style="display:none"></div>
                 <div class="history" id="history-${item.id}" style="display:none"></div></td>
             <td data-label="지역" class="num">${esc(item.region || '-')}</td>
-            <td data-label="학교" class="num">${esc(item.school || item.demand_name || '-')}</td>
+            <td data-label="학교" class="num" title="${esc(item.demand_name)}">${esc(item.school_label || '-')}</td>
             <td data-label="입찰 마감">${closeCell(item)}</td>
             <td data-label="기초금액" class="right">${amountCell(item)}</td>
             <td data-label="결과" class="result-cell">${resultCell(item)}</td>
@@ -1340,10 +1383,12 @@ el('noticeBody').addEventListener('click', async event => {
         return;
     }
     if (button.dataset.resultDetail) {
-        const box = el('result-' + button.dataset.resultDetail);
-        if (box.style.display !== 'none') { box.style.display = 'none'; return; }
-        box.innerHTML = resultDetail(pick(button.dataset.resultDetail));
-        box.style.display = 'block';
+        // 상세 결과는 그 공고 바로 아래에 표 전체 폭의 줄로 펼친다(참가 업체 표가 넉넉히 보이게).
+        const row = button.closest('tr'), next = row.nextElementSibling;
+        if (next && next.dataset.detailFor === button.dataset.resultDetail) { next.remove(); return; }
+        const item = pick(button.dataset.resultDetail);
+        row.insertAdjacentHTML('afterend', `<tr class="detail-row" data-detail-for="${item.id}"><td colspan="11"><div class="result-detail">${resultDetail(item)}</div></td></tr>`);
+        loadBidders(item);
         return;
     }
     if (!button.dataset.history) return;
