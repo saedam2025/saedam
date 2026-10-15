@@ -8,6 +8,7 @@
   첨부파일은 나라장터(g2b.go.kr) 주소에서만 내려받는다.
 - 낙찰 결과는 **낙찰정보서비스**(``ScsbidInfoService``)에서 공고번호로 찾는다: 최종 낙찰(``getScsbidListSttusServc``)이
   있으면 그것을, 아직 없으면 개찰 결과(``getOpengResultListInfoServc``)의 1순위·진행 상태(유찰 등)를 쓴다.
+  참가 업체 전체(순위·업체·투찰금액·투찰률)는 업체별 개찰결과(``getOpengResultListInfoOpengCompt``)에서 읽는다.
 - 한 번에 조회할 수 있는 기간은 한 달이라 ``MAX_RANGE_DAYS``로 줄여 쓴다.
 
 화면·DB와 무관한 순수 함수만 둔다(테스트에서는 ``urlopen``을 mock 처리한다).
@@ -29,6 +30,8 @@ OP_LIST = 'getBidPblancListInfoServc'
 AWARD_API_BASE = 'https://apis.data.go.kr/1230000/as/ScsbidInfoService'
 OP_AWARD = 'getScsbidListSttusServc'
 OP_OPENING = 'getOpengResultListInfoServc'
+OP_BIDDERS = 'getOpengResultListInfoOpengCompt'
+MAX_BIDDERS = 300                # 업체별 개찰결과를 한 번에 받는 줄 수
 STATE_AWARDED = '최종낙찰'
 STATE_OPENED = '개찰완료'
 PAGE_SIZE = 999
@@ -247,6 +250,37 @@ def fetch_award(service_key, bid_no):
         'opened_at': str(opening.get('inptDt') or opening.get('opengDt') or '').strip(),
         'final_date': '',
     }
+
+
+def _bizno(value):
+    """사업자번호 10자리를 '123-45-67890' 꼴로."""
+    digits = re.sub(r'\D', '', str(value or ''))
+    return f'{digits[:3]}-{digits[3:5]}-{digits[5:]}' if len(digits) == 10 else str(value or '').strip()
+
+
+def fetch_bidders(service_key, bid_no):
+    """공고번호의 참가 업체 전체(업체별 개찰결과). 개찰 순위 순, 순위 없는 업체(0)는 맨 뒤.
+
+    [{'rank', 'name', 'bizno', 'ceo', 'amount', 'rate', 'note'}]. 정정·재입찰로 여러 회차가 오면 가장 마지막 회차만 쓴다.
+    """
+    query = {'pageNo': 1, 'numOfRows': MAX_BIDDERS, 'bidNtceNo': bid_no}
+    items = [item for item in _request(OP_BIDDERS, service_key, query, base=AWARD_API_BASE)['items']
+             if str(item.get('bidNtceNo') or bid_no) == bid_no and str(item.get('prcbdrNm') or '').strip()]
+    if not items:
+        return []
+    round_of = lambda item: (str(item.get('bidNtceOrd') or ''), str(item.get('rbidNo') or ''))  # noqa: E731
+    latest = max(round_of(item) for item in items)
+    rows = [{
+        'rank': to_int(item.get('opengRank')) or 0,
+        'name': str(item.get('prcbdrNm')).strip(),
+        'bizno': _bizno(item.get('prcbdrBizno')),
+        'ceo': str(item.get('prcbdrCeoNm') or '').strip(),
+        'amount': to_int(item.get('bidprcAmt')),
+        'rate': str(item.get('bidprcrt') or '').strip(),
+        'note': str(item.get('rmrk') or '').strip(),
+    } for item in items if round_of(item) == latest]
+    rows.sort(key=lambda row: (row['rank'] == 0, row['rank']))     # 원래 순서를 지키는 정렬
+    return rows
 
 
 def is_attachment_url(url):
