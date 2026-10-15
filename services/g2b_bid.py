@@ -6,7 +6,7 @@
 - 기초금액은 공고번호로 따로 조회한다(``getBidPblancListInfoServcBsisAmount``).
 - 공고 한 건을 공고번호로 다시 읽어(``getBidPblancListInfoServc``) 첨부파일 목록을 얻고,
   첨부파일은 나라장터(g2b.go.kr) 주소에서만 내려받는다.
-- 선정 결과는 **낙찰정보서비스**(``ScsbidInfoService``)에서 공고번호로 찾는다: 최종 낙찰(``getScsbidListSttusServc``)이
+- 낙찰 결과는 **낙찰정보서비스**(``ScsbidInfoService``)에서 공고번호로 찾는다: 최종 낙찰(``getScsbidListSttusServc``)이
   있으면 그것을, 아직 없으면 개찰 결과(``getOpengResultListInfoServc``)의 1순위·진행 상태(유찰 등)를 쓴다.
 - 한 번에 조회할 수 있는 기간은 한 달이라 ``MAX_RANGE_DAYS``로 줄여 쓴다.
 
@@ -70,6 +70,10 @@ RESULT_MESSAGES = {
 
 class G2BError(RuntimeError):
     """나라장터 조회 실패(화면에 그대로 보여 줄 수 있는 안내 문구를 담는다)."""
+
+
+class SearchPageLimit(G2BError):
+    """검색 결과가 한 구간의 페이지 한도를 넘음(기간을 나눠 재조회 가능)."""
 
 
 # ---------------------------------------------------------------------------
@@ -137,9 +141,14 @@ def _request(operation, service_key, params, base=API_BASE):
 
 def search_notices(service_key, term, begin, end):
     """공고명에 ``term``이 들어 있는 용역 입찰공고를 게시일시 기간으로 모두 가져온다."""
+    return [item for page in iter_search_notices(service_key, term, begin, end) for item in page]
+
+
+def iter_search_notices(service_key, term, begin, end):
+    """조회 페이지를 차례로 전달한다. 일부만 받은 결과를 성공으로 숨기지 않는다."""
     if end - begin > timedelta(days=MAX_RANGE_DAYS):
         begin = end - timedelta(days=MAX_RANGE_DAYS)
-    collected = []
+    received = 0
     for page in range(1, MAX_PAGES + 1):
         body = _request(OP_SEARCH, service_key, {
             'pageNo': page,
@@ -149,10 +158,18 @@ def search_notices(service_key, term, begin, end):
             'inqryEndDt': end.strftime('%Y%m%d%H%M'),
             'bidNtceNm': term,
         })
-        collected.extend(body['items'])
-        if not body['items'] or len(collected) >= body['total']:
-            break
-    return collected
+        if body['total'] > MAX_PAGES * PAGE_SIZE:
+            raise SearchPageLimit('나라장터 조회 페이지 한도를 넘었습니다. 검색 기간을 나눠 다시 조회합니다.')
+        items = body['items']
+        received += len(items)
+        if items:
+            yield items
+        if not items or received >= body['total']:
+            return
+    raise SearchPageLimit(
+        f'조회 결과 {body["total"]}건 중 {received}건만 받았습니다. '
+        '조회 페이지 한도를 넘었습니다. 검색 기간을 줄여 다시 수집해 주세요.'
+    )
 
 
 def fetch_base_amount(service_key, bid_no):
@@ -194,7 +211,7 @@ def _latest_round(items, bid_no):
 
 
 def fetch_award(service_key, bid_no):
-    """공고번호의 선정 결과. 아직 개찰 전이면 None.
+    """공고번호의 낙찰 결과. 아직 개찰 전이면 None.
 
     {'state', 'winner_name', 'winner_amount', 'winner_rate', 'participants', 'opened_at', 'final_date'}
     - state '최종낙찰': 낙찰자가 확정됨.
