@@ -72,12 +72,12 @@ EXPORT_LIMIT = 5000              # 엑셀로 한 번에 내려받을 수 있는 
 MAX_RANGE_COLLECT_DAYS = 366     # 날짜를 정해 수집할 때 한 번에 볼 수 있는 기간
 WEEK_DAYS = 7                    # [1주내 마감]: 마감일이 오늘부터 이 일수 안인 공고
 SOON_DAYS = 3                    # [3일내 마감] 탭: 마감일이 오늘부터 이 일수 안인 공고
-CHANGE_TOP_DAYS = 3              # 정정·취소된 공고를 [진행 중] 탭 맨 위에 올려 두는 기간
-CHANGE_NOTE_DAYS = 7             # 공고명 아래에 바뀐 내용을 보여 주는 기간 · 마감일 없는 취소 공고를 [진행 중]에 남기는 기간
+CANCEL_KEEP_DAYS = 7             # 마감일이 없는 취소 공고를 [진행 중] 탭에 남겨 두는 기간
+NEW_MARK_HOURS = 24              # [공고가져오기]로 새로 기록된 공고에 반짝이는 N을 붙여 두는 시간
 RUN_KEEP_DAYS = 60              # 수집 기록은 이 기간이 지나면 새 수집을 시작할 때 자동으로 지운다
 
 # 담당자가 공고마다 고르는 진행 상태(비어 있으면 '상태선택')
-WORK_STATUSES = ('입찰예정', '입찰제외', '서류접수완료', '가격투찰완료', '설명회완료', '개찰완료')
+WORK_STATUSES = ('입찰예정', '본부입찰', '지점입찰', '입찰제외', '서류접수완료', '가격투찰완료', '설명회완료', '개찰완료')
 
 # 첨부파일은 서버에 두지 않는다. 예전 버전이 압축파일을 보관하던 폴더는 시작할 때 비운다.
 LEGACY_FILES_DIR = DATA_ROOT / 'bid_notice_files'
@@ -117,6 +117,7 @@ EXTRA_NOTICE_COLUMNS = {
     'archived_at': 'TEXT',
     'changed_at': 'TEXT',             # 마지막으로 정정·취소를 확인한 때(목록 맨 위로 올리는 기준)
     'change_summary': 'TEXT',         # 그때 바뀐 내용('입찰 마감: A → B')
+    'bidders': 'TEXT',                # 참가 업체 전체 JSON [{rank, name, bizno, ceo, amount, rate, note}] (None이면 아직 안 읽음)
 }
 
 _collect_lock = threading.Lock()
@@ -289,6 +290,17 @@ def _fernet():
 
 def _won(value):
     return f'{int(value):,}원' if value else ''
+
+
+def _school_label(row):
+    """[학교] 칸에 보여 줄 이름. 학교가 아니면 수요기관 이름에서 앞의 시·도 교육청을 뺀다
+    ('경기도교육청 경기도수원교육지원청' → '경기도수원교육지원청'). 뒤에 이름이 없으면 그대로 둔다."""
+    if row['school']:
+        return row['school']
+    words = str(row['demand_name'] or '').split()
+    if len(words) > 1 and words[0].endswith('교육청'):
+        words = words[1:]
+    return ' '.join(words)
 
 
 def _short_dt(value):
@@ -497,6 +509,8 @@ def store_items(conn, items, settings, baseline=False):
         # 이미 쌓아 둔 공고는 조건과 상관없이 끝까지 따라간다(정정으로 공고명이 바뀌어도 놓치지 않는다).
         if notice['bid_ord'] <= existing['bid_ord']:
             continue
+        # 정정·취소는 제자리에서 갱신한다: 게시일은 처음 공고의 것을 지켜 목록 순서가 바뀌지 않게 한다.
+        notice = {**notice, 'notice_dt': existing['notice_dt'] or notice['notice_dt']}
         if cancelled:
             # 취소 공고에는 일정이 비어 오기도 한다. 원래 마감일까지 [진행 중]에 보이도록 예전 일정을 남긴다.
             notice = {**notice, **{name: notice[name] or existing[name] for name in ('bid_close', 'open_dt')}}
@@ -508,7 +522,7 @@ def store_items(conn, items, settings, baseline=False):
             'base_amount', 'base_opened_at', 'base_checked_at',
             'winner_name', 'winner_amount', 'winner_rate', 'result_state',
             'result_participants', 'result_opened_at', 'result_final_date',
-            'result_updated_by', 'result_updated_at', 'result_checked_at',
+            'result_updated_by', 'result_updated_at', 'result_checked_at', 'bidders',
         )
         assignments += ', ' + ', '.join(f'{name}=NULL' for name in reset_fields)
         conn.execute(
@@ -860,9 +874,9 @@ def build_bundle_zip(notice_ids):
 # ---------------------------------------------------------------------------
 # 낙찰 결과 (나라장터 낙찰정보서비스) — [낙찰 결과 가져오기]를 누를 때만 가져온다
 # ---------------------------------------------------------------------------
-# 확인 대상: 취소되지 않았고 개찰 예정 시각이 지났으며 아직 '최종낙찰'이 아닌 공고
+# 확인 대상: 취소되지 않았고 개찰 예정 시각이 지났으며, 아직 '최종낙찰'이 아니거나 참가 업체를 읽지 않은 공고
 RESULT_ELIGIBLE_SQL = ("COALESCE(kind, '') <> ? AND COALESCE(open_dt, '') <> '' AND open_dt <= ? "
-                       "AND COALESCE(result_state, '') <> ?")
+                       "AND (COALESCE(result_state, '') <> ? OR bidders IS NULL)")
 
 
 def _save_award(conn, notice_id, award, actor, now_text):
@@ -891,31 +905,37 @@ def refresh_results(service_key, since, limit=None, actor=''):
     conn = get_db()
     try:
         targets = conn.execute(
-            f"SELECT id, bid_no {pending_sql} ORDER BY CASE WHEN COALESCE(result_state, '') = '' THEN 0 ELSE 1 END, "
+            f"SELECT id, bid_no, result_state {pending_sql} ORDER BY CASE WHEN COALESCE(result_state, '') = '' THEN 0 ELSE 1 END, "
             "COALESCE(result_checked_at, '') ASC, open_dt DESC LIMIT ?", [*base_args, limit]).fetchall()
     finally:
         conn.close()
 
     checked, note = [], ''
     for target in targets:
+        final = target['result_state'] == g2b.STATE_AWARDED      # 이미 최종 낙찰: 참가 업체만 읽는다
         try:
-            checked.append((target['id'], g2b.fetch_award(service_key, target['bid_no'])))
+            award = None if final else g2b.fetch_award(service_key, target['bid_no'])
+            bidders = g2b.fetch_bidders(service_key, target['bid_no']) if final or award else None
         except g2b.G2BError as error:
             note = f'낙찰 결과 확인은 일부만 했습니다({error})'
             break
+        checked.append((target['id'], award, bidders))
     conn = get_db()
     try:
-        for notice_id, award in checked:
+        for notice_id, award, bidders in checked:
             if award:
                 _save_award(conn, notice_id, award, actor, now_text)
             else:
                 # 아직 결과가 안 올라온 공고는 예전 값을 그대로 두고 찾아본 시각만 남긴다.
                 conn.execute('UPDATE bid_notices SET result_checked_at=? WHERE id=?', (now_text, notice_id))
+            if bidders is not None:
+                conn.execute('UPDATE bid_notices SET bidders=? WHERE id=?',
+                             (json.dumps(bidders, ensure_ascii=False), notice_id))
         conn.commit()
         remaining = conn.execute(f'SELECT COUNT(*) {pending_sql}', base_args).fetchone()[0]
     finally:
         conn.close()
-    return {'checked': len(checked), 'found': sum(1 for _, award in checked if award), 'note': note,
+    return {'checked': len(checked), 'found': sum(1 for _, award, _bidders in checked if award), 'note': note,
             'remaining': remaining}
 
 
@@ -995,7 +1015,7 @@ def build_mail(rows, test=False):
                 f'<div style="margin-top:3px;color:#64748b;font-size:12px;">{escape(row["bid_no"])}-{escape(row["bid_ord"])}</div>'
                 f'{detail}</td>'
                 f'<td style="{cell}white-space:nowrap;">{escape(row["region"] or "-")}</td>'
-                f'<td style="{cell}white-space:nowrap;">{escape(row["school"] or row["demand_name"] or "-")}</td>'
+                f'<td style="{cell}white-space:nowrap;">{escape(_school_label(row) or "-")}</td>'
                 f'<td style="{cell}white-space:nowrap;">{escape(_short_dt(row["bid_close"]) or "-")}</td>'
                 f'<td style="{cell}white-space:nowrap;text-align:right;">{escape(_amount_text(row))}</td></tr>'
             )
@@ -1095,13 +1115,15 @@ def _notice_dict(row, now):
         'kind': row['kind'] or '',
         'status': status,
         'changed': row['bid_ord'] != '000' and status != 'cancelled',
-        # 새로 찾았더라도 기간을 정해 가져온 예전 공고에는 '신규'를 붙이지 않는다.
-        'is_new': bool(row['first_seen_at']) and row['first_seen_at'] >= _stamp(now - timedelta(hours=24))
-                  and (row['notice_dt'] or '') >= _stamp(now - timedelta(days=7)),
+        # 반짝이는 N: [공고가져오기]로 새로 기록된 지 NEW_MARK_HOURS시간 안인 공고.
+        # 기간을 정해 가져온 4주보다 오래된 공고(지난 공고 채워 넣기)에는 붙이지 않는다.
+        'is_new': bool(row['first_seen_at']) and row['first_seen_at'] >= _stamp(now - timedelta(hours=NEW_MARK_HOURS))
+                  and (not row['notice_dt'] or row['notice_dt'] >= _stamp(now - timedelta(days=COLLECT_DAYS))),
         'title': row['title'],
         'region': row['region'] or '',
         'school': row['school'] or '',
         'demand_name': row['demand_name'] or '',
+        'school_label': _school_label(row),           # [학교] 칸(교육지원청은 앞의 시·도 교육청을 뺀 이름)
         'notice_dt': _short_dt(row['notice_dt']),
         'bid_close': _short_dt(row['bid_close']),
         'days_left': (close.date() - now.date()).days if close and status == 'open' else None,
@@ -1115,10 +1137,7 @@ def _notice_dict(row, now):
         'url': row['url'] or '',
         'matched_keyword': row['matched_keyword'] or '',
         'event_count': row['event_count'] if 'event_count' in row.keys() else 0,
-        # 정정·취소를 확인한 때와(최근 CHANGE_NOTE_DAYS일이면) 바뀐 내용
-        'changed_at': _short_dt(row['changed_at']),
-        'change_note': (row['change_summary'] or '')
-                       if (row['changed_at'] or '') >= _stamp(now - timedelta(days=CHANGE_NOTE_DAYS)) else '',
+        'changed_at': _short_dt(row['changed_at']),      # 정정·취소를 확인한 때
         'work_status': row['work_status'] or '',
         'archive_id': row['archive_id'],
         'result': {
@@ -1205,11 +1224,11 @@ def _list_conditions(get, now, with_region_result=True):
         where.append("COALESCE(n.kind, '') <> ? AND n.bid_close >= ? AND n.bid_close < ?")
         params.extend([g2b.KIND_CANCEL, start, end])
     elif status != 'all':
-        # 진행 중: 취소된 공고도 원래 마감일까지(마감일이 없으면 취소 확인 후 CHANGE_NOTE_DAYS일) 취소 표시와 함께 남긴다.
+        # 진행 중: 취소된 공고도 원래 마감일까지(마감일이 없으면 취소 확인 후 CANCEL_KEEP_DAYS일) 취소 표시와 함께 남긴다.
         where.append("((COALESCE(n.kind, '') <> ? AND (COALESCE(n.bid_close, '') = '' OR n.bid_close >= ?))"
                      " OR (n.kind = ? AND (n.bid_close >= ? OR (COALESCE(n.bid_close, '') = '' AND n.changed_at >= ?))))")
         params.extend([g2b.KIND_CANCEL, now_text, g2b.KIND_CANCEL, now_text,
-                       _stamp(now - timedelta(days=CHANGE_NOTE_DAYS))])
+                       _stamp(now - timedelta(days=CANCEL_KEEP_DAYS))])
     keyword = str(get('q') or '').strip()
     if keyword:
         like = f'%{keyword}%'
@@ -1252,21 +1271,18 @@ def _list_conditions(get, now, with_region_result=True):
 def _order_sql(status, sort, direction):
     """정렬: [입찰 마감]·[결과] 머리글(빈 값은 항상 맨 뒤), 기본은 진행 중·3일내 마감은 마감 가까운 순, 그 밖은 최근 공고 순.
 
-    '최근'은 게시일과 정정·취소를 확인한 때 중 늦은 쪽이라, 정정·취소된 공고는 새 글처럼 맨 위로 올라온다.
-    [진행 중] 탭은 마감 가까운 순이지만 최근 ``CHANGE_TOP_DAYS``일 안에 정정·취소된 공고를 먼저 보여 준다.
+    정정·취소된 공고도 따로 끌어올리지 않는다(같은 줄이 제자리에서 정정·취소 표시로 바뀐다).
     """
     descending = 'DESC' if str(direction or '').lower() == 'desc' else 'ASC'
-    tail = "MAX(COALESCE(n.notice_dt, ''), COALESCE(n.changed_at, '')) DESC, n.id DESC"
+    tail = 'n.notice_dt DESC, n.id DESC'
     if sort == 'close':
         return f"CASE WHEN COALESCE(n.bid_close, '') = '' THEN 1 ELSE 0 END, n.bid_close {descending}, {tail}"
+    if sort == 'posted':
+        return f"CASE WHEN COALESCE(n.notice_dt, '') = '' THEN 1 ELSE 0 END, n.notice_dt {descending}, n.id {descending}"
     if sort == 'winner':
         return f"CASE WHEN COALESCE(n.winner_name, '') = '' THEN 1 ELSE 0 END, n.winner_name {descending}, {tail}"
-    by_close = "CASE WHEN COALESCE(n.bid_close, '') = '' THEN 1 ELSE 0 END, n.bid_close ASC, n.id DESC"
-    if status == 'open':
-        recent = _stamp(_now() - timedelta(days=CHANGE_TOP_DAYS))       # 우리가 만든 시각 문자열이라 그대로 넣어도 안전하다
-        return f"CASE WHEN n.changed_at >= '{recent}' THEN n.changed_at END DESC, {by_close}"
-    if status in ('soon', 'tomorrow', 'week'):
-        return by_close
+    if status in ('open', 'soon', 'tomorrow', 'week'):
+        return "CASE WHEN COALESCE(n.bid_close, '') = '' THEN 1 ELSE 0 END, n.bid_close ASC, n.id DESC"
     return tail
 
 
@@ -1413,6 +1429,24 @@ def api_collect_range():
     if result['status'] == 'error':
         return _json_error(result['message'], 502)
     return jsonify(result)
+
+
+@bid_notice_bp.route('/api/notices/<int:notice_id>/bidders')
+def api_bidders(notice_id):
+    """낙찰 업체를 누르면 펼쳐지는 상세에 보여 줄 참가 업체 전체(저장된 값만, 나라장터에 묻지 않는다)."""
+    conn = get_db()
+    try:
+        row = conn.execute('SELECT bidders FROM bid_notices WHERE id=?', (notice_id,)).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return _json_error('공고를 찾을 수 없습니다.', 404)
+    try:
+        bidders = json.loads(row['bidders']) if row['bidders'] else None
+    except (TypeError, ValueError):
+        bidders = None
+    return jsonify({'status': 'success', 'loaded': isinstance(bidders, list),
+                    'bidders': bidders if isinstance(bidders, list) else []})
 
 
 @bid_notice_bp.route('/api/notices/<int:notice_id>/status', methods=['POST'])
@@ -1731,7 +1765,7 @@ def build_export_workbook(rows):
         values = (
             len(rows) - index, row['kind'] or '',
             NOTICE_STATUS_LABELS.get(_notice_status(row, now_text), ''),
-            row['title'], row['region'] or '', row['school'] or '', row['demand_name'] or '',
+            row['title'], row['region'] or '', _school_label(row), row['demand_name'] or '',
             _short_dt(row['notice_dt']), _short_dt(row['bid_close']), _short_dt(row['open_dt']),
             row['base_amount'],
             row['winner_name'] or '', row['winner_amount'], _rate_number(row['winner_rate']), row['result_participants'],
