@@ -88,6 +88,16 @@ python -m unittest tests.test_survey          # 한 파일만
     종료일이 지난 설문은 `api_status`로 진행중 전환과 `api_send` 발송이 거절된다(작성중 설문도 발송 불가). 목록 응답의 `auto_closed`가 자동 마감 표시용이다.
   - 발송 탭 화면: 1 수신자 등록 → 2 발송방법 선택(템플릿·변수·대체문자는 [세부설정]을 눌러야 펼침) → 3 발송 미리보기 → 4 발송.
 
+- **학교지원 > 강사 인성·직무적합성 검사** (`routes/personality_test.py` 화면·API, `services/personality_test_v2.py` 새 문항·채점·해석, `services/personality_test_v1.py` 기존 버전, `templates/personality/`)
+  - 메뉴키 `school_personality`(학교지원 주메뉴 아래, 기본 레벨 4 — 응시자 개인정보가 있어 면접관리와 같게 제한. 메뉴 권한관리에서 조정).
+    관리 화면 `/personality/`(검사 링크 만들기·복사·사용 중지·삭제 + 응시 결과 목록·검색), 결과지 `/personality/result/<id>`(응시자 정보·종합 의견·영역별 막대·면접 확인 질문·답안지, 인쇄/PDF 저장).
+  - 응시 주소는 로그인 없이 여는 `/personality/t/<토큰>`(`app.py`의 `EXEMPT_ROUTES`·`PUBLIC_PATH_PREFIXES`, `menu_access`는 None). 응시자는 성명·생년월일·휴대폰·이메일 입력 + 개인정보 동의 → 40문항(10문항씩 4쪽) → 제출.
+    같은 검사 링크에서 같은 이름+휴대폰은 한 번만 제출(다시 응시시키려면 결과를 삭제). 응시자 화면에는 점수·결과를 보여 주지 않고 관리자만 본다.
+  - 테이블 `personality_links`(검사 링크, 토큰, `test_version`) / `personality_results`(개인정보·`answers` JSON {문항번호: 1~5}·`answer_sheet`·`scores`·`report` JSON·소요시간·`test_version`). 이미 응시자가 있는 링크는 삭제 불가(사용 중지만).
+  - 새 검사 v2: 5점 척도 40문항 = 아동 존중·교육윤리 8, 책임감·성실성 7, 감정조절 7, 의사소통·협력 6, 문제해결 6, 직업윤리·안전의식 6. 역문항을 포함한다. 영역과 전체 점수는 응답 합계를 0~100으로 환산하며 표준화 점수가 아닌 면접 참고용이다. 같은 값 35개 이상·90초 미만 응답이면 '신뢰도 확인' 표시.
+    기존 링크는 v1 문항을 유지하고 기존 결과지도 v1 문항으로 다시 볼 수 있다. **문항을 바꾸면 새 버전을 만들고 과거 버전 파일을 보존한다**. 이전 DB의 링크에는 v1이 자동 지정된다.
+  - 시각은 한국시간 문자열로 저장한다. 테스트: `tests/test_personality_test.py`.
+
 - **학교지원 > 학부모·강사 통합지원** (`routes/support_hub.py` 화면, `routes/instructor_hub.py`·`routes/parent_hub.py` 기능, `templates/support_hub/`, `templates/parent_hub/`, `static/css/parent_hub.css`)
   - 예전 강사통합지원·학부모통합지원을 **메뉴 하나로 합쳤다**. 메뉴키 `school_support_hub`(레벨 7), 화면은 `/support-hub/?tab=instructors|roster|review|portal&school=<학교명>`.
     예전 `/instructor-hub`·`/parent-hub` 화면 주소는 이 화면으로 넘어가고(`TAB_ALIASES`), 권한은 예전 두 메뉴 중 더 엄격한 쪽을 이어받는다(`ensure_menu_access_schema`).
@@ -122,12 +132,68 @@ python -m unittest tests.test_survey          # 한 파일만
   - 푸시알림을 누르면 개인 화면이 열린다(`parent_notifications._notification_url`: 출결 알림→출석 탭, 그 밖→알림 탭). 알림 목록 시각은 한국시간(KST)으로 보여 준다.
   - 학교 e리플렛은 **가상으로 합친다**: 본사 앞쪽(`ph_leaflet_pages`) → 강사 홍보(승인된 `ih_promos`→`ebooks`, 강의부서·이름순) → 본사 뒤쪽.
     쪽 그림은 포털 토큰 아래 `/parent/hub/<토큰>/leaflet/hq|eb/<쪽id>`로만 열린다(그 학교 리플렛에 실린 쪽만). 강사는 강사 포털의 홍보페이지에서 올린다.
-  - 3D 교실안내: [교실안내]에서 공유를 켠 학교만 연결되고, 자녀 강좌명이 배치도의 강좌와 맞으면 `?to=<교실id>`로 바로 안내한다.
+  - 3D 교실안내: [교실안내]에서 공유를 켠 학교만 연결되고, 자녀의 강의반 이름 또는 과목명(강의부서)이 배치도의 강좌와 맞으면(`_room_for_class`) `?to=<교실id>`로 바로 안내한다.
+    `?to=` 링크는 PC에서 교실을 누른 것과 같이 그 교실의 층 평면도를 열고 교실 이름표(공유 화면은 빨간색 `--cg-select`)를 강조·확대하며(`viewer.js` `selectRoom`),
+    이어서 가는 길을 그리되 화면은 교실에 맞춘다(`runRoute(..., {focus:'room'})`). 길 계산이 안 되는 배치도라도 교실은 항상 안내된다.
   - 학부모 링크페이지(`ih_link_pages`, `/school-link/…`)는 삭제했다. 운영 DB에 테이블이 남아 있어도 코드는 쓰지 않는다.
+  - **학부모 화면 디자인 선택**: 학교(포털)마다 `ph_portals.design`(기본 `classic`, 예전 DB는 `_add_missing_columns`로 열 추가)에 저장하고,
+    [학부모 안내] 탭의 [학부모 화면 디자인] 카드에서 고른다(POST `/parent-hub/portals/<id>/design`). 종류는 `parent_hub.DESIGNS`
+    (`classic` 기본 / `neo` 네오: 남색·청록 글래스 + 더 진한 글자·상태 색, `static/css/parent_hub_neo.css`). 새 디자인은 `DESIGNS`에 한 줄 + 덮어쓰기 CSS
+    (기본 CSS 다음에 불러오고 `body.ph-d-<키>` 아래에만 쓴다)를 만든다. 학교 링크 첫 화면과 학부모 홈에 적용되고(홈은 고른 자녀 학교의 포털 → 없으면 공개 중 첫 포털 → 기본),
+    e리플렛 펼쳐보기는 어두운 화면이라 디자인과 무관하다. 고르기 전 확인은 GET `/parent-hub/portals/<id>/design-preview?design=&tab=`(직원 전용 예시 화면: 예시 자녀·출석, 실제 학생 정보·푸시 스크립트 없음).
   - 인쇄용 안내문: `/parent-hub/portals/<id>/print`(QR 포함 A4 한 장).
   - 화면 스타일: `templates/support_hub/_style.html`의 `.ih-*`(스마트 명세서 발송과 같은 전체 폭·가벼운 글씨: 400 / 500 / 600만).
   - 테스트: `tests/test_support_hub.py`(과목·학생 입력, 엑셀, 링크 발송·받는 사람 선택·알림톡·알림톡 설정, 입구 단일화, 메뉴 권한 이어받기), `tests/test_parent_hub.py`, `tests/test_instructor_hub.py`, 솔라피설정 화면·템플릿 칸은 `tests/test_solapi_settings.py`
     (직원 화면은 `base.html`을 빈 껍데기로 바꿔 끼워 본문만 확인, 문자는 `routes.solapi_settings.send_bulk_text`를 mock).
+
+- **업무지원 > 입찰공고관리** (`routes/bid_notice.py` 화면·수집·메일, `services/g2b_bid.py` 나라장터 조회·해석, `templates/bid_notice/bid_notice.html`)
+  - 메뉴키 `bid_notice_main`(업무지원 아래, 기본 레벨 5), 화면 `/bid-notice/`. **[공고수집·메일 설정](설정 조회·저장·메일 발송 API 포함)은 레벨 1만**(`SETTINGS_MAX_LEVEL`=1, `admin` 계정 포함, 템플릿 변수 `can_settings`), 공고 삭제는 관리자(레벨 2 이하).
+  - 조달청 **나라장터 입찰공고정보서비스**(`https://apis.data.go.kr/1230000/ad/BidPublicInfoService`)를 쓴다:
+    용역 공고 검색 `getBidPblancListInfoServcPPSSrch`(공고명 `bidNtceNm`, 게시일시 기간 `inqryDiv=1`, **한 번에 최대 1개월** → 28일로 줄여 조회),
+    기초금액 `getBidPblancListInfoServcBsisAmount`(`inqryDiv=2` + 공고번호). 정정이력 오퍼레이션은 공고번호로 조회하면 비어 와서 쓰지 않는다.
+  - 인증키는 화면의 [공고수집·메일 설정]에 Fernet 암호화로 저장(`admin_settings`의 `bid_notice_settings`)하고, 없으면 환경변수 `G2B_SERVICE_KEY`를 쓴다. **소스에 키를 적지 않는다.**
+  - **검색 방식**: 나라장터 공고명 검색은 글자가 그대로(띄어쓰기까지) 들어 있어야 찾으므로, 검색어의 **첫 낱말**로 넓게 조회한 뒤(`search_terms`)
+    나머지 낱말(띄어쓰기 무시, 모두 포함)·제외어·지역·기관 낱말을 코드에서 거른다(`passes_filters`). 기본값: 검색어 `방과후`·`늘봄`·`맞춤형`·`온동네 돌봄`,
+    제외어 `급식`·`통학차량`·`폐기물`, 지역 `경기도`, 기관 `초등학교`(비우면 제한 없음). 학교마다 공고명이 달라("방과후학교 프로그램 운영 용역") 긴 문구는 대부분을 놓친다.
+    **기관 조건 예외**: `org_free_keywords`(기본 `온동네 돌봄`)에 맞는 공고는 기관 낱말을 보지 않는다 — 온동네 돌봄·교육센터처럼 학교가 아니라 교육지원청이 발주하는 사업을 놓치지 않기 위해서다(지역·제외어는 그대로 적용, 나라장터 조회 낱말에도 더한다).
+  - 테이블: `bid_notices`(공고번호 1건 = 1행, 가장 최신 차수 내용) / `bid_notice_events`(신규 `new`·정정 `changed`·취소 `cancelled`, `mailed_at`이 비면 미발송) /
+    `bid_collect_runs`(수집 기록, `slot_key`는 예전 자동 회차용으로 남은 열); **60일(`RUN_KEEP_DAYS`)이 지난 기록은 새 수집을 시작할 때 자동으로 지운다**(`_purge_old_runs`, 맨 처음 수집인지 가리는 마지막 성공 기록은 오래돼도 남김). 차수(`bid_ord` 000→001…)가 올라가면 정정·취소로 보고 달라진 항목을 `summary`에 적는다.
+    이미 쌓아 둔 공고는 조건과 상관없이 끝까지 따라간다. 지역·학교 이름은 수요기관 이름에서 뽑는다(`region_of`·`school_of`).
+  - **자동 수집은 없다**(예전 09:00·15:00 스케줄러와 `BID_SCHEDULER`는 삭제). 위쪽 [공고 목록] 오른쪽의 **[공고가져오기] 버튼**(`#fetchBtn`, 누구나 사용)을 누르면 **[나라장터에서 가져오기] 창**(`#fetchDlg`)이 뜨고,
+    셋 중 하나를 골라 [가져오기]를 누른다(라디오 `fetchMode`): ① **최근 4주 공고 가져오기**(POST `/bid-notice/api/collect`, 항상 지금부터 `COLLECT_DAYS`=28일) ② **기간을 정해 가져오기**(창 안의 시작일·종료일, 날짜 칸을 누르면 이 항목이 골라짐)
+    ③ **낙찰 결과 가져오기**(아래 항목). 이미 저장된 공고(공고번호)는 다시 기록하지 않고 차수가 올라간 정정·취소만 이력으로 더한다. 가져오는 중에는 창을 닫을 수 없고, 끝나면 창을 닫고 [공고 목록]을 새로 읽는다. 창 스타일은 `.fetch-dlg`/`.fd-*`(보관함 창 스타일은 `#archiveDlg`에만 건다).
+  - 수집 범위: 항상 최근 28일(맨 처음 수집에서 찾은 공고는 메일 대상에서 뺀다). 기초금액은 한 번에 60건까지 확인하고 없으면 배정예산을 보여 준다.
+  - **메일**: 받는 주소(최대 5곳)와 보내는 계정(인트라넷 공용 메일 `contacts._mail_credentials`: `MAIL_USERNAME`/`MAIL_PASSWORD` → `mail_settings.json`)은 설정 화면에 있다. 자동 발송은 없고 `auto_enabled`·`mail_enabled` 설정도 없앴다.
+    [공고가져오기] 창의 기능은 메일을 보내지 않고, [테스트 메일]·[안 보낸 소식 보내기]만 확인 창에서 동의했을 때 보낸다(`confirm`). 저장할 때 예전 `auto_enabled`·`mail_enabled` 값은 지운다.
+  - **기간 수집**: 목록의 [게시일] 기간은 쌓아 둔 공고를 거르는 조건이고, [공고가져오기] 창의 [기간을 정해 가져오기](POST `/bid-notice/api/collect-range`)는 그 기간을
+    나라장터에서 직접 찾아 더한다(28일씩 잘라 조회, 한 번에 최대 366일, `trigger_type='range'`). 지난 공고라 메일 대상에서 빼고, 끝나면 목록의 게시일 조건을 그 기간으로 맞춰 [전체] 탭으로 보여 준다.
+  - **화면 구성**: 위쪽 버튼으로 화면을 완전히 나눈다 — [공고 목록]([목록에서 찾기] 한 줄 상자(상태 탭 · 게시일 · 검색어 · 검색/조건 지우기/개수, `.findbar`) + 표) / [공고수집·메일 설정](**위쪽 버튼 줄에 탭이 없고, 제목 "입찰공고관리" 바로 오른쪽의 톱니바퀴 아이콘**(`#settingsGear`, 글자 없음·툴팁만, 레벨 1만 보임)으로 들어간다. 열려 있으면 아이콘이 포인트 색으로 칠해지고 다시 누르면 [공고 목록]으로 돌아간다. 통합관리 > 솔라피설정과 같은 구성: 위쪽 화면 전환 줄과 같은 전체 폭(`.set-wrap`, 폭 제한 없음), 구역 사이 26px·구역 안쪽 24~28px 여백, 제목+오른쪽 상태 배지(인증키·받는 메일, `#badgeKey`·`#badgeMail`) → 번호 붙은 회색 구역 `.set-panel` ①인증키 ②모을 공고(3칸 격자) ③메일(받는 주소 2칸 격자) → 오른쪽 아래 버튼 줄 `.set-actions`(테스트 메일 · 안 보낸 소식 보내기 · 설정 저장). 가져오기 기능은 이 화면에 두지 않는다) /
+    [수집 기록]. 목록의 게시일 조건과 가져오기의 기간 입력칸은 서로 다른 칸이다. 메뉴 상자는 본문 전체 폭을 쓴다(스마트 공문발송과 같은 폭, `.content-container`의 1700px·좌우 45px 그대로). 요약 숫자(진행 중·오늘 새 공고·정정/취소·누적·마지막 수집)는 **브라우저 오른쪽 벽에 붙은 [현황 요약] 색인 탭**(`.bn-dock`, `position:fixed`, 전자계약의 `.vc-dock`과 같은 방식) — **`position:fixed` 요소(현황 탭·보관함 창·[공고가져오기] 창)는 반드시 `.bn-container` 밖에 둔다**: 운영 테마는 카드에 `backdrop-filter`가 있어 안에 두면 fixed가 브라우저가 아니라 카드 기준으로 잡혀 탭이 어긋난다에 있다 — 탭을 누르면 판이 왼쪽으로 펼쳐지고 다시 누르거나 바깥·Esc를 누르면 접힌다(펼침 상태는 기억하지 않음). 화면 머리글의 설명 문구는 두지 않는다. 판 안의 줄에는 이 화면의 `.sub`(display:block)와 겹치지 않게 `.minor`를 쓴다. 표의 [관리] 칸에는 [첨부 받기] 버튼만 있다. **변경 이력은 제목 맨 앞의 상태 글자(진행 중·마감·취소 배지)를 누르면** 제목 아래에 펼쳐진다(`button.chip[data-history]`, [이력] 버튼은 없앴다). 결과 칸의 낙찰 업체 이름은 잘리지 않고 줄바꿈된다. 처음 열면 [전체] 탭이다. **화면 디자인은 증명서 발급관리(`templates/certificate/admin.html`)와 같은 규격**이다: Pretendard 글꼴(`cdn.jsdelivr.net` 스타일시트를 이 템플릿이 직접 불러옴), 위쪽 5px 포인트 색 띠가 있는 카드(`.bn-container`)와 로고+제목 머리글, 연한 회색 머리글·가운데 정렬 표(`.table-wrapper` > `.tbl`, 공고명만 왼쪽), 작은 버튼(.8rem, 둥글기 5px), `.chip` 배지. 색은 테마 변수(`--primary-color` 등)를 따르고 새 화면·요소도 이 규격에 맞춘다. 알림 메일은 따로 맑은 고딕을 쓴다.
+    표의 열 순서: 번호(보이는 순서의 역순) · 공고명(한 줄, 넘치면 … / 전체 제목은 툴팁) · 지역 · 학교 · 입찰 마감(아래에 작게 개찰일) · 기초금액 · 결과(낙찰 업체 이름 + 그 아래 낙찰금액·낙찰률, 누르면 상세) · 관리 · 진행 상태.
+    상태 탭은 전체·진행 중·마감·취소·**마감 임박 선택 상자**(탭 줄 맨 끝, `#soonSelect`: 3일내 마감 `status=soon`(`SOON_DAYS`=3) / 내일 마감 `status=tomorrow` / 1주내 마감 `status=week`(`WEEK_DAYS`=7), 모두 마감 전 공고만 마감이 가까운 순)이다. [지역] 머리글도 선택 상자다(지역별 건수는 서버가 `regions`로 보내 주고 고르면 서버가 거른다, `fillRegionFilter`). [입찰 마감]·[결과] 머리글을 누르면 서버가 정렬한다(오름 → 내림 → 원래 순서, 빈 값은 항상 맨 뒤, `SORT`·`_order_sql`). 공고번호·게시일·담당자 줄은 표에 보이지 않는다. **쪽 나누기·지역·결과·정렬은 모두 서버가 한다**: `GET /bid-notice/api/notices?status&q&date_from&date_to&work_status&archive&region&result&sort&dir&page&per_page`가 조건에 맞는 한 쪽(`per_page`는 30·60·100 또는 `all`(**모두 보기**: 쪽 나누기 없이 전부), [조건 지우기] 옆 선택 상자·브라우저에 기억)과 `total`·`pages`를 돌려주므로 공고가 몇천 건이어도 화면은 한 쪽만 받는다. 조건 해석은 `_list_conditions`(목록·`/api/notices/ids`·엑셀이 같이 씀). 번호는 `total`에서 거꾸로 센다. 체크한 선택은 쪽을 넘겨도 유지되고 조건을 바꾸면(`applyFilters`) 해제된다. 이 쪽을 모두 체크하면 "조건에 맞는 전체 N건 선택" 안내가 나오고(GET `/api/notices/ids`, 한 번에 `LIST_LIMIT` 500건까지) 눌러 모든 쪽의 공고를 한 번에 고를 수 있다. [진행 상태] 머리글은 선택 상자라 고른 상태의 공고만 보여 준다(`work_status` 조건). 표 바탕은 흰색이고, 진행 상태 `입찰예정`은 파란 바탕·흰 글씨로 도드라지게 보인다(`.status-select.s-plan`). 진행 상태가 `입찰제외`인 공고는 행 전체 배경을 회색으로 보여 준다(`tr.excluded`, 상태를 바꾸면 바로 반영). [결과] 머리글도 선택 상자다(결과 있음·없음·유찰 등·낙찰 업체별, 건수는 서버가 `result_counts`·`winners`로 보낸다 — `fillResultFilter`). 옆의 화살표를 누르면 업체 이름순 정렬. 금액 칸은 금액만 보여 준다(기초금액, 없으면 배정예산 — 구분은 툴팁).
+  - **정정·취소 공고 = 같은 줄을 맨 위로**(정정을 새 줄로 따로 기록하지 않는다 — 진행 상태·보관함·첨부가 한 줄에 이어지게): 차수가 올라가면 `store_items`가 같은 줄을 최신 내용으로 바꾸고 `changed_at`(확인한 때)·`change_summary`(바뀐 내용)를 적는다. 기본 정렬은 게시일과 `changed_at` 중 늦은 쪽(`_order_sql`의 `MAX(...)`)이라 [전체] 탭에서 새 글처럼 맨 위로 오고, [진행 중] 탭은 마감 가까운 순이되 `CHANGE_TOP_DAYS`(3)일 안에 정정·취소된 공고를 먼저 보여 준다(마감 임박 탭은 마감 순 그대로). 화면은 "정정공고 N차 · MM-DD"·"취소 · MM-DD" 배지와, `CHANGE_NOTE_DAYS`(7)일 동안 공고명 아래 바뀐 내용 한 줄(`.change-note`, 목록 응답 `change_note`)을 보여 준다. **취소 공고는 원래 마감일까지 [진행 중] 탭에 취소 표시로 남는다**(마감일이 없으면 취소 확인 후 7일, 진행 중 건수에는 세지 않음). 취소 공고에 일정이 비어 오면 예전 마감·개찰 일시를 남긴다. 열이 처음 붙을 때 예전 이력(`bid_notice_events`)에서 마지막 정정·취소를 채운다(`_add_missing_columns`).
+  - **진행 상태**: 공고마다 `bid_notices.work_status`(`WORK_STATUSES`: 입찰예정·입찰제외·서류접수완료·가격투찰완료·설명회완료·개찰완료, 비면 '상태선택')를 고른다.
+    마감·취소 같은 공고 자체의 상태(탭)와는 별개이고, 정정 공고가 나와도 유지된다.
+  - **낙찰 결과는 [공고가져오기] 창의 [낙찰 결과 가져오기]로만 가져온다**(자동 조회 없음, 공고 수집 때도 묻지 않음). POST `/bid-notice/api/results/refresh` → `refresh_results`가 취소가 아니고 개찰 예정 시각(`open_dt`)이 지났으며
+    아직 `최종낙찰`이 아닌 공고를 `g2b.fetch_award`로 확인한다 — **낙찰정보서비스**(`https://apis.data.go.kr/1230000/as/ScsbidInfoService`, 입찰공고와 **같은 인증키**, `inqryDiv=4` + 공고번호). 최종 낙찰(`getScsbidListSttusServc`)이 있으면
+    `result_state='최종낙찰'`, 없으면 개찰 결과(`getOpengResultListInfoServc`)의 1순위(`opengCorpInfo` = 업체^사업자번호^대표^금액^투찰률)를 `'개찰완료'`로, 유찰 등은 진행 상태 그대로 저장한다. 결과가 아직 없으면 예전 값을 지우지 않는다.
+    한 요청에 `RESULT_LIMIT`(100)건씩, 결과가 없는 공고부터 보고 개찰한 지 오래된 공고도 본다. `remaining`·`since`를 돌려주고 화면이 `remaining`이 0이 될 때까지 같은 `since`로 이어 부른다(같은 공고는 한 번만 묻는다, 진행 건수는 창에 표시). 공고를 가져오는 중이면 409, 조회 한도 등 오류는 `note`와 함께 멈춘다.
+    저장 열: `winner_name`·`winner_amount`·`winner_rate`·`result_participants`·`result_opened_at`·`result_final_date`·`result_checked_at`. 직접 입력 화면은 없다.
+  - **첨부파일은 서버에 보관하지 않는다**: 수집할 때 공고의 첨부 목록(`ntceSpecDocUrl1~10`)만 `bid_notices.attachments`(JSON)에 적어 두고, [첨부 받기](GET `/bid-notice/api/notices/<id>/files`)를
+    누르는 순간 나라장터에서 받아(파일명 `학교명_마감날짜.zip`, 예: 푸른초등학교_2026-04-24) 압축파일 하나로 묶어 바로 내려 준다(`build_attachment_zip`, 임시 파일, 파일당 100MB·합계 300MB, **g2b.go.kr https 주소만**).
+    못 받은 파일 수는 응답 머리글 `X-Bid-File-Failed`로 알린다. 예전에 쌓은 공고(`attachments`가 NULL)는 공고번호로 목록을 다시 읽는다(`g2b.fetch_notice`).
+    **여러 공고 한꺼번에**: 표 맨 앞 체크박스(머리글 체크박스 = 이 쪽 전체, 선택은 걸러진 전체 목록 안에서 유지)로 고른 뒤, 화면 전환 버튼 줄 맨 오른쪽의 선택 막대(`#bulkBar`, 공고 목록 화면에서만 보임)에서 [선택한 공고 첨부 받기](POST `/bid-notice/api/files/bundle` `{ids:[…]}`, 한 번에 `MAX_BUNDLE_NOTICES`=30건·전체 600MB까지)를 누르면 `build_bundle_zip`이 공고마다 폴더(`학교명_공고번호/파일`)로 묶은 압축파일 하나를 내려 준다. 첨부 없는 공고는 건너뛰고 건수는 `X-Bid-Notice-Count`·`X-Bid-Notice-Skipped`·`X-Bid-File-Count`·`X-Bid-File-Failed` 머리글로 알린다.
+    예전 버전이 압축파일을 두던 `DATA_DIR/bid_notice_files` 폴더는 시작할 때 지운다(`_remove_legacy_files`). 새 열은 `EXTRA_NOTICE_COLUMNS` + `_add_missing_columns`로 붙인다.
+  - **보관함(탭)·삭제·엑셀**: 공고가 쌓여도 [공고 목록]을 가볍게 두는 관리 기능이다.
+    - 보관함 = 이름을 붙인 탭(`bid_archives`, 예: `2025년 공고`, 최대 `MAX_ARCHIVES`=30개, 이름 30자). 위쪽 화면 전환 줄의 [+ 보관함 만들기]로 만들고, 체크한 공고를 선택 막대의 [보관]으로 옮긴다
+      (`bid_notices.archive_id`, POST `/bid-notice/api/notices/archive` `{ids, archive_id | new_name}`; 같은 이름이면 그 보관함에 넣는다). 보관한 공고는 [공고 목록]의 어느 탭·요약 숫자에도 나오지 않고 보관함 탭에서만 보인다
+      (목록 API `?archive=<id>`는 상태 탭과 상관없이 전부). 보관함 안에서는 [꺼내기](`/notices/unarchive`)·[다른 보관함으로]·[삭제]·이름 바꾸기·**보관함 삭제**(탭만 지우고 안의 공고는 [공고 목록]으로 돌아옴)를 쓴다.
+      보관한 공고도 [공고가져오기]가 따라가 정정·취소가 반영된다.
+    - **삭제**(POST `/bid-notice/api/notices/delete`, **관리자 전용**, `confirm` 필수)는 공고와 이력을 완전히 지우고 공고번호를 `bid_notice_deleted`에 남겨 **[공고가져오기]가 다시 가져오지 않게** 한다(`store_items`가 건너뜀). 되돌릴 수 없다.
+    - **엑셀**: 표 아래 [엑셀 받기](POST `/bid-notice/api/export` `{ids}`)는 지금 보이는 목록(탭·검색·지역·결과 선택·정렬 그대로, 모든 쪽, 체크한 공고가 있으면 그것만)을 `build_export_workbook`으로 만든다.
+      번호·구분·상태·공고명·지역·학교·수요기관·게시일·입찰 마감·개찰일시·기초금액·낙찰 업체/금액/률(낙찰률은 계산할 수 있는 숫자)·참가 업체 수·결과·공고 링크를 담고(공고번호·차수·배정예산·추정가격·계약방법·최종낙찰일·진행상태·보관함·담당자·연락처는 뺐다), `=`로 시작하는 글자도 수식이 아니라 문자열로 저장한다. 조건 전체는 `EXPORT_LIMIT`(5000)건까지, 체크한 공고(`ids`)는 `LIST_LIMIT`(500)건까지(`ids`+`query`면 목록과 같은 정렬).
+  - 테스트: `tests/test_bid_notice.py`(나라장터는 `g2b.urlopen`·`g2b.search_notices`·`g2b.fetch_notice`·`g2b.download_attachment`·`g2b.fetch_award`를 mock, 메일은 `bid_notice._send_mail`을 mock,
+    예전 첨부 폴더는 `bid_notice.LEGACY_FILES_DIR`을 임시 폴더로 patch).
 
 - **사내결재 > 강사전자계약 / 임직원전자계약** (`routes/verified_contract.py`, `templates/verified_contract/`)
   - 예전 인증전자계약관리를 메뉴 2개로 분리: `verified_contract_instructor` / `verified_contract_employee`.
