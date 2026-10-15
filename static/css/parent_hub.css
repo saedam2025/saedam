@@ -17,6 +17,10 @@ a{color:var(--ph-orange-ink)}
 [hidden]{display:none!important}
 button{font:inherit}
 
+/* 본사 담당자가 보는 디자인 미리보기 안내 띠 */
+.ph-demo{margin:0 0 12px;padding:10px 14px;border-radius:12px;background:#172033;color:#fff;font-size:.82rem;line-height:1.5}
+.ph-demo b{color:#ffd49a;margin-right:4px}
+
 /* ---- 공통 부품 ---- */
 .ph-card{background:var(--ph-card);border:1px solid rgba(231,129,0,.16);border-radius:22px;box-shadow:var(--ph-shadow);
   padding:20px;margin-bottom:14px}
