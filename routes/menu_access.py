@@ -120,6 +120,7 @@ MENU_GROUPS = (
             ('parent_notifications', '학부모알림전송', 'fa-bell', 7),
             ('school_billing', '청구업무', 'fa-file-invoice-dollar', 5),
             ('school_support_hub', '학부모·강사 통합지원', 'fa-people-roof', 7),
+            ('school_personality', '강사 인성·직무적합성 검사', 'fa-clipboard-question', 4),
         ),
     },
     {
@@ -133,6 +134,7 @@ MENU_GROUPS = (
             ('ai_mail_main', '스마트 메일 발송', 'fa-wand-magic-sparkles', 14),
             ('excel_generator', '입금용 엑셀 생성기', 'fa-file-excel', 14),
             ('ai_agent_main', 'AI에이전트', 'fa-robot', 14),
+            ('bid_notice_main', '입찰공고관리', 'fa-gavel', 5),
         ),
     },
     {
@@ -575,6 +577,11 @@ def resolve_request_menu(path, endpoint='', view_args=None):
         return 'school_support_hub'
     if path.startswith('/survey'):
         return 'school_survey'
+    # 인성검사 응시 링크(/personality/t/)는 응시자가 계정 없이 여는 공개 주소다.
+    if path.startswith('/personality/t/'):
+        return None
+    if path.startswith('/personality'):
+        return 'school_personality'
     # 학교회원 포털은 인트라넷 계정이 아닌 별도 로그인으로 보호한다.
     if path == '/portal' or path.startswith('/portal/'):
         return None
@@ -606,6 +613,8 @@ def resolve_request_menu(path, endpoint='', view_args=None):
         return 'ai_agent_main'
     if path.startswith('/excel-generator'):
         return 'excel_generator'
+    if path.startswith('/bid-notice'):
+        return 'bid_notice_main'
     if path.startswith('/event-admin'):
         return 'event_admin'
     if path.startswith('/attendance') or path.startswith('/api/attendance'):

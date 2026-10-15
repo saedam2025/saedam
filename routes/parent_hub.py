@@ -60,6 +60,16 @@ COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 MAX_HQ_PAGES = 40                     # 본사가 한 구역(앞쪽·뒤쪽)에 둘 수 있는 쪽 수
 LEAFLET_SECTIONS = {'front': '앞쪽 (표지·학교 소개)', 'back': '뒤쪽 (마무리·안내)'}
 TABS = ('home', 'attendance', 'teachers', 'leaflet', 'guide', 'notices')
+# 학부모 화면 디자인. 학교(포털)마다 하나를 고르고, 'classic'이 기본이다.
+# 새 디자인을 더하려면 여기에 한 줄 + static/css/ 아래 덮어쓰기 CSS(기본 CSS 다음에 불러온다)를 만든다.
+DEFAULT_DESIGN = 'classic'
+DESIGNS = {
+    'classic': {'label': '기본 디자인', 'tagline': '따뜻한 오렌지 · 부드러운 카드', 'css': '', 'theme_color': '#e78100',
+                'points': ('익숙한 오렌지 색상', '부드럽고 편안한 느낌')},
+    'neo': {'label': '네오 디자인', 'tagline': '선명한 남색 · 미래형 글래스 카드', 'css': 'css/parent_hub_neo.css',
+            'theme_color': '#0f172a',
+            'points': ('글자·상태 색이 더 또렷해요', '남색 + 청록 포인트, 둥근 유리 카드')},
+}
 WEEKDAY_FIRST_SUNDAY = ('일', '월', '화', '수', '목', '금', '토')
 
 
@@ -102,7 +112,8 @@ def ensure_parent_hub_schema(conn):
     ''')
     # 학부모에게 마지막으로 링크 문자를 보낸 때(운영 중인 DB에도 열을 더한다)
     pn._add_missing_columns(conn, 'ph_portals', {'last_sent_at': 'TEXT', 'last_sent_count': 'INTEGER NOT NULL DEFAULT 0',
-                                                 'last_sent_method': "TEXT NOT NULL DEFAULT ''"})
+                                                 'last_sent_method': "TEXT NOT NULL DEFAULT ''",
+                                                 'design': f"TEXT NOT NULL DEFAULT '{DEFAULT_DESIGN}'"})
     conn.commit()
 
 
@@ -155,6 +166,21 @@ def portal_for_school(conn, school_name, *, active_only=True):
         if _norm(row['school_name']) == key and (row['is_active'] or not active_only):
             return row
     return None
+
+
+def design_of(portal):
+    """포털에서 고른 학부모 화면 디자인 키. 없거나 모르는 값이면 기본 디자인."""
+    try:
+        value = portal['design']
+    except (KeyError, IndexError, TypeError):
+        value = ''
+    return value if value in DESIGNS else DEFAULT_DESIGN
+
+
+def _design_context(key):
+    info = DESIGNS.get(key) or DESIGNS[DEFAULT_DESIGN]
+    return {'design': key if key in DESIGNS else DEFAULT_DESIGN, 'design_css': info['css'],
+            'theme_color': info['theme_color']}
 
 
 def _portals_by_school(conn):
@@ -287,31 +313,39 @@ def _guide_for_school(conn, portal):
     return {'path': url_for('classroom_guide.public_view', token=row['share_token']), 'layout': layout}
 
 
-def _room_for_class(layout, class_name, instructor_name=''):
-    """강좌가 배치된 교실을 찾는다(강좌명이 같거나 서로 포함). 반환: {'id','label'} 또는 None."""
-    want = _norm(class_name)
+def _room_for_class(layout, class_name, instructor_name='', department=''):
+    """강좌가 배치된 교실을 찾는다(강좌명이 같거나 서로 포함). 반환: {'id','label'} 또는 None.
+
+    과목명(강의부서)과 강의반 이름 둘 다로 찾는다. 배치도에는 '로봇과학'처럼 과목명으로,
+    과목에는 '로봇과학A'처럼 강의반으로 적혀 있어도 같은 교실로 이어진다. 강의반 이름이 더 정확하므로 점수를 더 준다.
+    """
+    wanted = [(_norm(class_name), 1), (_norm(department), 0)]
     teacher = _norm(instructor_name)
     best, best_score = None, 0
     for building in layout.get('buildings') or []:
         for room in building.get('rooms') or []:
             for course in room.get('courses') or []:
                 name = _norm(course.get('name'))
-                if len(name) < 2 or not want:
+                if len(name) < 2:
                     continue
-                if name == want:
-                    score = 3
-                elif name in want or want in name:
-                    score = 2
-                else:
-                    continue
-                if teacher and _norm(course.get('teacher')) == teacher:
-                    score += 1
-                if score > best_score:
-                    label = ' '.join(part for part in (
-                        building.get('name') or '',
-                        f"{room.get('floor')}층" if room.get('floor') else '',
-                        room.get('name') or room.get('no') or '') if part)
-                    best, best_score = {'id': room['id'], 'label': label}, score
+                for want, bonus in wanted:
+                    if not want:
+                        continue
+                    if name == want:
+                        score = 3
+                    elif name in want or want in name:
+                        score = 2
+                    else:
+                        continue
+                    score += bonus * 0.5
+                    if teacher and _norm(course.get('teacher')) == teacher:
+                        score += 1
+                    if score > best_score:
+                        label = ' '.join(part for part in (
+                            building.get('name') or '',
+                            f"{room.get('floor')}층" if room.get('floor') else '',
+                            room.get('name') or room.get('no') or '') if part)
+                        best, best_score = {'id': room['id'], 'label': label}, score
     return best
 
 
@@ -550,7 +584,10 @@ def home_context(conn, invite, token, tab, child_id, month_text):
         tab = 'home'
 
     selected = next((c for c in children if c['id'] == child_id), children[0] if children else None)
+    # 디자인은 고른 자녀의 학교 포털 설정을 따르고, 포털이 없으면 공개 중인 첫 포털을 따른다.
+    design_portal = (selected['portal'] if selected and selected['portal'] else None)         or (active[0]['portal'] if active else None)
     context = {
+        **_design_context(design_of(design_portal)), 'demo': False,
         'token': token, 'guardian_name': invite['guardian_name'], 'tab': tab, 'tabs': tabs,
         'children': children, 'selected': selected, 'schools': schools, 'show': show,
         'push': _push_state(conn, invite['guardian_id']), 'push_configured': pn._push_ready(),
@@ -602,7 +639,8 @@ def home_context(conn, invite, token, tab, child_id, month_text):
                     for info in child['classes']:
                         if _norm(info['school_name']) != _norm(item['name']):
                             continue
-                        room = _room_for_class(guide['layout'], info['class_name'], info.get('instructor_name', ''))
+                        room = _room_for_class(guide['layout'], info['class_name'], info.get('instructor_name', ''),
+                                              info.get('department', ''))
                         rooms.append({
                             'child': child['name'], 'class_name': info['class_name'],
                             'room': room['label'] if room else '',
@@ -620,7 +658,8 @@ def home_context(conn, invite, token, tab, child_id, month_text):
 # ---------------------------------------------------------------- 학부모 공개 화면
 
 def _invalid_page(message='사용할 수 없는 링크입니다.'):
-    return _no_store(Response(render_template('parent_hub/landing.html', invalid=True, message=message), 404))
+    return _no_store(Response(render_template('parent_hub/landing.html', invalid=True, message=message,
+                                              **_design_context(DEFAULT_DESIGN)), 404))
 
 
 @parent_hub_bp.route('/parent/hub/<token>', methods=['GET', 'POST'])
@@ -663,7 +702,7 @@ def hub_landing(token):
         return _no_store(Response(render_template(
             'parent_hub/landing.html', invalid=False, portal=portal, token=token, show=show, error=error,
             leaflet_pages=len(pages), leaflet_toc=toc, guide_path=guide['path'] if guide else '',
-            form=request.form)))
+            form=request.form, **_design_context(design_of(portal)))))
     finally:
         conn.close()
 
@@ -905,6 +944,123 @@ def admin_save_portal(portal_id):
     finally:
         conn.close()
     return _admin_redirect('portal')
+
+
+@parent_hub_bp.route('/parent-hub/portals/<int:portal_id>/design', methods=['POST'])
+@menu_permission_required(MENU_KEY)
+def admin_save_design(portal_id):
+    """학부모가 휴대폰으로 보는 화면의 디자인을 고른다(학교마다 하나)."""
+    design = request.form.get('design')
+    conn = get_db()
+    try:
+        if not conn.execute('SELECT 1 FROM ph_portals WHERE id=?', (portal_id,)).fetchone():
+            abort(404)
+        if design not in DESIGNS:
+            flash('고를 수 없는 디자인입니다.', 'error')
+        else:
+            conn.execute('UPDATE ph_portals SET design=? WHERE id=?', (design, portal_id))
+            conn.commit()
+            flash(f"학부모 화면 디자인을 [{DESIGNS[design]['label']}]으로 바꿨습니다. 학부모가 다음에 열 때부터 바뀐 모습으로 보입니다.",
+                  'success')
+    finally:
+        conn.close()
+    return _admin_redirect('portal')
+
+
+def _demo_report(today):
+    """디자인 미리보기용 예시 출석 자료(실제 학생 정보가 아니다)."""
+    cycle = ['출석', '출석', '지각', '출석', '출석', '결석', '출석']
+    class_days = {0, 2}                                              # 월·수
+    cells = [None] * ((today.replace(day=1).weekday() + 1) % 7)
+    shown = 0
+    for day in range(1, monthrange(today.year, today.month)[1] + 1):
+        current = today.replace(day=day)
+        is_class = current.weekday() in class_days
+        status = ''
+        if is_class and current < today:
+            status = cycle[shown % len(cycle)]
+            shown += 1
+        cells.append({'day': day, 'status': status, 'time': '15:02' if status and status != '결석' else '',
+                      'class_day': is_class, 'future': current > today, 'today': current == today})
+    absent = sum(1 for c in cells if c and c['status'] == '결석')
+    late = sum(1 for c in cells if c and c['status'] == '지각')
+    present = shown - absent - late
+    held = max(shown, 1)
+    rate = round((present + late) * 100 / held)
+    recent = [{'date': today.isoformat(), 'weekday': '월', 'status': '출석', 'time': '15:02', 'dismissed': '16:31'},
+              {'date': today.isoformat(), 'weekday': '수', 'status': '지각', 'time': '15:14', 'dismissed': '16:30'},
+              {'date': today.isoformat(), 'weekday': '월', 'status': '결석', 'time': '', 'dismissed': ''}]
+    return {
+        'class_id': 0,
+        'today': {'status': '출석', 'time': '15:02', 'dismissed': '', 'class_day': True},
+        'total': {'present': present, 'late': late, 'absent': absent, 'held': held, 'rate': rate},
+        'month': {'key': today.strftime('%Y-%m'), 'label': f'{today.year}년 {today.month}월', 'cells': cells,
+                  'previous': '', 'next': '', 'present': present, 'late': late, 'absent': absent, 'held': held,
+                  'rate': rate},
+        'recent': recent, 'has_records': True,
+    }
+
+
+def demo_home_context(conn, portal, tab, design):
+    """디자인 미리보기용 학부모 홈 화면 자료. 예시 자녀·과목을 쓰고 실제 학생 정보는 담지 않는다."""
+    today = sa._now().date()
+    school = portal['school_name']
+    classes = [
+        {'id': 1, 'class_name': '로봇과학A', 'department': '로봇과학', 'school_name': school, 'instructor_name': '이새담',
+         'schedule': '월·수 15:00~16:30', 'notify_parents': 1, 'weekdays': '0,2'},
+        {'id': 2, 'class_name': '창의미술B', 'department': '미술', 'school_name': school, 'instructor_name': '박미술',
+         'schedule': '금 14:30~16:00', 'notify_parents': 1, 'weekdays': '4'},
+    ]
+    shown = {'attendance': True, 'profile': True, 'leaflet': True, 'guide': True}
+    child = {'id': 1, 'name': '김새담', 'grade': '3', 'classroom': '2', 'school_name': school, 'classes': classes,
+             'schools': [school], 'portal': portal, 'show': shown}
+    tabs = [('home', '홈', 'fa-house'), ('attendance', '출석', 'fa-calendar-check'),
+            ('teachers', '강사', 'fa-chalkboard-user'), ('leaflet', '리플렛', 'fa-book-open-reader'),
+            ('guide', '교실안내', 'fa-map-location-dot'), ('notices', '알림', 'fa-bell')]
+    tab = tab if tab in {key for key, _label, _icon in tabs} else 'home'
+    notices = [
+        {'kind': '출석', 'title': '김새담 학생이 도착했어요', 'body': '로봇과학A 수업에 15:02에 도착했어요.',
+         'created_at': f'{today} 15:02'},
+        {'kind': '공지', 'title': '이번 주 수업 안내', 'body': '금요일은 학교 행사로 수업이 오후 3시에 시작해요.',
+         'created_at': f'{today} 09:10'},
+    ]
+    pages, toc = leaflet_pages(conn, portal)
+    guide = _guide_for_school(conn, portal)
+    lead = {'school_name': school, 'notice': portal['notice'] or '학부모 안내 문구가 이 자리에 보여요.'}
+    return {
+        **_design_context(design), 'demo': True, 'demo_portal_id': portal['id'],
+        'token': 'demo', 'guardian_name': '새담', 'tab': tab, 'tabs': tabs, 'children': [child], 'selected': child,
+        'schools': [{'name': school, 'portal': portal}], 'show': shown,
+        'push': {'registered': False, 'count': 0, 'last_received_at': '', 'warn': False}, 'push_configured': False,
+        'notices': notices, 'month': '', 'weekday_labels': WEEKDAY_FIRST_SUNDAY, 'portal_notices': [lead],
+        'reports': {(1, info['id']): _demo_report(today) for info in classes} if tab in ('home', 'attendance') else {},
+        'more_tabs': [item for item in tabs if item[0] in ('teachers', 'leaflet', 'guide')],
+        'teachers': [{'child': child, 'department': '로봇과학', 'classes': ['로봇과학A'], 'people': [
+            {'account_id': None, 'name': '이새담', 'has_photo': False, 'prepared': True,
+             'bio': '로봇 코딩과 센서 실험을 함께 하며 아이들의 호기심을 키웁니다.'}]}] if tab == 'teachers' else [],
+        'leaflets': [{'school': school, 'portal': portal, 'pages': len(pages), 'toc': toc,
+                      'cover': _leaflet_page_url(portal['token'], pages[0]) if pages else '',
+                      'url': url_for('parent_hub.hub_leaflet', token=portal['token'])}] if tab == 'leaflet' else [],
+        'guides': [{'school': school, 'path': guide['path'] if guide else '', 'rooms': []}] if tab == 'guide' else [],
+    }
+
+
+@parent_hub_bp.route('/parent-hub/portals/<int:portal_id>/design-preview')
+@menu_permission_required(MENU_KEY)
+def admin_design_preview(portal_id):
+    """고르기 전에 디자인을 예시 화면으로 먼저 본다(보호자·학생 정보 없이, 읽기 전용)."""
+    design = request.args.get('design')
+    if design not in DESIGNS:
+        abort(404)
+    conn = get_db()
+    try:
+        portal = conn.execute('SELECT * FROM ph_portals WHERE id=?', (portal_id,)).fetchone()
+        if not portal:
+            abort(404)
+        context = demo_home_context(conn, portal, request.args.get('tab') or 'home', design)
+        return _no_store(Response(render_template('parent_hub/home.html', **context)))
+    finally:
+        conn.close()
 
 
 def _delete_leaflet_files(conn, portal_id):
