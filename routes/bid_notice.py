@@ -1755,7 +1755,7 @@ EXPORT_COLUMNS = (
     ('번호', 7, None), ('공고 구분', 10, None), ('상태', 8, None),
     ('공고명', 62, None), ('지역', 14, None), ('학교', 20, None), ('수요기관', 36, None),
     ('게시일시', 17, None), ('입찰 마감', 17, None), ('개찰일시', 17, None),
-    ('기초금액', 14, '#,##0'),
+    ('기초금액', 14, '#,##0'), ('금액 구분', 10, None),
     ('낙찰 업체', 28, None), ('낙찰금액', 14, '#,##0'), ('낙찰률(%)', 10, '0.000'), ('참가 업체 수', 11, '0'),
     ('결과', 16, None), ('공고 링크', 12, None),
 )
@@ -1792,12 +1792,19 @@ def build_export_workbook(rows):
 
     for index, row in enumerate(rows):
         state = row['result_state'] or ('직접 입력' if row['winner_name'] else '')
+        # 화면과 같이 기초금액이 아직 없으면 배정예산을 넣고, 어느 금액인지 옆 칸에 적는다.
+        if row['base_amount']:
+            amount, amount_kind = row['base_amount'], '기초금액'
+        elif row['budget']:
+            amount, amount_kind = row['budget'], '배정예산'
+        else:
+            amount, amount_kind = None, ''
         values = (
             len(rows) - index, row['kind'] or '',
             NOTICE_STATUS_LABELS.get(_notice_status(row, now_text), ''),
             row['title'], row['region'] or '', _school_label(row), row['demand_name'] or '',
             _short_dt(row['notice_dt']), _short_dt(row['bid_close']), _short_dt(row['open_dt']),
-            row['base_amount'],
+            amount, amount_kind,
             row['winner_name'] or '', row['winner_amount'], _rate_number(row['winner_rate']), row['result_participants'],
             RESULT_STATE_LABELS.get(state, state), '',
         )
