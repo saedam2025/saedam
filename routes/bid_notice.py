@@ -466,13 +466,14 @@ def _add_event(conn, notice_id, notice, event_type, summary, now_text, mailed_at
     return bool(cursor.rowcount)
 
 
-def store_items(conn, items, settings, baseline=False):
+def store_items(conn, items, settings, baseline=False, restore_deleted=False):
     """조회한 공고를 저장하고 새로 생긴 소식 수를 돌려준다.
 
     공고번호 하나가 공고 한 건이고, 차수(000 → 001 …)가 올라가면 정정·취소로 본다.
     ``baseline``(맨 처음 수집)이면 이미 지난 소식이라 메일 대상에서 뺀다.
+    ``restore_deleted``면 직접 삭제한 공고도 다시 가져오고 삭제 기록을 지운다(이미 본 공고라 메일 대상에서 뺀다).
     """
-    counts = {'new': 0, 'changed': 0, 'cancelled': 0}
+    counts = {'new': 0, 'changed': 0, 'cancelled': 0, 'restored': 0}
     now_text = _stamp()
     mailed_at = now_text if baseline else None
     parsed = {}
@@ -484,7 +485,8 @@ def store_items(conn, items, settings, baseline=False):
     deleted = {row['bid_no'] for row in conn.execute('SELECT bid_no FROM bid_notice_deleted')}
     for key in sorted(parsed):
         notice = parsed[key]
-        if notice['bid_no'] in deleted:
+        restoring = notice['bid_no'] in deleted
+        if restoring and not restore_deleted:
             continue
         existing = conn.execute('SELECT * FROM bid_notices WHERE bid_no=?', (notice['bid_no'],)).fetchone()
         cancelled = notice['kind'] == g2b.KIND_CANCEL
@@ -495,6 +497,11 @@ def store_items(conn, items, settings, baseline=False):
             )
             if not keyword:
                 continue
+            if restoring:
+                # 되살린 공고: 삭제 기록을 지우고, 예전에 이미 알린 공고라 메일 대상에서 뺀다.
+                conn.execute('DELETE FROM bid_notice_deleted WHERE bid_no=?', (notice['bid_no'],))
+                deleted.discard(notice['bid_no'])
+                counts['restored'] += 1
             columns = ('bid_no',) + NOTICE_COLUMNS + ('matched_keyword', 'first_seen_at', 'updated_at')
             values = [notice['bid_no']] + [notice[name] for name in NOTICE_COLUMNS] + [keyword, now_text, now_text]
             cursor = conn.execute(
@@ -502,7 +509,8 @@ def store_items(conn, items, settings, baseline=False):
                 values,
             )
             event_type = 'cancelled' if cancelled else 'new'
-            if _add_event(conn, cursor.lastrowid, notice, event_type, '', now_text, mailed_at):
+            if _add_event(conn, cursor.lastrowid, notice, event_type, '', now_text,
+                          now_text if restoring else mailed_at):
                 counts[event_type] += 1
             continue
 
@@ -635,14 +643,14 @@ def _search_all(settings, begin, end):
         chunk_begin = chunk_end
 
 
-def collect_notices(trigger='manual', actor='', date_range=None):
+def collect_notices(trigger='manual', actor='', date_range=None, restore_deleted=False):
     """나라장터에서 공고를 찾아 저장한다. 결과 요약(dict)을 돌려준다.
 
     ``date_range``가 없으면 항상 최근 4주(``COLLECT_DAYS``일)를 찾는다. 이미 저장된 공고는 다시 기록하지 않고
     정정·취소가 생긴 것만 이력으로 더한다. ``date_range``=(시작, 끝)을 주면 그 게시 기간만 찾는다. 지난 공고를
-    채워 넣는 용도라 메일 대상에서 뺀다.
+    채워 넣는 용도라 메일 대상에서 뺀다. ``restore_deleted``면 직접 삭제한 공고도 삭제 기록과 상관없이 다시 가져온다.
 
-    {'status': 'success'|'error'|'busy', 'message', 'new', 'changed', 'cancelled', 'fetched', 'run_id'}
+    {'status': 'success'|'error'|'busy', 'message', 'new', 'changed', 'cancelled', 'restored', 'fetched', 'run_id'}
     """
     if not _collect_lock.acquire(blocking=False):
         return {'status': 'busy', 'message': '지금 다른 수집이 진행 중입니다. 잠시 후 다시 눌러 주세요.'}
@@ -671,13 +679,14 @@ def collect_notices(trigger='manual', actor='', date_range=None):
             begin = end - timedelta(days=COLLECT_DAYS)
             baseline = not has_earlier_run
 
-        counts = {'new': 0, 'changed': 0, 'cancelled': 0}
+        counts = {'new': 0, 'changed': 0, 'cancelled': 0, 'restored': 0}
         fetched = 0
         try:
             for items in _search_all(settings, begin, end):
                 conn = get_db()
                 try:
-                    batch_counts = store_items(conn, items, settings, baseline=baseline)
+                    batch_counts = store_items(conn, items, settings, baseline=baseline,
+                                               restore_deleted=restore_deleted)
                     conn.commit()
                 finally:
                     conn.close()
@@ -691,6 +700,8 @@ def collect_notices(trigger='manual', actor='', date_range=None):
         base_found, note = _refresh_base_amounts(settings['service_key'], include_closed=bool(date_range))
         message = (f"신규 {counts['new']}건 · 정정 {counts['changed']}건 · 취소 {counts['cancelled']}건"
                    f" (기초금액 확인 {base_found}건)")
+        if restore_deleted:
+            message += f" · 삭제했던 공고 {counts['restored']}건을 다시 가져왔습니다(신규에 포함, 메일 대상 아님)"
         if date_range:
             message = f'{begin:%Y-%m-%d} ~ {end:%Y-%m-%d} · {message} · 기간을 정해 찾은 공고는 메일로 보내지 않습니다'
         elif baseline:
@@ -1397,9 +1408,23 @@ def api_events(notice_id):
     } for row in rows]})
 
 
+def _restore_deleted_flag(payload):
+    """[삭제한 공고도 다시 가져오기] 체크 여부. 삭제와 같이 관리자만 쓸 수 있다(아니면 PermissionError)."""
+    if not payload.get('restore_deleted'):
+        return False
+    if not is_admin_session():
+        raise PermissionError('삭제한 공고를 다시 가져오는 것은 관리자만 할 수 있습니다.')
+    return True
+
+
 @bid_notice_bp.route('/api/collect', methods=['POST'])
 def api_collect():
-    result = collect_notices(trigger='manual', actor=session.get('user_name') or '')
+    try:
+        restore_deleted = _restore_deleted_flag(request.get_json(silent=True) or {})
+    except PermissionError as error:
+        return _json_error(str(error), 403)
+    result = collect_notices(trigger='manual', actor=session.get('user_name') or '',
+                             restore_deleted=restore_deleted)
     if result['status'] == 'busy':
         return _json_error(result['message'], 409)
     if result['status'] == 'error':
@@ -1411,6 +1436,10 @@ def api_collect():
 def api_collect_range():
     """게시일 기간을 정해 나라장터에서 찾는다(지난 공고 채워 넣기). 메일은 보내지 않는다."""
     payload = request.get_json(silent=True) or {}
+    try:
+        restore_deleted = _restore_deleted_flag(payload)
+    except PermissionError as error:
+        return _json_error(str(error), 403)
     begin = _parse_day(payload.get('date_from'))
     last_day = _parse_day(payload.get('date_to'))
     if not begin or not last_day:
@@ -1423,7 +1452,8 @@ def api_collect_range():
     end = min(last_day + timedelta(days=1) - timedelta(minutes=1), now)
     if end - begin > timedelta(days=MAX_RANGE_COLLECT_DAYS):
         return _json_error('한 번에 1년까지만 찾을 수 있습니다. 기간을 나눠서 찾아 주세요.')
-    result = collect_notices(trigger='range', actor=session.get('user_name') or '', date_range=(begin, end))
+    result = collect_notices(trigger='range', actor=session.get('user_name') or '', date_range=(begin, end),
+                             restore_deleted=restore_deleted)
     if result['status'] == 'busy':
         return _json_error(result['message'], 409)
     if result['status'] == 'error':
