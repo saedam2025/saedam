@@ -313,6 +313,11 @@
     .fd-dates { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 9px; color: var(--text-gray, #64748b); font-size: .8rem; }
     .fd-dates input { width: 140px; height: 32px; padding: 0 9px; box-sizing: border-box; border: 1px solid var(--card-border, #e2e8f0); border-radius: 5px; background: var(--input-bg, #fff); color: var(--text-dark, #1e293b); font-size: .8rem; }
     .fd-dates input:disabled { opacity: .55; }
+    .fd-restore { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border: 1px dashed #f0b429; border-radius: 10px; background: #fffbeb; cursor: pointer; }
+    .fd-restore input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: #d97706; }
+    .fd-restore b { display: block; font-size: .84rem; font-weight: 600; color: #92400e; }
+    .fd-restore small { display: block; margin-top: 3px; font-size: .74rem; color: #78350f; line-height: 1.55; }
+    .fd-restore.off { opacity: .45; cursor: default; }
     .fd-sep { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; font-size: .7rem; font-weight: 700; letter-spacing: .06em; color: var(--text-gray, #64748b); }
     .fd-sep::after { content: ''; flex: 1; border-top: 1px dashed var(--card-border, #cbd5e1); }
     .fd-status { min-height: 1.2em; margin: 0; padding: 0 22px; font-size: .8rem; font-weight: 600; color: var(--primary-color, #4a90e2); }
@@ -628,6 +633,12 @@
                         <small>그보다 지난 공고를 채워 넣을 때 씁니다. 한 번에 최대 1년, 기간이 길면 1~2분 걸립니다.</small>
                         <span class="fd-dates"><input type="date" id="rangeFrom" aria-label="시작일"> ~ <input type="date" id="rangeTo" aria-label="종료일"></span></span>
                 </label>
+                {% if is_admin %}<label class="fd-restore" id="restoreWrap">
+                    <input type="checkbox" id="restoreDeleted">
+                    <span><b>삭제한 공고도 다시 가져오기</b>
+                        <small>평소에는 직접 삭제한 공고를 다시 가져오지 않습니다. 실수나 테스트로 지운 공고를 되살릴 때만 체크하세요.
+                            위에서 고른 기간 안의 공고만 되살아나고, 메일은 보내지 않습니다.</small></span>
+                </label>{% endif %}
                 <div class="fd-sep">낙찰 결과</div>
                 <label class="fd-option result">
                     <input type="radio" name="fetchMode" value="results">
@@ -1415,6 +1426,12 @@ function syncFetchOptions() {
     document.querySelectorAll('#fetchDlg .fd-option').forEach(option =>
         option.classList.toggle('on', option.querySelector('input').checked));
     ['rangeFrom', 'rangeTo'].forEach(id => { el(id).disabled = FETCHING; });
+    // [삭제한 공고도 다시 가져오기]는 공고를 가져올 때(최근 4주·기간)만 쓴다(관리자에게만 보임).
+    if (el('restoreDeleted')) {
+        const usable = mode !== 'results' && !FETCHING;
+        el('restoreDeleted').disabled = !usable;
+        el('restoreWrap').classList.toggle('off', mode === 'results');
+    }
     el('fetchGo').innerHTML = mode === 'results'
         ? '<i class="fa-solid fa-trophy"></i> 낙찰 결과 가져오기'
         : '<i class="fa-solid fa-cloud-arrow-down"></i> 가져오기';
@@ -1431,6 +1448,7 @@ function setFetching(on, text = '') {
 
 function openFetchDialog() {
     el('fetchDlg').style.display = 'flex';
+    if (el('restoreDeleted')) el('restoreDeleted').checked = false;   // 열 때마다 꺼 둔다(실수로 되살리지 않게)
     syncFetchOptions();
     el('fetchGo').focus();
 }
@@ -1441,15 +1459,17 @@ function closeFetchDialog() {
     el('fetchStatus').textContent = '';
 }
 
+const restoreDeleted = () => !!(el('restoreDeleted') && el('restoreDeleted').checked);
+
 async function collectRecent() {
-    const data = await postJson('/bid-notice/api/collect');
+    const data = await postJson('/bid-notice/api/collect', restoreDeleted() ? { restore_deleted: 1 } : {});
     await loadNotices();
     return '최근 4주 공고를 가져왔습니다.\n' + data.message;
 }
 
 async function collectRange() {
     const from = el('rangeFrom').value, to = el('rangeTo').value;
-    const data = await postJson('/bid-notice/api/collect-range', { date_from: from, date_to: to });
+    const data = await postJson('/bid-notice/api/collect-range', { date_from: from, date_to: to, restore_deleted: restoreDeleted() ? 1 : 0 });
     // 가져온 기간을 목록에서 바로 보여 준다(지난 기간은 대부분 마감 공고라 전체 탭).
     setTab('all');
     el('dateFrom').value = from;
