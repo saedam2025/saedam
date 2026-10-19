@@ -7,7 +7,7 @@
 
 - 조회·해석: ``services/g2b_bid.py``
 - 설정(인증키·검색어·지역·받는 메일)은 ``admin_settings``의 ``bid_notice_settings``에 저장하고 인증키는 암호화한다.
-- 공고마다 진행 상태(입찰예정 등)를 고른다. 낙찰 결과는 [공고가져오기] 창의 [낙찰 결과 가져오기]를 누를 때만
+- 공고마다 입찰구분(본부입찰·지점입찰 등)과 진행 상태(서류접수완료 등)를 고른다. 낙찰 결과는 [공고가져오기] 창의 [낙찰 결과 가져오기]를 누를 때만
   개찰일시가 지난 공고를 나라장터 낙찰정보에서 찾아 저장한다(자동으로는 가져오지 않는다).
 - 첨부파일은 [첨부 받기]를 누르는 순간 나라장터에서 받아 압축파일 하나로 바로 내려 준다(서버에 보관하지 않는다).
 """
@@ -58,6 +58,8 @@ DEFAULT_REGION = '경기도'
 DEFAULT_ORG_WORD = '초등학교'
 MAX_RECIPIENTS = 5
 SETTINGS_MAX_LEVEL = 1           # [공고수집·메일 설정](인증키·수집 조건·메일)은 레벨 1만 연다(admin 계정 포함)
+EDIT_MAX_LEVEL = 2               # 진행 상태·투찰금액·메모를 바꾸는 것은 레벨 1·2만(admin 계정 포함). 그 밖에는 보기만 한다
+EDIT_DENIED_MESSAGE = '진행 상태·투찰금액·메모는 레벨 1·2 직원만 바꿀 수 있습니다.'
 EMAIL_PATTERN = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$')
 
 COLLECT_DAYS = g2b.MAX_RANGE_DAYS    # [최근 4주 공고 가져오기]가 보는 기간(28일)
@@ -76,8 +78,11 @@ CANCEL_KEEP_DAYS = 7             # 마감일이 없는 취소 공고를 [진행 
 NEW_MARK_HOURS = 24              # [공고가져오기]로 새로 기록된 공고에 반짝이는 N을 붙여 두는 시간
 RUN_KEEP_DAYS = 60              # 수집 기록은 이 기간이 지나면 새 수집을 시작할 때 자동으로 지운다
 
-# 담당자가 공고마다 고르는 진행 상태(비어 있으면 '상태선택')
-WORK_STATUSES = ('입찰예정', '본부입찰', '지점입찰', '입찰제외', '서류접수완료', '가격투찰완료', '설명회완료', '개찰완료')
+# 담당자가 공고마다 고르는 입찰구분(비어 있으면 '구분선택')과 진행 상태(비어 있으면 '상태선택')
+BID_TYPES = ('입찰예정', '본부입찰', '지점입찰', '입찰제외')
+WORK_STATUSES = ('입찰예정', '서류접수완료', '가격투찰완료', '설명회완료', '개찰완료')
+# 예전에는 진행 상태로 고르던 값 → 입찰구분으로 옮긴다(_add_missing_columns)
+MOVED_TO_BID_TYPE = ('본부입찰', '지점입찰', '입찰제외')
 
 # 첨부파일은 서버에 두지 않는다. 예전 버전이 압축파일을 보관하던 폴더는 시작할 때 비운다.
 LEGACY_FILES_DIR = DATA_ROOT / 'bid_notice_files'
@@ -103,6 +108,9 @@ EXTRA_NOTICE_COLUMNS = {
     'work_status': 'TEXT',
     'status_updated_by': 'TEXT',
     'status_updated_at': 'TEXT',
+    'bid_type': 'TEXT',               # 입찰구분(BID_TYPES, 비면 미선택)
+    'bid_type_updated_by': 'TEXT',
+    'bid_type_updated_at': 'TEXT',
     'winner_name': 'TEXT',
     'winner_amount': 'INTEGER',
     'winner_rate': 'TEXT',            # 낙찰률(%) — 나라장터가 준 글자 그대로
@@ -118,7 +126,14 @@ EXTRA_NOTICE_COLUMNS = {
     'changed_at': 'TEXT',             # 마지막으로 정정·취소를 확인한 때(목록 맨 위로 올리는 기준)
     'change_summary': 'TEXT',         # 그때 바뀐 내용('입찰 마감: A → B')
     'bidders': 'TEXT',                # 참가 업체 전체 JSON [{rank, name, bizno, ceo, amount, rate, note}] (None이면 아직 안 읽음)
+    'my_bid_amount': 'INTEGER',       # 우리가 넣을 투찰금액(직접 입력, 기초금액(없으면 배정예산)을 넘을 수 없다)
+    'my_bid_updated_by': 'TEXT',
+    'my_bid_updated_at': 'TEXT',
+    'memo': 'TEXT',                   # 공고별 메모(직접 입력)
+    'memo_updated_by': 'TEXT',
+    'memo_updated_at': 'TEXT',
 }
+MEMO_MAX_LENGTH = 2000
 
 _collect_lock = threading.Lock()
 _attach_lock = threading.Lock()
@@ -251,6 +266,14 @@ def _add_missing_columns(conn):
     for name, ddl in EXTRA_NOTICE_COLUMNS.items():
         if name not in columns:
             conn.execute(f'ALTER TABLE bid_notices ADD COLUMN {name} {ddl}')
+    # 진행 상태에서 빠진 본부입찰·지점입찰·입찰제외는 입찰구분으로 옮긴다(이미 입찰구분을 골랐으면 그대로 둔다).
+    marks = ', '.join('?' * len(MOVED_TO_BID_TYPE))
+    conn.execute(f'''UPDATE bid_notices
+                        SET bid_type = COALESCE(NULLIF(bid_type, ''), work_status),
+                            bid_type_updated_by = COALESCE(bid_type_updated_by, status_updated_by),
+                            bid_type_updated_at = COALESCE(bid_type_updated_at, status_updated_at),
+                            work_status = NULL
+                      WHERE work_status IN ({marks})''', MOVED_TO_BID_TYPE)
     if 'changed_at' not in columns:
         # 열을 처음 붙일 때 예전에 쌓인 정정·취소 이력에서 마지막 소식을 채워 둔다.
         latest = ("FROM bid_notice_events e WHERE e.notice_id = bid_notices.id "
@@ -1150,6 +1173,10 @@ def _notice_dict(row, now):
         'event_count': row['event_count'] if 'event_count' in row.keys() else 0,
         'changed_at': _short_dt(row['changed_at']),      # 정정·취소를 확인한 때
         'work_status': row['work_status'] or '',
+        'bid_type': row['bid_type'] or '',
+        'my_bid_amount': row['my_bid_amount'],
+        'memo': row['memo'] or '',
+        'memo_updated': ' · '.join(filter(None, [row['memo_updated_by'] or '', _short_dt(row['memo_updated_at'])])),
         'archive_id': row['archive_id'],
         'result': {
             'state': row['result_state'] or ('직접입력' if row['winner_name'] else ''),
@@ -1188,7 +1215,8 @@ def _parse_day(value):
 @bid_notice_bp.route('/')
 def index():
     return render_template('bid_notice/bid_notice.html', is_admin=is_admin_session(),
-                           can_settings=is_admin_session(max_level=SETTINGS_MAX_LEVEL))
+                           can_settings=is_admin_session(max_level=SETTINGS_MAX_LEVEL),
+                           can_edit=is_admin_session(max_level=EDIT_MAX_LEVEL))
 
 
 HAS_RESULT_SQL = "(COALESCE(n.result_state, '') <> '' OR COALESCE(n.winner_name, '') <> '')"
@@ -1261,6 +1289,12 @@ def _list_conditions(get, now, with_region_result=True):
     elif work_status in WORK_STATUSES:
         where.append('n.work_status = ?')
         params.append(work_status)
+    bid_type = str(get('bid_type') or '').strip()
+    if bid_type == 'none':
+        where.append("COALESCE(n.bid_type, '') = ''")
+    elif bid_type in BID_TYPES:
+        where.append('n.bid_type = ?')
+        params.append(bid_type)
     if with_region_result:
         region = str(get('region') or '').strip()
         if region:
@@ -1368,6 +1402,7 @@ def api_notices():
         'runs': [_run_dict(row) for row in runs],
         'has_key': bool(settings['service_key']),
         'work_statuses': list(WORK_STATUSES),
+        'bid_types': list(BID_TYPES),
     })
 
 
@@ -1481,6 +1516,8 @@ def api_bidders(notice_id):
 
 @bid_notice_bp.route('/api/notices/<int:notice_id>/status', methods=['POST'])
 def api_work_status(notice_id):
+    if not is_admin_session(max_level=EDIT_MAX_LEVEL):
+        return _json_error(EDIT_DENIED_MESSAGE, 403)
     payload = request.get_json(silent=True) or {}
     work_status = str(payload.get('work_status') or '').strip()
     if work_status and work_status not in WORK_STATUSES:
@@ -1497,6 +1534,90 @@ def api_work_status(notice_id):
     finally:
         conn.close()
     return jsonify({'status': 'success', 'work_status': work_status})
+
+
+@bid_notice_bp.route('/api/notices/<int:notice_id>/bid-type', methods=['POST'])
+def api_bid_type(notice_id):
+    """[입찰구분] 칸: 입찰예정·본부입찰·지점입찰·입찰제외 중 하나를 고른다(비우면 미선택)."""
+    if not is_admin_session(max_level=EDIT_MAX_LEVEL):
+        return _json_error(EDIT_DENIED_MESSAGE, 403)
+    payload = request.get_json(silent=True) or {}
+    bid_type = str(payload.get('bid_type') or '').strip()
+    if bid_type and bid_type not in BID_TYPES:
+        return _json_error('입찰구분을 목록에서 골라 주세요.')
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            'UPDATE bid_notices SET bid_type=?, bid_type_updated_by=?, bid_type_updated_at=? WHERE id=?',
+            (bid_type or None, session.get('user_name') or '', _stamp(), notice_id),
+        )
+        conn.commit()
+        if not cursor.rowcount:
+            return _json_error('공고를 찾을 수 없습니다.', 404)
+    finally:
+        conn.close()
+    return jsonify({'status': 'success', 'bid_type': bid_type})
+
+
+def _parse_amount(value):
+    """'12,345,000' / 12345000 → 12345000. 비었으면 None, 숫자가 아니면 ValueError."""
+    text = re.sub(r'[,\s원]', '', str(value if value is not None else ''))
+    if not text:
+        return None
+    if not text.isdigit():
+        raise ValueError('투찰금액은 숫자로만 적어 주세요.')
+    return int(text)
+
+
+@bid_notice_bp.route('/api/notices/<int:notice_id>/my-bid', methods=['POST'])
+def api_my_bid(notice_id):
+    """[투찰금액] 칸: 우리가 넣을 금액을 저장한다(비우면 지운다). 기초금액(없으면 배정예산)의 100%를 넘으면 거절."""
+    if not is_admin_session(max_level=EDIT_MAX_LEVEL):
+        return _json_error(EDIT_DENIED_MESSAGE, 403)
+    payload = request.get_json(silent=True) or {}
+    try:
+        amount = _parse_amount(payload.get('amount'))
+    except ValueError as error:
+        return _json_error(str(error))
+    if amount == 0:
+        amount = None
+    conn = get_db()
+    try:
+        row = conn.execute('SELECT base_amount, budget FROM bid_notices WHERE id=?', (notice_id,)).fetchone()
+        if not row:
+            return _json_error('공고를 찾을 수 없습니다.', 404)
+        base = row['base_amount'] or row['budget']
+        if amount and base and amount > base:
+            return _json_error(f'투찰금액이 기초금액({base:,}원)의 100%를 넘습니다. 금액을 다시 확인해 주세요.')
+        conn.execute('UPDATE bid_notices SET my_bid_amount=?, my_bid_updated_by=?, my_bid_updated_at=? WHERE id=?',
+                     (amount, session.get('user_name') or '', _stamp(), notice_id))
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({'status': 'success', 'my_bid_amount': amount})
+
+
+@bid_notice_bp.route('/api/notices/<int:notice_id>/memo', methods=['POST'])
+def api_memo(notice_id):
+    """[메모] 칸: 공고별 메모를 저장한다(비우면 지운다)."""
+    if not is_admin_session(max_level=EDIT_MAX_LEVEL):
+        return _json_error(EDIT_DENIED_MESSAGE, 403)
+    payload = request.get_json(silent=True) or {}
+    memo = str(payload.get('memo') or '').replace('\r\n', '\n').strip()
+    if len(memo) > MEMO_MAX_LENGTH:
+        return _json_error(f'메모는 {MEMO_MAX_LENGTH:,}자까지 적을 수 있습니다.')
+    by, at = session.get('user_name') or '', _stamp()
+    conn = get_db()
+    try:
+        cursor = conn.execute('UPDATE bid_notices SET memo=?, memo_updated_by=?, memo_updated_at=? WHERE id=?',
+                              (memo or None, by, at, notice_id))
+        conn.commit()
+        if not cursor.rowcount:
+            return _json_error('공고를 찾을 수 없습니다.', 404)
+    finally:
+        conn.close()
+    return jsonify({'status': 'success', 'memo': memo,
+                    'memo_updated': ' · '.join(filter(None, [by, _short_dt(at)])) if memo else ''})
 
 
 @bid_notice_bp.route('/api/notices/<int:notice_id>/files')
@@ -1756,9 +1877,12 @@ EXPORT_COLUMNS = (
     ('공고명', 62, None), ('지역', 14, None), ('학교', 20, None), ('수요기관', 36, None),
     ('게시일시', 17, None), ('입찰 마감', 17, None), ('개찰일시', 17, None),
     ('기초금액', 14, '#,##0'), ('금액 구분', 10, None),
+    ('투찰금액', 14, '#,##0'), ('투찰률(%)', 10, '0.000'), ('메모', 44, None),
     ('낙찰 업체', 28, None), ('낙찰금액', 14, '#,##0'), ('낙찰률(%)', 10, '0.000'), ('참가 업체 수', 11, '0'),
-    ('결과', 16, None), ('공고 링크', 12, None),
+    ('결과', 16, None),
+    ('공고 링크', 12, None),            # 하이퍼링크를 넣는 칸이라 항상 맨 끝
 )
+MEMO_COLUMN = next(index for index, column in enumerate(EXPORT_COLUMNS, start=1) if column[0] == '메모')
 RESULT_STATE_LABELS = {'최종낙찰': '최종 낙찰', '개찰완료': '개찰 완료(최종 낙찰 전)'}
 NOTICE_STATUS_LABELS = {'open': '진행 중', 'closed': '마감', 'cancelled': '취소'}
 
@@ -1770,6 +1894,13 @@ def _rate_number(value):
         return float(text)
     except ValueError:
         return text
+
+
+def my_bid_rate(amount, base):
+    """투찰률(%): 투찰금액 ÷ 기준 금액, 화면과 같이 소수점 아래 3자리 버림. 계산할 수 없으면 None."""
+    if not amount or not base:
+        return None
+    return (amount * 100000 // base) / 1000
 
 
 def build_export_workbook(rows):
@@ -1805,13 +1936,17 @@ def build_export_workbook(rows):
             row['title'], row['region'] or '', _school_label(row), row['demand_name'] or '',
             _short_dt(row['notice_dt']), _short_dt(row['bid_close']), _short_dt(row['open_dt']),
             amount, amount_kind,
+            row['my_bid_amount'], my_bid_rate(row['my_bid_amount'], amount), row['memo'] or '',
             row['winner_name'] or '', row['winner_amount'], _rate_number(row['winner_rate']), row['result_participants'],
-            RESULT_STATE_LABELS.get(state, state), '',
+            RESULT_STATE_LABELS.get(state, state),
+            '',
         )
         for column, value in enumerate(values, start=1):
             cell = sheet.cell(row=index + 2, column=column, value=value)
             if isinstance(value, str):
                 cell.data_type = 's'          # '='로 시작하는 공고명도 수식이 아니라 글자로 저장한다
+            if column == MEMO_COLUMN and value:
+                cell.alignment = Alignment(wrap_text=True, vertical='top')   # 여러 줄 메모도 칸 안에서 줄바꿈
             number_format = EXPORT_COLUMNS[column - 1][2]
             if number_format and value not in (None, ''):
                 cell.number_format = number_format
