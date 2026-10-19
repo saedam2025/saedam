@@ -866,6 +866,7 @@
     .org-user-label[hidden], .org-dept[hidden] { display:none !important; }
     .org-user-label:hover { background: #e2e8f0 !important; color: #3b82f6; }
     .org-role { font-size: 0.8em; color: #94a3b8; font-weight: 500; margin-left: 6px; }
+    .org-role.org-assigned { margin-left: 3px; }
     .director-search-empty { padding:16px 8px; color:#94a3b8; font-size:.82rem; text-align:center; }
     details[open] > summary i.fa-folder { display: none; }
     details[open] > summary i.fa-folder-open { display: inline-block !important; }
@@ -3196,26 +3197,32 @@
     function openModal(id) { 
         document.getElementById(id).style.display = 'block'; 
         
+        // 열 때마다 다시 읽어, 다른 학교에 이미 지정된 센터장의 학교명을 최신으로 보여 준다.
         if (id === 'regModal') {
-            loadDirectorAssignmentOrgChart('regOrgChart', 'selectedDirId', 'selectedDirName');
-            loadDirectorAssignmentOrgChart('regOrgChart2', 'selectedDirId2', 'selectedDirName2');
+            const year = (document.querySelector('#regModal input[name="year"]') || {}).value;
+            loadDirectorAssignmentOrgChart('regOrgChart', 'selectedDirId', 'selectedDirName', year);
+            loadDirectorAssignmentOrgChart('regOrgChart2', 'selectedDirId2', 'selectedDirName2', year);
         } else if (id === 'editModal') {
-            loadDirectorAssignmentOrgChart('editOrgChart', 'edit_selectedDirId', 'edit_selectedDirName');
-            loadDirectorAssignmentOrgChart('editOrgChart2', 'edit_selectedDirId2', 'edit_selectedDirName2');
+            const year = (document.getElementById('edit_year') || {}).value;
+            loadDirectorAssignmentOrgChart('editOrgChart', 'edit_selectedDirId', 'edit_selectedDirName', year);
+            loadDirectorAssignmentOrgChart('editOrgChart2', 'edit_selectedDirId2', 'edit_selectedDirName2', year);
         }
     }
     
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     window.onclick = function(e) { if(e.target.classList.contains('sd-modal')) e.target.style.display='none'; }
     
-    async function loadDirectorAssignmentOrgChart(containerId, targetIdInput, targetNameDisplay) {
+    async function loadDirectorAssignmentOrgChart(containerId, targetIdInput, targetNameDisplay, year) {
         const container = document.getElementById(containerId);
-        if (container.dataset.loaded === 'true') return;
-        
+        const yearKey = String(year || '');
+        if (container.dataset.loaded === 'true' && container.dataset.year === yearKey) return;
+        container.dataset.loaded = 'false';
+        container.dataset.year = yearKey;
+
         container.innerHTML = '<div style="padding:10px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</div>';
-        
+
         try {
-            const res = await fetch('/school/employee_search?query=');
+            const res = await fetch('/school/employee_search?query=&year=' + encodeURIComponent(yearKey));
             const users = await res.json();
             
             const groups = {
@@ -3250,11 +3257,15 @@
                     html += `<div style="padding: 6px 8px; color:var(--text-gray, #94a3b8); font-size:0.8rem;">해당 그룹에 등록된 직원이 없습니다.</div>`;
                 } else {
                     groupUsers.forEach(u => {
-                        const searchText = `${u.name || ''} ${u.position || ''} ${u.emp_no || ''}`.toLocaleLowerCase('ko-KR');
+                        const assigned = Array.isArray(u.assigned_schools) ? u.assigned_schools : [];
+                        const searchText = `${u.name || ''} ${u.position || ''} ${u.emp_no || ''} ${assigned.join(' ')}`.toLocaleLowerCase('ko-KR');
+                        const assignedHtml = assigned.length
+                            ? `<span class="org-role org-assigned" title="이미 센터장으로 지정된 학교">: ${escapeHtml(assigned.join(', '))}</span>`
+                            : '';
                         html += `
                             <button type="button" class="org-user-label" data-director-candidate data-search="${escapeHtml(searchText)}" data-emp-no="${escapeHtml(u.emp_no)}" data-name="${escapeHtml(u.name)}" onclick="selectDirectorCandidate(this, '${targetIdInput}', '${targetNameDisplay}')">
                                 <i class="fa-solid fa-user" style="color:var(--text-gray, #cbd5e1); margin-right:4px;"></i>
-                                ${escapeHtml(u.name)} <span class="org-role">${escapeHtml(u.position)}</span>
+                                ${escapeHtml(u.name)} <span class="org-role">${escapeHtml(u.position)}</span>${assignedHtml}
                             </button>
                         `;
                     });

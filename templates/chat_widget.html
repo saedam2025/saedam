@@ -119,6 +119,8 @@ window.SAEDAM_CHAT_PUSH_CONFIG = {
     #orgChartModal .org-dept,
     #unreadMsgModal .org-dept { color: var(--text-muted, #94a3b8); font-size: .65rem; font-weight: 500; }
     #orgChartModal .org-point-balance { color: var(--primary-color, #2563eb); font-size: .68rem; font-weight: 500; white-space: nowrap; }
+    /* 포인트: 상태 표시 뒤, 선물 버튼 앞에서 오른쪽 정렬하고 줄 높이의 가운데에 맞춘다 */
+    #orgChartModal .org-point-column { flex: 0 0 auto; min-width: 38px; margin: 0 8px 0 4px; align-self: center; text-align: right; line-height: 28px; }
     #orgChartModal .org-status-chip {
         flex: 0 0 auto;
         display: inline-flex;
@@ -834,12 +836,13 @@ window.SAEDAM_CHAT_PUSH_CONFIG = {
                             <div class="org-info" style="display:flex; flex-direction:column; justify-content:center; gap:2px;">
                                 <div style="display:flex; align-items:center; gap:7px; min-width:0;">
                                     <div class="org-name" style="font-size:0.85rem; font-weight:700; color:var(--text-main); margin:0;">${chatEscapeHtml(name)}</div>
-                                    <div class="org-point-balance">P${pointBalance.toLocaleString()}</div>
+                                    <div class="org-point-balance">${chatEscapeHtml(u.emp_no || '')}</div>
                                 </div>
                                 <div class="org-dept" style="font-size:0.7rem; color:#9ca3af; font-weight:500; margin:0;">${chatEscapeHtml(dept)} / ${chatEscapeHtml(pos)}</div>
                             </div>
                         </div>
                         <span class="org-status-slot" data-user="${chatEscapeAttribute(name)}">${statusChip}</span>
+                        <div class="org-point-balance org-point-column">P${pointBalance.toLocaleString()}</div>
                         ${canGift ? `<button type="button" class="org-point-gift-button" data-recipient="${chatEscapeAttribute(name)}" onclick="openPointGiftModal(event, this)" title="${chatEscapeAttribute(name)}님에게 포인트 선물"><i class="fa-solid fa-gift"></i></button>` : ''}
                     </div>
                     `;

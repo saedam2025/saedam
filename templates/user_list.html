@@ -451,7 +451,7 @@
         <div id="modalFooter" style="padding: 20px 25px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: right;">
             <div id="adminArea" class="modal-field" style="text-align: left; margin-bottom: 15px;">
                 <label>관리자 보안 암호 확인</label>
-                <input type="password" id="adminPass" class="glass-input" placeholder="관리자 보안 암호 입력" style="margin-bottom: 0;">
+                <input type="password" id="adminPass" name="admin_security_code" class="glass-input" placeholder="관리자 보안 암호 입력" autocomplete="new-password" data-lpignore="true" data-1p-ignore readonly onfocus="this.removeAttribute('readonly')" style="margin-bottom: 0;">
             </div>
             <button class="btn-close-modal" onclick="closeModal()" style="padding: 12px 25px;">취소</button>
             <button id="modalSubmitBtn" class="btn-primary-glass" style="width: auto; padding: 12px 25px; margin-left: 8px;">실행</button>
@@ -1609,9 +1609,32 @@ async function submitInvite() {
     }
 }
 
-function closeModal() { 
-    document.getElementById('userModal').style.display = 'none'; 
-    document.getElementById('adminPass').value = ''; 
+// 브라우저의 저장된 로그인 정보(사번·비밀번호)가 모달 입력칸에 자동으로 채워지지 않게 한다.
+(function guardModalAutofill() {
+    const modal = document.getElementById('userModal');
+    const body = document.getElementById('modalBody');
+    if (!modal || !body) return;
+    const mark = () => {
+        body.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input:not([type])').forEach(el => {
+            el.setAttribute('autocomplete', 'off');
+            el.setAttribute('data-lpignore', 'true');
+            el.setAttribute('data-1p-ignore', '');
+        });
+        const pass = document.getElementById('adminPass');
+        if (pass && modal.style.display !== 'none') {
+            pass.value = '';
+            pass.setAttribute('readonly', 'readonly');
+        }
+    };
+    new MutationObserver(mark).observe(body, {childList: true});
+    new MutationObserver(() => { if (modal.style.display === 'block') mark(); })
+        .observe(modal, {attributes: true, attributeFilter: ['style']});
+})();
+
+function closeModal() {
+    document.getElementById('userModal').style.display = 'none';
+    document.getElementById('adminPass').value = '';
+    document.getElementById('adminPass').setAttribute('readonly', 'readonly');
     if(document.getElementById('modalSubmitBtn')) {
         document.getElementById('modalSubmitBtn').disabled = false;
         document.getElementById('modalSubmitBtn').style.display = '';

@@ -131,7 +131,7 @@
     .tbl td.chk, .tbl th.chk { width: 1%; padding: 10px 4px 10px 12px; white-space: nowrap; }
     input.pick { width: 15px; height: 15px; margin: 0; cursor: pointer; accent-color: var(--primary-color, #4a90e2); vertical-align: middle; }
     tr.picked td { background: rgba(37, 99, 235, .06); }
-    /* 진행 상태가 [입찰제외]인 공고는 행 전체를 회색으로 보여 준다. */
+    /* 입찰구분이 [입찰제외]인 공고는 행 전체를 회색으로 보여 준다. */
     tr.excluded td { background: #e5e7eb; }
     tr.excluded.picked td { background: #d6dde9; }
     .tbl td.posted { width: 1%; white-space: nowrap; color: var(--text-gray, #475569); font-size: .8rem; }
@@ -173,7 +173,7 @@
     .empty { padding: 36px 20px; text-align: center; color: var(--text-gray, #64748b); line-height: 1.7; }
     .empty i { font-size: 2rem; display: block; margin-bottom: 10px; opacity: .5; }
 
-    /* 머리글 선택 상자(지역·결과·진행 상태) */
+    /* 머리글 선택 상자(지역·결과·입찰구분·진행 상태) */
     .head-select {
         padding: 4px 6px; border: 1px solid var(--card-border, #dbe3ec); border-radius: 5px; max-width: 130px;
         background: var(--input-bg, #fff); color: var(--text-dark, #1e293b); font-size: .78rem; font-weight: 700; cursor: pointer;
@@ -187,6 +187,7 @@
     #resultFilter { width: 128px; max-width: 128px; }
     #regionFilter { width: 96px; max-width: 96px; }
     #workFilter { width: 112px; max-width: 112px; }
+    #typeFilter { width: 112px; max-width: 112px; }
 
     /* 상태 배지(발급대기·발급완료 배지와 같은 모양) */
     .chip { display: inline-block; margin-right: 4px; padding: 3px 7px; border-radius: 4px; font-size: .72rem; font-weight: 700; white-space: nowrap; }
@@ -213,19 +214,21 @@
     .dday.soon { color: #c2410c; }
 
     .status-select {
-        padding: 5px 7px; border: 1px solid var(--card-border, #dbe3ec); border-radius: 5px; font-size: .75rem; font-weight: 600;
+        padding: 5px 7px; border: 1px solid transparent; border-radius: 5px; font-size: .75rem; font-weight: 600;
         background: var(--input-bg, #fff); color: var(--text-gray, #64748b); max-width: 130px;
     }
-    .status-select.s-plan { background: #2563eb; border-color: #1d4ed8; color: #fff; font-weight: 800; box-shadow: 0 1px 4px rgba(37, 99, 235, .45); }
-    .status-select.s-hq { background: #4d7c0f; border-color: #3f6212; color: #fff; font-weight: 800; }        /* 본부입찰: 진한 연두 */
-    .status-select.s-branch { background: #f97316; border-color: #ea580c; color: #fff; font-weight: 800; }   /* 지점입찰: 주황 */
-    .status-select.s-skip { background: #f1f5f9; border-color: #e2e8f0; color: #64748b; }
-    .status-select.s-doc, .status-select.s-price, .status-select.s-brief { background: #fff4e0; border-color: #fde3b0; color: #8a5a00; }
-    .status-select.s-done { background: #f0fff4; border-color: #c6e7d0; color: #2f855a; }
+    .status-select.readonly { display: inline-block; cursor: default; white-space: nowrap; }      /* 레벨 3 이상: 고른 상태를 글자로만 */
+    /* 입찰구분: 입찰예정 파랑 · 본부입찰 진한 연두 · 지점입찰 주황 · 입찰제외 회색 */
+    .status-select.s-plan { background: #2563eb; color: #fff; font-weight: 800; box-shadow: 0 1px 4px rgba(37, 99, 235, .45); }
+    .status-select.s-hq { background: #4d7c0f; color: #fff; font-weight: 800; }        /* 본부입찰: 진한 연두 */
+    .status-select.s-branch { background: #f97316; color: #fff; font-weight: 800; }   /* 지점입찰: 주황 */
+    .status-select.s-skip { background: #f1f5f9; color: #64748b; }
+    .status-select.s-doc, .status-select.s-price, .status-select.s-brief { background: #fff4e0; color: #8a5a00; }
+    .status-select.s-done { background: #f0fff4; color: #2f855a; }
 
-    /* 관리 버튼은 한 줄: 주 버튼은 포인트 색 테두리, 나머지는 회색 */
+    /* 관리 버튼은 한 줄: 주 버튼은 포인트 색 글자(테두리선 없음), 나머지는 회색 */
     .row-actions { display: flex; gap: 4px; flex-wrap: nowrap; align-items: center; justify-content: center; }
-    .row-actions .btn[data-file-get] { color: var(--primary-color, #4a90e2); border-color: var(--primary-color, #4a90e2); }
+    .row-actions .btn[data-file-get] { color: var(--primary-color, #4a90e2); border-color: transparent; }
     .row-actions .none { font-size: .75rem; color: var(--text-gray, #64748b); white-space: nowrap; padding: 0 6px; }
 
     .tbl tr.detail-row td { padding: 0 14px 14px 52px; background: #fff; text-align: left; }
@@ -324,6 +327,40 @@
     .fd-status:empty { display: none; }
     .fd-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 22px 18px; }
     .fd-foot .btn { padding: 8px 16px; font-size: .84rem; }
+
+    /* ============ 투찰금액·메모 칸 ============ */
+    /* 열이 두 개 늘어난 만큼 이 메뉴만 본문 폭을 넓힌다(다른 메뉴는 base.html의 1700px 그대로) */
+    .content-container { max-width: 1960px !important; }
+    .tbl td.mybid { width: 1%; white-space: nowrap; }
+    .mybid-input {
+        width: 128px; height: 30px; padding: 0 8px; box-sizing: border-box; text-align: right;
+        border: 1px solid transparent; border-radius: 5px; background: var(--input-bg, #fff);
+        color: var(--text-dark, #1e293b); font-size: .82rem; font-variant-numeric: tabular-nums; outline: none; transition: background-color .2s;
+    }
+    .mybid-input:focus { background: #eff6ff; }      /* 테두리 대신 바탕색으로 상태 표시 */
+    .mybid-input.saved { background: #f3fbf5; }
+    .mybid-input.bad { background: #fff5f5; }
+    .tbl td.myrate { width: 1%; min-width: 84px; white-space: nowrap; }
+    .mybid-rate { font-size: .85rem; font-weight: 700; color: #2563eb; font-variant-numeric: tabular-nums; }
+    .mybid-rate.bad { color: #dc2626; }
+    .mybid-rate.none { color: var(--text-gray, #94a3b8); font-weight: 500; }
+    .tbl td.memo-cell { width: 1%; }
+    .memo-btn {
+        width: 32px; height: 32px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: none;
+        color: #94a3b8; font-size: 1.05rem; cursor: pointer; transition: .15s;
+    }
+    .memo-btn:hover { background: #fffbeb; border-color: #fcd34d; color: #d97706; }
+    .memo-btn.has { color: #f59e0b; }
+    .memo-btn.has:hover { color: #b45309; }
+    .memo-dlg { width: min(520px, 100%); }
+    .memo-dlg .memo-target { margin: -4px 0 12px; font-size: .8rem; color: var(--text-gray, #64748b); line-height: 1.5; word-break: keep-all; }
+    .memo-dlg textarea {
+        width: 100%; height: 180px; padding: 10px 12px; box-sizing: border-box; resize: vertical; line-height: 1.6;
+        border: 1px solid #fcd34d; border-radius: 7px; background: #fffdf3; color: var(--text-dark, #1e293b); font: inherit; font-size: .88rem; outline: none;
+    }
+    .memo-dlg textarea:focus { border-color: #d97706; }
+    .memo-dlg .memo-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: .74rem; color: var(--text-gray, #64748b); }
+    .memo-dlg .dlg-actions .grow { flex: 1; }
 
     /* ============ 공고수집·메일 설정(통합관리 > 솔라피설정과 같은 구성) ============ */
     .set-wrap { width: 100%; padding-top: 6px; }            /* 위쪽 화면 전환 줄과 같은 폭을 쓴다 */
@@ -477,10 +514,17 @@
                                 <option value="">결과 (전체)</option>
                             </select><span class="arrow" title="누르면 낙찰 업체 이름순으로 정렬합니다">↕</span></th>
                         <th>관리</th>
+                        <th><select id="typeFilter" class="head-select" title="고른 입찰구분의 공고만 봅니다">
+                            <option value="">입찰구분</option>
+                            <option value="none">구분 미선택</option>
+                        </select></th>
                         <th><select id="workFilter" class="head-select" title="고른 상태의 공고만 봅니다">
-                            <option value="">진행 상태 (전체)</option>
+                            <option value="">진행 상태</option>
                             <option value="none">상태 미선택</option>
-                        </select></th></tr>
+                        </select></th>
+                        <th class="right" title="우리가 넣을 투찰금액을 적으면 기초금액 대비 몇 %인지 계산해 저장합니다">투찰금액</th>
+                        <th class="right" title="투찰금액 ÷ 기초금액(없으면 배정예산), 소수점 아래 3자리까지">투찰률</th>
+                        <th>메모</th></tr>
                 </thead>
                 <tbody id="noticeBody"></tbody>
             </table>
@@ -654,6 +698,22 @@
         </div>
     </div>
 
+    <!-- 공고별 메모 창 -->
+    <div class="dlg-back" id="memoDlg" role="dialog" aria-modal="true" aria-labelledby="memoDlgTitle">
+        <div class="dlg memo-dlg">
+            <h3 id="memoDlgTitle"><i class="fa-solid fa-note-sticky" style="color:#f59e0b"></i> 메모</h3>
+            <div class="memo-target" id="memoTarget"></div>
+            <textarea id="memoText" maxlength="2000" placeholder="이 공고에 대해 남겨 둘 내용을 적어 주세요."></textarea>
+            <div class="memo-meta"><span id="memoUpdated"></span><span id="memoCount">0 / 2000</span></div>
+            <div class="dlg-actions">
+                <button type="button" class="btn danger" id="memoClear">메모 지우기</button>
+                <span class="grow"></span>
+                <button type="button" class="btn" id="memoCancel">취소</button>
+                <button type="button" class="btn primary" id="memoSave">저장</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 보관함 고르는 창 -->
     <div class="dlg-back" id="archiveDlg" role="dialog" aria-modal="true" aria-labelledby="archiveDlgTitle">
         <div class="dlg">
@@ -676,6 +736,7 @@
 <script>
 const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
 const CAN_SETTINGS = {{ 'true' if can_settings else 'false' }};      // 공고수집·메일 설정(레벨 1)
+const CAN_EDIT = {{ 'true' if can_edit else 'false' }};              // 진행 상태·투찰금액·메모 바꾸기(레벨 1·2), 그 밖에는 보기만
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const won = value => value ? Number(value).toLocaleString('ko-KR') + '원' : '';
 const el = id => document.getElementById(id);
@@ -697,7 +758,9 @@ let ARCHIVES = [];
 let CURRENT_VIEW = 'list';
 let NOTICES = [];
 let WORK_STATUSES = [];
-const STATUS_CLASS = { '입찰예정': 's-plan', '본부입찰': 's-hq', '지점입찰': 's-branch', '입찰제외': 's-skip', '서류접수완료': 's-doc', '가격투찰완료': 's-price', '설명회완료': 's-brief', '개찰완료': 's-done' };
+let BID_TYPES = [];
+const TYPE_CLASS = { '입찰예정': 's-plan', '본부입찰': 's-hq', '지점입찰': 's-branch', '입찰제외': 's-skip' };
+const STATUS_CLASS = { '입찰예정': 's-plan', '서류접수완료': 's-doc', '가격투찰완료': 's-price', '설명회완료': 's-brief', '개찰완료': 's-done' };
 const pick = id => SEEN.get(Number(id)) || NOTICES.find(notice => String(notice.id) === String(id));
 
 // ---- 현황 요약 탭(브라우저 오른쪽 벽): 탭을 누르면 펼쳐지고, 바깥을 누르거나 Esc로 접힌다 ----
@@ -773,7 +836,24 @@ function amountCell(item) {
     return '<span class="sub">공개 전</span>';
 }
 
+function typeCell(item) {
+    if (!CAN_EDIT) {
+        return item.bid_type
+            ? `<span class="status-select readonly ${TYPE_CLASS[item.bid_type] || ''}">${esc(item.bid_type)}</span>`
+            : '<span class="sub">-</span>';
+    }
+    return `<select class="status-select ${TYPE_CLASS[item.bid_type] || ''}" data-type-for="${item.id}">
+        <option value="">구분선택</option>
+        ${BID_TYPES.map(name => `<option value="${esc(name)}" ${name === item.bid_type ? 'selected' : ''}>${esc(name)}</option>`).join('')}
+    </select>`;
+}
+
 function statusCell(item) {
+    if (!CAN_EDIT) {
+        return item.work_status
+            ? `<span class="status-select readonly ${STATUS_CLASS[item.work_status] || ''}">${esc(item.work_status)}</span>`
+            : '<span class="sub">-</span>';
+    }
     return `<select class="status-select ${STATUS_CLASS[item.work_status] || ''}" data-status-for="${item.id}">
         <option value="">상태선택</option>
         ${WORK_STATUSES.map(name => `<option value="${esc(name)}" ${name === item.work_status ? 'selected' : ''}>${esc(name)}</option>`).join('')}
@@ -840,6 +920,50 @@ function actionCell(item) {
     return `<div class="row-actions">${files}</div>`;
 }
 
+// ---- 투찰금액: 기초금액(없으면 배정예산) 대비 비율을 소수점 아래 3자리까지(버림) 보여 준다 ----
+const baseOf = item => item.base_amount || item.budget || 0;
+const digitsOf = text => String(text || '').replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+function bidRate(amount, base) {
+    if (!amount || !base) return null;
+    return Math.floor(amount * 100000 / base) / 1000;     // 소수점 아래 3자리 버림
+}
+function rateHtml(item, amount) {
+    if (!amount) return '';
+    const base = baseOf(item);
+    if (!base) return '기초금액 없음';
+    const rate = bidRate(amount, base);
+    return amount > base ? `${rate.toFixed(3)}% (100% 초과)` : `${rate.toFixed(3)}%`;
+}
+function setRate(input, item, amount) {
+    const label = input.closest('tr').querySelector('.mybid-rate');
+    const over = Boolean(amount && baseOf(item) && amount > baseOf(item));
+    label.textContent = rateHtml(item, amount);
+    label.className = 'mybid-rate' + (over ? ' bad' : (amount && !baseOf(item) ? ' none' : ''));
+    input.classList.toggle('bad', over);
+    return over;
+}
+function myRateCell(item) {
+    const amount = item.my_bid_amount;
+    const base = baseOf(item);
+    const over = Boolean(amount && base && amount > base);
+    return `<span class="mybid-rate${over ? ' bad' : (amount && !base ? ' none' : '')}">${rateHtml(item, amount)}</span>`;
+}
+function myBidCell(item) {
+    const amount = item.my_bid_amount;
+    const base = baseOf(item);
+    if (!CAN_EDIT) return amount ? `<span class="num">${Number(amount).toLocaleString('ko-KR')}</span>` : '<span class="sub">-</span>';
+    return `<input type="text" class="mybid-input" inputmode="numeric" maxlength="20" placeholder="금액 입력"
+                data-mybid-for="${item.id}" value="${amount ? Number(amount).toLocaleString('ko-KR') : ''}"
+                title="${base ? `기초금액 ${won(base)} 대비 비율을 계산합니다. 엔터나 다른 칸을 누르면 저장됩니다.` : '기초금액이 아직 없어 비율은 계산하지 않습니다. 엔터나 다른 칸을 누르면 저장됩니다.'}">`;
+}
+function memoCell(item) {
+    const has = Boolean(item.memo);
+    if (!has && !CAN_EDIT) return '<span class="sub">-</span>';      // 보기만 하는 직원은 적힌 메모만 열어 본다
+    return `<button type="button" class="memo-btn ${has ? 'has' : ''}" data-memo-for="${item.id}"
+        title="${has ? esc(item.memo.length > 200 ? item.memo.slice(0, 200) + '…' : item.memo) : '메모 쓰기'}" aria-label="${has ? '메모 보기' : '메모 쓰기'}">
+        <i class="${has ? 'fa-solid' : 'fa-regular'} fa-note-sticky"></i></button>`;
+}
+
 // 목록 한 쪽을 서버에서 불러온다. 조건을 바꾸면 1쪽부터, 쪽 이동·작업 뒤에는 ``keepPage``로 그 쪽을 유지한다.
 async function loadNotices(options = {}) {
     const params = new URLSearchParams({ status: STATUS });
@@ -847,6 +971,7 @@ async function loadNotices(options = {}) {
     if (keyword) params.set('q', keyword);
     if (el('dateFrom').value) params.set('date_from', el('dateFrom').value);
     if (el('dateTo').value) params.set('date_to', el('dateTo').value);
+    if (el('typeFilter').value) params.set('bid_type', el('typeFilter').value);
     if (el('workFilter').value) params.set('work_status', el('workFilter').value);
     if (ARCHIVE !== null) params.set('archive', ARCHIVE);
     if (el('regionFilter').value) params.set('region', el('regionFilter').value);
@@ -876,6 +1001,10 @@ async function loadNotices(options = {}) {
     if (!WORK_STATUSES.length) {
         WORK_STATUSES = data.work_statuses;
         el('workFilter').insertAdjacentHTML('beforeend', WORK_STATUSES.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join(''));
+    }
+    if (!BID_TYPES.length) {
+        BID_TYPES = data.bid_types || [];
+        el('typeFilter').insertAdjacentHTML('beforeend', BID_TYPES.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join(''));
     }
     el('sumOpen').textContent = `${data.summary.open}건`;
     el('sumNew').textContent = `${data.summary.new_today}건`;
@@ -944,7 +1073,7 @@ el('pager').addEventListener('click', async event => {
 });
 let HAS_ANY = false;
 
-// 검색 조건(탭·검색어·게시일·진행 상태·지역·결과·정렬)을 바꾸면 1쪽부터 다시 불러오고 선택은 해제한다
+// 검색 조건(탭·검색어·게시일·입찰구분·진행 상태·지역·결과·정렬)을 바꾸면 1쪽부터 다시 불러오고 선택은 해제한다
 // (조건 밖으로 밀려난 공고를 모르고 처리하지 않도록).
 function applyFilters() {
     SELECTED.clear();
@@ -1055,12 +1184,12 @@ function renderNotices() {
             : HAS_ANY
             ? '조건에 맞는 공고가 없습니다.'
             : '아직 수집한 공고가 없습니다. 위쪽 [공고가져오기]를 누르면 최근 4주 공고를 바로 찾아옵니다.';
-        body.innerHTML = `<tr><td colspan="11"><div class="empty"><i class="fa-solid fa-inbox"></i>${text}</div></td></tr>`;
+        body.innerHTML = `<tr><td colspan="15"><div class="empty"><i class="fa-solid fa-inbox"></i>${text}</div></td></tr>`;
         updateBulkBar();
         return;
     }
     body.innerHTML = NOTICES.map((item, index) => `
-        <tr class="${item.status === 'cancelled' ? 'is-cancelled' : ''}${SELECTED.has(item.id) ? ' picked' : ''}${item.work_status === '입찰제외' ? ' excluded' : ''}">
+        <tr class="${item.status === 'cancelled' ? 'is-cancelled' : ''}${SELECTED.has(item.id) ? ' picked' : ''}${item.bid_type === '입찰제외' ? ' excluded' : ''}">
             <td class="chk"><input type="checkbox" class="pick" data-pick="${item.id}" ${SELECTED.has(item.id) ? 'checked' : ''}></td>
             <td class="no num" data-label="번호">${TOTAL - offset - index}</td>
             <td class="posted num" data-label="게시일" title="${esc(item.notice_dt)}">${esc((item.notice_dt || '').slice(0, 10)) || '-'}</td>
@@ -1075,7 +1204,11 @@ function renderNotices() {
             <td data-label="기초금액" class="right">${amountCell(item)}</td>
             <td data-label="결과" class="result-cell">${resultCell(item)}</td>
             <td>${actionCell(item)}</td>
+            <td data-label="입찰구분">${typeCell(item)}</td>
             <td data-label="진행 상태">${statusCell(item)}</td>
+            <td data-label="투찰금액" class="mybid right">${myBidCell(item)}</td>
+            <td data-label="투찰률" class="myrate right">${myRateCell(item)}</td>
+            <td data-label="메모" class="memo-cell">${memoCell(item)}</td>
         </tr>`).join('');
     updateBulkBar();
 }
@@ -1324,14 +1457,14 @@ el('statusTabs').addEventListener('click', event => {
 });
 el('searchBtn').addEventListener('click', () => applyFilters());
 el('keyword').addEventListener('keydown', event => { if (event.key === 'Enter') applyFilters(); });
-el('workFilter').addEventListener('change', () => {
-    el('workFilter').classList.toggle('on', Boolean(el('workFilter').value));
+['workFilter', 'typeFilter'].forEach(id => el(id).addEventListener('change', () => {
+    el(id).classList.toggle('on', Boolean(el(id).value));
     applyFilters();
-});
+}));
 el('dateFrom').addEventListener('change', () => applyFilters());
 el('dateTo').addEventListener('change', () => applyFilters());
 el('resetBtn').addEventListener('click', () => {
-    ['keyword', 'dateFrom', 'dateTo', 'workFilter', 'resultFilter', 'regionFilter'].forEach(id => {
+    ['keyword', 'dateFrom', 'dateTo', 'workFilter', 'typeFilter', 'resultFilter', 'regionFilter'].forEach(id => {
         el(id).value = '';
         el(id).classList.remove('on');
     });
@@ -1347,11 +1480,110 @@ el('noticeBody').addEventListener('change', async event => {
         await postJson(`/bid-notice/api/notices/${select.dataset.statusFor}/status`, { work_status: select.value });
         if (item) item.work_status = select.value;
         select.className = 'status-select ' + (STATUS_CLASS[select.value] || '');
-        select.closest('tr').classList.toggle('excluded', select.value === '입찰제외');
     } catch (error) {
         alert(error.message);
         select.value = item ? item.work_status : '';
     }
+});
+
+// 입찰구분 선택([입찰제외]면 행 전체를 회색으로)
+el('noticeBody').addEventListener('change', async event => {
+    const select = event.target.closest('select[data-type-for]');
+    if (!select) return;
+    const item = pick(select.dataset.typeFor);
+    try {
+        await postJson(`/bid-notice/api/notices/${select.dataset.typeFor}/bid-type`, { bid_type: select.value });
+        if (item) item.bid_type = select.value;
+        select.className = 'status-select ' + (TYPE_CLASS[select.value] || '');
+        select.closest('tr').classList.toggle('excluded', select.value === '입찰제외');
+    } catch (error) {
+        alert(error.message);
+        select.value = item ? item.bid_type : '';
+    }
+});
+
+// 투찰금액: 적는 동안 1,000단위 쉼표와 비율을 바로 보여 주고, 엔터나 칸을 벗어나면 저장한다(100% 초과면 저장하지 않음).
+el('noticeBody').addEventListener('input', event => {
+    const input = event.target.closest('input[data-mybid-for]');
+    if (!input) return;
+    const digits = digitsOf(input.value).slice(0, 15);
+    const fromEnd = input.value.length - (input.selectionEnd ?? input.value.length);   // 커서를 끝에서부터 같은 자리에 둔다
+    input.value = digits ? Number(digits).toLocaleString('ko-KR') : '';
+    const pos = Math.max(0, input.value.length - fromEnd);
+    try { input.setSelectionRange(pos, pos); } catch (e) {}
+    input.classList.remove('saved');
+    setRate(input, pick(input.dataset.mybidFor), Number(digits) || 0);
+});
+el('noticeBody').addEventListener('keydown', event => {
+    const input = event.target.closest('input[data-mybid-for]');
+    if (!input) return;
+    if (event.key === 'Enter') { event.preventDefault(); input.blur(); }
+    if (event.key === 'Escape') {
+        const item = pick(input.dataset.mybidFor);
+        input.value = item && item.my_bid_amount ? Number(item.my_bid_amount).toLocaleString('ko-KR') : '';
+        setRate(input, item, item ? item.my_bid_amount : 0);
+        input.blur();
+    }
+});
+el('noticeBody').addEventListener('focusout', async event => {
+    const input = event.target.closest('input[data-mybid-for]');
+    if (!input) return;
+    const item = pick(input.dataset.mybidFor);
+    const amount = Number(digitsOf(input.value)) || null;
+    if (!item || amount === (item.my_bid_amount || null)) return;
+    if (setRate(input, item, amount)) {
+        alert(`투찰금액이 기초금액(${won(baseOf(item))})의 100%를 넘습니다.\n금액을 다시 확인해 주세요. 저장하지 않았습니다.`);
+        return;
+    }
+    try {
+        const data = await postJson(`/bid-notice/api/notices/${item.id}/my-bid`, { amount });
+        item.my_bid_amount = data.my_bid_amount;
+        input.classList.add('saved');
+        setTimeout(() => input.classList.remove('saved'), 1500);
+    } catch (error) {
+        alert(error.message);
+        input.classList.add('bad');
+    }
+});
+
+// 메모: 빈 메모지를 누르면 적고, 내용 있는 메모지를 누르면 보고 고친다.
+let MEMO_ITEM = null;
+function openMemo(item) {
+    MEMO_ITEM = item;
+    el('memoTarget').textContent = [item.school_label, item.title].filter(Boolean).join(' · ');
+    el('memoText').value = item.memo || '';
+    el('memoUpdated').textContent = item.memo && item.memo_updated ? `마지막 저장: ${item.memo_updated}` : '';
+    el('memoCount').textContent = `${el('memoText').value.length} / 2000`;
+    el('memoClear').style.display = CAN_EDIT && item.memo ? '' : 'none';
+    el('memoSave').style.display = CAN_EDIT ? '' : 'none';
+    el('memoText').readOnly = !CAN_EDIT;
+    el('memoCancel').textContent = CAN_EDIT ? '취소' : '닫기';
+    el('memoDlg').style.display = 'flex';
+    el('memoText').focus();
+}
+function closeMemo() { el('memoDlg').style.display = 'none'; MEMO_ITEM = null; }
+async function saveMemo(text) {
+    const item = MEMO_ITEM;
+    if (!item) return;
+    const data = await postJson(`/bid-notice/api/notices/${item.id}/memo`, { memo: text });
+    item.memo = data.memo;
+    item.memo_updated = data.memo_updated;
+    const button = document.querySelector(`button[data-memo-for="${item.id}"]`);
+    if (button) button.outerHTML = memoCell(item);
+    closeMemo();
+}
+el('memoText').addEventListener('input', () => { el('memoCount').textContent = `${el('memoText').value.length} / 2000`; });
+el('memoCancel').addEventListener('click', closeMemo);
+// 메모 창은 [취소]·[저장](읽기 전용이면 [닫기])으로만 닫는다. 바깥 클릭·Esc로는 닫히지 않아
+// 적던 내용이 사라지지 않는다(글자를 끌어 고르다 바깥에서 손을 떼도 그대로).
+el('memoDlg').addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); }
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) el('memoSave').click();
+});
+el('memoSave').addEventListener('click', () => withSpinner(el('memoSave'), '저장 중…', () => saveMemo(el('memoText').value)));
+el('memoClear').addEventListener('click', () => {
+    if (!confirm('이 공고의 메모를 지울까요?')) return;
+    withSpinner(el('memoClear'), '지우는 중…', () => saveMemo(''));
 });
 
 // 첨부 받기: 서버가 나라장터에서 받아 압축파일로 묶어 바로 내려 준다(서버에 저장하지 않음).
@@ -1393,12 +1625,13 @@ el('noticeBody').addEventListener('click', async event => {
         await withSpinner(button, '받는 중…', () => downloadFiles(button));
         return;
     }
+    if (button.dataset.memoFor) { openMemo(pick(button.dataset.memoFor)); return; }
     if (button.dataset.resultDetail) {
         // 상세 결과는 그 공고 바로 아래에 표 전체 폭의 줄로 펼친다(참가 업체 표가 넉넉히 보이게).
         const row = button.closest('tr'), next = row.nextElementSibling;
         if (next && next.dataset.detailFor === button.dataset.resultDetail) { next.remove(); return; }
         const item = pick(button.dataset.resultDetail);
-        row.insertAdjacentHTML('afterend', `<tr class="detail-row" data-detail-for="${item.id}"><td colspan="11"><div class="result-detail">${resultDetail(item)}</div></td></tr>`);
+        row.insertAdjacentHTML('afterend', `<tr class="detail-row" data-detail-for="${item.id}"><td colspan="15"><div class="result-detail">${resultDetail(item)}</div></td></tr>`);
         loadBidders(item);
         return;
     }
