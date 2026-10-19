@@ -148,7 +148,7 @@
     @media (prefers-reduced-motion: reduce) { .new-n { animation: none; } }
     .tbl td.no, .tbl th.no { width: 1%; color: var(--text-gray, #64748b); font-size: .8rem; white-space: nowrap; }
     /* 공고명은 한 줄만 보여 주고 넘치면 …으로 줄인다(마우스를 올리면 전체 제목). */
-    .tbl td.title-cell { width: 100%; max-width: 0; min-width: 340px; text-align: left; }      /* 공고명을 더 길게 보여 준다 */
+    .tbl td.title-cell { width: 390px; max-width: 390px; min-width: 390px; text-align: left; }      /* 공고명 칸 폭(넘치는 글자는 …) */
     .title-row { display: flex; align-items: center; min-width: 0; }
     .title-row .chip { flex: none; }
     .title-link {
@@ -280,7 +280,7 @@
     .bn-dock-tab span { writing-mode: vertical-rl; text-orientation: upright; letter-spacing: .06em; }
     .bn-dock-tab i { font-size: .8rem; opacity: .9; }
     .bn-summary {
-        flex: 0 0 204px; width: 204px; box-sizing: border-box; padding: 15px 14px 14px;
+        flex: 0 0 228px; width: 228px; box-sizing: border-box; padding: 15px 14px 14px;
         border: 1px solid var(--card-border, #e2e8f0); border-right: 0; border-radius: 12px 0 0 12px;
         max-height: calc(100vh - 190px); overflow: auto;
         background: var(--card-bg, #fff); box-shadow: -4px 6px 18px rgba(20,35,58,.14);
@@ -294,6 +294,9 @@
     .bns-row.minor b { font-size: .75rem; font-weight: 600; }
     .bns-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
     .bns-sep { margin: 13px 0 9px; padding-top: 11px; border-top: 1px dashed var(--card-border, #e2e8f0); font-size: .65rem; font-weight: 700; letter-spacing: .08em; color: var(--text-gray, #64748b); }
+    .bns-row .bns-warn { display: inline; margin-left: 6px; font-size: .68rem; font-weight: 700; color: #dc2626; white-space: nowrap; }
+    .bns-row .bns-warn b { font-size: .75rem; color: #dc2626; }
+    .bns-row b.zero { color: var(--text-gray, #94a3b8); font-weight: 500; }
     .bns-note { margin-top: 10px; font-size: .68rem; color: var(--text-gray, #64748b); line-height: 1.5; }
     .bns-note:empty { display: none; }
 
@@ -330,7 +333,13 @@
 
     /* ============ 투찰금액·메모 칸 ============ */
     /* 열이 두 개 늘어난 만큼 이 메뉴만 본문 폭을 넓힌다(다른 메뉴는 base.html의 1700px 그대로) */
-    .content-container { max-width: none !important; padding-left: 20px; padding-right: 20px; }      /* 화면 폭을 거의 다 쓴다 */
+    .content-container { max-width: none !important; padding-left: 20px; padding-right: 20px; }
+    /* 카드 폭 = 표가 필요한 만큼(칸이 쓸데없이 늘어나지 않게). 화면보다 넓으면 표만 가로로 밀린다 */
+    .bn-container { width: fit-content; min-width: min(1200px, 100%); max-width: 100%; padding-left: 20px; padding-right: 20px; }
+    #noticeTable { width: auto; }
+    /* 칸 좌우 여백을 줄여 1970px 화면에서도 표가 한 화면에 들어오게 한다 */
+    #noticeTable th:not(.chk), #noticeTable td:not(.chk) { padding-left: 4px; padding-right: 4px; }
+    #noticeTable th.right, #noticeTable td.right { padding-right: 10px; }
     .tbl td.mybid { width: 1%; white-space: nowrap; }
     .mybid-input {
         width: 128px; height: 30px; padding: 0 8px; box-sizing: border-box; text-align: right;
@@ -345,7 +354,7 @@
     .mybid-rate.bad { color: #dc2626; }
     .mybid-rate.none { color: var(--text-gray, #94a3b8); font-weight: 500; }
     .tbl td.memo-cell { width: 1%; }
-    .tbl td.memo-cell, .tbl th.memo-col { padding-right: 22px; }      /* 표 오른쪽 끝과 간격 */
+    #noticeTable td.memo-cell, #noticeTable th.memo-col { padding-right: 22px; }      /* 표 오른쪽 끝과 간격 */
     .memo-btn {
         width: 32px; height: 32px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: none;
         color: #94a3b8; font-size: 1.05rem; cursor: pointer; transition: .15s;
@@ -503,7 +512,7 @@
 
         <div class="pickbanner" id="pickBanner"></div>
         <div class="table-wrapper">
-            <table class="tbl">
+            <table class="tbl" id="noticeTable">
                 <thead>
                     <tr><th class="chk"><input type="checkbox" class="pick" id="checkAll" title="이 쪽의 공고를 모두 선택/해제"></th><th class="no">번호</th><th class="sortable" data-sort="posted" title="누르면 공고 게시일 순으로 정렬합니다">게시일<span class="arrow">↕</span></th><th>공고명</th><th><select id="regionFilter" class="head-select" title="고른 지역의 공고만 봅니다">
                             <option value="">지역 (전체)</option>
@@ -647,6 +656,10 @@
                 <div class="bns-row"><span><i class="bns-dot" style="background:#137a5f"></i>오늘 새로 찾은 공고</span><b id="sumNew">-</b></div>
                 <div class="bns-row"><span><i class="bns-dot" style="background:#c08a1e"></i>최근 7일 정정·취소</span><b id="sumChanged">-</b></div>
             </div>
+            <div class="bns-sep">입찰구분 현황</div>
+            <div class="bns-grid" id="sumTypes"></div>
+            <div class="bns-sep">진행 상태 현황</div>
+            <div class="bns-grid" id="sumStatuses"></div>
             <div class="bns-sep">누적 · 수집</div>
             <div class="bns-grid">
                 <div class="bns-row minor"><span>누적 공고</span><b id="sumTotal">-</b></div>
@@ -966,6 +979,17 @@ function memoCell(item) {
 }
 
 // 목록 한 쪽을 서버에서 불러온다. 조건을 바꾸면 1쪽부터, 쪽 이동·작업 뒤에는 ``keepPage``로 그 쪽을 유지한다.
+// [현황 요약]의 입찰구분·진행 상태별 건수. 입찰예정·본부입찰·지점입찰은 마감 전인데 가격투찰 전인 공고 수를 빨간색으로 덧붙인다.
+function renderStatusSummary(summary) {
+    const row = (name, count, dot, unbid) => `<div class="bns-row"><span>${dot ? `<i class="bns-dot" style="background:${dot}"></i>` : ''}${esc(name)}</span>
+        <b class="${count ? '' : 'zero'}">${count}건${unbid ? `<span class="bns-warn" title="마감 전이면서 가격투찰을 아직 하지 않은 공고">투찰 전 <b>${unbid}</b></span>` : ''}</b></div>`;
+    const typeDot = { '입찰예정': '#2563eb', '본부입찰': '#4d7c0f', '지점입찰': '#f97316', '입찰제외': '#94a3b8' };
+    el('sumTypes').innerHTML = (summary.bid_type_counts || []).map(item => row(item.name, item.count, typeDot[item.name], item.unbid)).join('')
+        + row('구분 미선택', summary.bid_type_none || 0, '', 0);
+    el('sumStatuses').innerHTML = (summary.status_counts || []).map(item => row(item.name, item.count, '', 0)).join('')
+        + row('상태 미선택', summary.status_none || 0, '', 0);
+}
+
 async function loadNotices(options = {}) {
     const params = new URLSearchParams({ status: STATUS });
     const keyword = el('keyword').value.trim();
@@ -1011,6 +1035,7 @@ async function loadNotices(options = {}) {
     el('sumNew').textContent = `${data.summary.new_today}건`;
     el('sumChanged').textContent = `${data.summary.changed_week}건`;
     el('sumTotal').textContent = `${data.summary.total}건`;
+    renderStatusSummary(data.summary);
     const last = data.runs[0];
     el('lastRun').textContent = last ? last.started_at.slice(5) : '아직 없음';
     el('runNote').textContent = last ? `마지막 수집: ${last.trigger}` : '';
