@@ -148,7 +148,7 @@
     @media (prefers-reduced-motion: reduce) { .new-n { animation: none; } }
     .tbl td.no, .tbl th.no { width: 1%; color: var(--text-gray, #64748b); font-size: .8rem; white-space: nowrap; }
     /* 공고명은 한 줄만 보여 주고 넘치면 …으로 줄인다(마우스를 올리면 전체 제목). */
-    .tbl td.title-cell { width: 100%; max-width: 0; min-width: 240px; text-align: left; }
+    .tbl td.title-cell { width: 100%; max-width: 0; min-width: 340px; text-align: left; }      /* 공고명을 더 길게 보여 준다 */
     .title-row { display: flex; align-items: center; min-width: 0; }
     .title-row .chip { flex: none; }
     .title-link {
@@ -330,7 +330,7 @@
 
     /* ============ 투찰금액·메모 칸 ============ */
     /* 열이 두 개 늘어난 만큼 이 메뉴만 본문 폭을 넓힌다(다른 메뉴는 base.html의 1700px 그대로) */
-    .content-container { max-width: 1960px !important; }
+    .content-container { max-width: none !important; padding-left: 20px; padding-right: 20px; }      /* 화면 폭을 거의 다 쓴다 */
     .tbl td.mybid { width: 1%; white-space: nowrap; }
     .mybid-input {
         width: 128px; height: 30px; padding: 0 8px; box-sizing: border-box; text-align: right;
@@ -345,6 +345,7 @@
     .mybid-rate.bad { color: #dc2626; }
     .mybid-rate.none { color: var(--text-gray, #94a3b8); font-weight: 500; }
     .tbl td.memo-cell { width: 1%; }
+    .tbl td.memo-cell, .tbl th.memo-col { padding-right: 22px; }      /* 표 오른쪽 끝과 간격 */
     .memo-btn {
         width: 32px; height: 32px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: none;
         color: #94a3b8; font-size: 1.05rem; cursor: pointer; transition: .15s;
@@ -524,7 +525,7 @@
                         </select></th>
                         <th class="right" title="우리가 넣을 투찰금액을 적으면 기초금액 대비 몇 %인지 계산해 저장합니다">투찰금액</th>
                         <th class="right" title="투찰금액 ÷ 기초금액(없으면 배정예산), 소수점 아래 3자리까지">투찰률</th>
-                        <th>메모</th></tr>
+                        <th class="memo-col">메모</th></tr>
                 </thead>
                 <tbody id="noticeBody"></tbody>
             </table>
