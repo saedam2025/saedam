@@ -1492,6 +1492,27 @@ def employee_search():
           AND COALESCE(status, '승인') = '승인'
         ORDER BY level ASC, name ASC
     """, (f'%{query}%', f'%{query}%')).fetchall()
+
+    # 동명이인을 구별할 수 있도록, 이미 센터장으로 지정된 학교명을 함께 보낸다.
+    # year를 주면 그 연도의 학교만, 비우면 운영 중인 모든 연도의 학교를 본다.
+    year = request.args.get('year', '').strip()
+    school_sql = """
+        SELECT year, school_name, center_director_id, center_director_id_2
+        FROM schools
+        WHERE COALESCE(is_active, 1) != 0
+    """
+    school_params = []
+    if year.isdigit():
+        school_sql += " AND year = ?"
+        school_params.append(int(year))
+    school_sql += " ORDER BY year DESC, school_name ASC"
+    assigned = {}
+    for school in conn.execute(school_sql, school_params).fetchall():
+        for emp_no in (school['center_director_id'], school['center_director_id_2']):
+            emp_no = str(emp_no or '').strip()
+            name = str(school['school_name'] or '').strip()
+            if emp_no and name and name not in assigned.setdefault(emp_no, []):
+                assigned[emp_no].append(name)
     conn.close()
     result = []
     for user in users:
@@ -1499,6 +1520,7 @@ def employee_search():
         item['organization_group'] = classify_organization_group(
             item.get('department'), item.get('position')
         )
+        item['assigned_schools'] = assigned.get(str(item.get('emp_no') or '').strip(), [])
         result.append(item)
     return jsonify(result)
 
