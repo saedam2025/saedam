@@ -81,6 +81,9 @@ RUN_KEEP_DAYS = 60              # 수집 기록은 이 기간이 지나면 새 �
 # 담당자가 공고마다 고르는 입찰구분(비어 있으면 '구분선택')과 진행 상태(비어 있으면 '상태선택')
 BID_TYPES = ('입찰예정', '본부입찰', '지점입찰', '입찰제외')
 WORK_STATUSES = ('입찰예정', '서류접수완료', '가격투찰완료', '설명회완료', '개찰완료')
+# [현황 요약]의 '투찰 전' 빨간 숫자: 아래 입찰구분이면서 아직 가격투찰(또는 그 뒤 단계)을 하지 않은 마감 전 공고
+WATCH_BID_TYPES = ('입찰예정', '본부입찰', '지점입찰')
+PRICED_STATUSES = ('가격투찰완료', '개찰완료')
 # 예전에는 진행 상태로 고르던 값 → 입찰구분으로 옮긴다(_add_missing_columns)
 MOVED_TO_BID_TYPE = ('본부입찰', '지점입찰', '입찰제외')
 
@@ -1331,6 +1334,35 @@ def _order_sql(status, sort, direction):
     return tail
 
 
+def _status_summary(conn, now_text):
+    """[현황 요약] 판의 입찰구분·진행 상태별 건수(보관함·취소 공고 제외)와 구분별 '투찰 전' 건수."""
+    base = "archive_id IS NULL AND COALESCE(kind, '') <> ?"
+
+    def counted(column):
+        rows = conn.execute(
+            f"SELECT COALESCE({column}, '') AS name, COUNT(*) AS cnt FROM bid_notices WHERE {base} GROUP BY 1",
+            (g2b.KIND_CANCEL,)).fetchall()
+        return {row['name']: row['cnt'] for row in rows}
+
+    types, statuses = counted('bid_type'), counted('work_status')
+    marks_type = ', '.join('?' * len(WATCH_BID_TYPES))
+    marks_done = ', '.join('?' * len(PRICED_STATUSES))
+    unbid = {row['name']: row['cnt'] for row in conn.execute(
+        f"""SELECT bid_type AS name, COUNT(*) AS cnt FROM bid_notices
+             WHERE {base} AND bid_type IN ({marks_type})
+               AND COALESCE(work_status, '') NOT IN ({marks_done})
+               AND (COALESCE(bid_close, '') = '' OR bid_close >= ?)
+             GROUP BY bid_type""",
+        (g2b.KIND_CANCEL, *WATCH_BID_TYPES, *PRICED_STATUSES, now_text))}
+    order = WATCH_BID_TYPES + tuple(name for name in BID_TYPES if name not in WATCH_BID_TYPES)
+    return {
+        'bid_type_counts': [{'name': name, 'count': types.get(name, 0), 'unbid': unbid.get(name, 0)} for name in order],
+        'bid_type_none': types.get('', 0),
+        'status_counts': [{'name': name, 'count': statuses.get(name, 0)} for name in WORK_STATUSES],
+        'status_none': statuses.get('', 0),
+    }
+
+
 @bid_notice_bp.route('/api/notices')
 def api_notices():
     """공고 목록 한 쪽(서버가 조건·정렬·쪽 나누기를 모두 처리한다)."""
@@ -1387,6 +1419,7 @@ def api_notices():
             'unsent': conn.execute(
                 'SELECT COUNT(DISTINCT notice_id) FROM bid_notice_events WHERE mailed_at IS NULL').fetchone()[0],
         }
+        summary.update(_status_summary(conn, now_text))
         runs = conn.execute('SELECT * FROM bid_collect_runs ORDER BY id DESC LIMIT 10').fetchall()
         settings = get_settings(conn)
         archives = _archive_list(conn)
