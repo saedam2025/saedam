@@ -336,7 +336,7 @@
     .content-container { max-width: none !important; padding-left: 20px; padding-right: 20px; }
     /* 카드 폭 = 표가 필요한 만큼(칸이 쓸데없이 늘어나지 않게). 화면보다 넓으면 표만 가로로 밀린다 */
     .bn-container { width: fit-content; min-width: min(1200px, 100%); max-width: 100%; padding-left: 20px; padding-right: 20px; }
-    #noticeTable { width: auto; }
+    #noticeTable { width: auto; min-width: 1880px; }      /* 공고가 없어도 표 폭이 줄어들지 않게 */
     /* 칸 좌우 여백을 줄여 1970px 화면에서도 표가 한 화면에 들어오게 한다 */
     #noticeTable th:not(.chk), #noticeTable td:not(.chk) { padding-left: 4px; padding-right: 4px; }
     #noticeTable th.right, #noticeTable td.right { padding-right: 10px; }
@@ -774,7 +774,7 @@ let NOTICES = [];
 let WORK_STATUSES = [];
 let BID_TYPES = [];
 const TYPE_CLASS = { '입찰예정': 's-plan', '본부입찰': 's-hq', '지점입찰': 's-branch', '입찰제외': 's-skip' };
-const STATUS_CLASS = { '입찰예정': 's-plan', '서류접수완료': 's-doc', '가격투찰완료': 's-price', '설명회완료': 's-brief', '개찰완료': 's-done' };
+const STATUS_CLASS = { '서류접수완료': 's-doc', '가격투찰완료': 's-price', '설명회완료': 's-brief', '개찰완료': 's-done' };
 const pick = id => SEEN.get(Number(id)) || NOTICES.find(notice => String(notice.id) === String(id));
 
 // ---- 현황 요약 탭(브라우저 오른쪽 벽): 탭을 누르면 펼쳐지고, 바깥을 누르거나 Esc로 접힌다 ----
