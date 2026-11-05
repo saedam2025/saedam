@@ -370,7 +370,114 @@
     }
     .memo-dlg textarea:focus { border-color: #d97706; }
     .memo-dlg .memo-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: .74rem; color: var(--text-gray, #64748b); }
-    .memo-dlg .dlg-actions .grow { flex: 1; }
+    .memo-dlg .dlg-actions .grow, .briefing-dlg .dlg-actions .grow { flex: 1; }
+
+    /* ============ 입찰일정표(큰 달력 + 주간입찰일정표) ============ */
+    /* 입찰 마감 = 빨강 계열, 설명회 = 파랑 계열 (색만이 아니라 앞의 [마감]·[설명] 글자로도 구분) */
+    .schedule-dlg {
+        width: min(1560px, 100%); height: min(900px, calc(100vh - 40px)); padding: 18px 22px 20px; box-sizing: border-box;
+        display: flex; flex-direction: column; gap: 12px;
+    }
+    .sc-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .sc-head h3 { margin: 0; font-size: 1.15rem; }
+    .sc-legend { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .76rem; color: var(--text-gray, #64748b); flex: 1; }
+    .sc-chip { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .72rem; font-weight: 700; white-space: nowrap; }
+    .sc-chip.close { background: #fee2e2; color: #b91c1c; }
+    .sc-chip.briefing { background: #dbeafe; color: #1d4ed8; }
+    .sc-status { font-size: .78rem; font-weight: 600; color: var(--primary-color, #4a90e2); }
+    .sc-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; }
+    .sc-month, .sc-week { min-height: 0; display: flex; flex-direction: column; }
+    .sc-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .sc-nav h4 { margin: 0; min-width: 130px; text-align: center; font-size: 1.05rem; font-weight: 700; }
+    .sc-nav .btn { min-width: 32px; }
+    .sc-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--card-border, #e2e8f0); border-bottom: 0; border-radius: 8px 8px 0 0; background: #f8fafc; }
+    .sc-weekdays div { padding: 6px 0; text-align: center; font-size: .78rem; font-weight: 700; color: var(--text-gray, #475569); }
+    .sc-weekdays div:first-child, .sc-cell.sun .sc-day { color: #dc2626; }
+    .sc-weekdays div:last-child, .sc-cell.sat .sc-day { color: #2563eb; }
+    .sc-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); border: 1px solid var(--card-border, #e2e8f0); border-radius: 0 0 8px 8px; overflow: hidden; }
+    .sc-cell { min-width: 0; min-height: 0; padding: 4px 4px 3px; border-right: 1px solid #eef2f7; border-bottom: 1px solid #eef2f7; overflow: hidden; cursor: pointer; background: #fff; }
+    .sc-cell:nth-child(7n) { border-right: 0; }
+    .sc-cell.other { background: #fafbfc; }
+    .sc-cell.other .sc-day { opacity: .45; }
+    .sc-cell.other .sc-ev { opacity: .75; }
+    .sc-cell.inweek { background: #f5f9ff; }
+    .sc-cell.selected { box-shadow: inset 0 0 0 2px var(--primary-color, #4a90e2); }
+    .sc-cell:hover { background: #f1f6fd; }
+    .sc-day { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; margin-bottom: 2px; padding: 0 4px; border-radius: 11px; font-size: .78rem; font-weight: 700; }
+    .sc-cell.today .sc-day { background: var(--primary-color, #4a90e2); color: #fff; }
+    .sc-ev, .scw-ev { border-radius: 4px; cursor: default; outline: none; }
+    .sc-ev { display: flex; align-items: center; gap: 4px; margin-top: 2px; padding: 1px 5px; font-size: .72rem; line-height: 1.5; min-width: 0; white-space: nowrap; overflow: hidden; border-left: 3px solid; }
+    .sc-ev b { flex: none; font-weight: 800; }
+    .sc-ev i { flex: none; font-style: normal; font-variant-numeric: tabular-nums; opacity: .85; }
+    .sc-ev span { overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+    .sc-ev.close, .scw-ev.close { background: #fee2e2; color: #991b1b; border-color: #dc2626; }
+    .sc-ev.briefing, .scw-ev.briefing { background: #dbeafe; color: #1e40af; border-color: #2563eb; }
+    .sc-ev.priced, .scw-ev.priced { opacity: .55; }
+    .sc-ev:hover, .sc-ev:focus, .scw-ev:hover, .scw-ev:focus { box-shadow: 0 0 0 2px currentColor inset; }
+    .sc-more { margin-top: 2px; font-size: .7rem; font-weight: 700; color: var(--text-gray, #64748b); }
+    .sc-week { border: 1px solid var(--card-border, #e2e8f0); border-radius: 10px; padding: 12px 12px 10px; background: #fcfdff; }
+    .sc-week .sc-nav { justify-content: space-between; }
+    .sc-week .sc-nav h4 { min-width: 0; flex: 1; font-size: .9rem; line-height: 1.35; }
+    .sc-week .sc-nav h4 small { display: block; font-size: .7rem; font-weight: 600; color: var(--text-gray, #64748b); }
+    #scWeek { flex: 1; min-height: 0; overflow: auto; }
+    .scw-day { padding: 7px 4px 8px; border-top: 1px solid #edf2f7; }
+    .scw-day:first-child { border-top: 0; }
+    .scw-day.today .scw-date { color: var(--primary-color, #4a90e2); }
+    .scw-day.selected { background: #f1f7ff; border-radius: 6px; }
+    .scw-date { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; font-size: .82rem; font-weight: 700; cursor: pointer; }
+    .scw-date small { font-weight: 600; color: var(--text-gray, #64748b); }
+    .scw-date.sun small, .scw-date.sun { color: #dc2626; }
+    .scw-date.sat small, .scw-date.sat { color: #2563eb; }
+    .scw-date em { margin-left: auto; font-style: normal; font-size: .7rem; color: var(--text-gray, #64748b); }
+    .scw-none { padding-left: 4px; font-size: .74rem; color: #a0aec0; }
+    .scw-ev { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 6px; margin-top: 4px; padding: 4px 7px; font-size: .78rem; border-left: 3px solid; }
+    .scw-ev .sc-chip { padding: 1px 6px; background: rgba(255,255,255,.7); font-size: .68rem; }
+    .scw-ev b { font-variant-numeric: tabular-nums; font-weight: 700; }
+    .scw-ev strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+    .sc-tip {
+        position: fixed; z-index: 1200; display: none; max-width: 340px; padding: 11px 13px; border-radius: 9px; pointer-events: none;
+        background: #1e293b; color: #f1f5f9; font-size: .78rem; line-height: 1.55; box-shadow: 0 8px 24px rgba(0,0,0,.3);
+    }
+    .sc-tip .tip-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; font-size: .86rem; font-weight: 700; }
+    .sc-tip .sc-chip.close { background: #fca5a5; color: #7f1d1d; }
+    .sc-tip .sc-chip.briefing { background: #93c5fd; color: #1e3a8a; }
+    .sc-tip .tip-row { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 6px; }
+    .sc-tip .tip-row em { font-style: normal; color: #94a3b8; }
+    .sc-tip .tip-row span { word-break: break-all; white-space: pre-line; }
+    @media (max-width: 1100px) {
+        .schedule-dlg { height: calc(100vh - 20px); overflow: auto; }
+        .sc-body { grid-template-columns: minmax(0, 1fr); }
+        .sc-grid { min-height: 520px; }
+        .sc-week { min-height: 360px; }
+    }
+
+    /* ============ 지역(학교명 포함)·설명회 칸 ============ */
+    .tbl td.region-cell { min-width: 110px; }
+    .region-cell .school-name { white-space: normal; word-break: keep-all; line-height: 1.35; }      /* 지역 아래 작은 글씨로 학교명 */
+    .tbl td.briefing-cell { width: 1%; white-space: nowrap; min-width: 112px; }
+    .bf-btn {
+        display: inline-block; min-width: 96px; padding: 4px 8px; border: 1px solid transparent; border-radius: 6px; background: none;
+        font: inherit; font-size: .8rem; color: var(--text-dark, #1e293b); text-align: center; cursor: pointer; transition: .15s;
+    }
+    .bf-btn:hover { background: #eff6ff; border-color: #bfdbfe; }
+    .bf-btn .bf-when { display: block; font-weight: 600; color: #1d4ed8; }
+    .bf-btn .bf-manager { display: block; margin-top: 1px; }
+    .bf-btn.empty { color: #94a3b8; font-size: .75rem; }
+    .bf-btn.empty:hover { color: #2563eb; }
+    .briefing-dlg { width: min(440px, 100%); }
+    .briefing-dlg .memo-target { margin: -4px 0 12px; font-size: .8rem; color: var(--text-gray, #64748b); line-height: 1.5; word-break: keep-all; }
+    .briefing-dlg .bf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .briefing-dlg label { display: block; font-size: .78rem; font-weight: 700; color: var(--text-gray, #64748b); }
+    .briefing-dlg label small { font-weight: 500; }
+    .briefing-dlg .bf-manager-label { margin-top: 12px; }
+    .briefing-dlg input {
+        display: block; width: 100%; height: 34px; margin-top: 5px; padding: 0 10px; box-sizing: border-box;
+        border: 1px solid var(--card-border, #e2e8f0); border-radius: 5px; background: var(--input-bg, #fff);
+        color: var(--text-dark, #1e293b); font: inherit; font-size: .85rem; outline: none;
+    }
+    .briefing-dlg input:focus { border-color: var(--primary-color, #4a90e2); }
+    .briefing-dlg input:disabled { background: #f8fafc; color: var(--text-dark, #1e293b); opacity: 1; }
+    .briefing-dlg .memo-meta { min-height: 1em; }
 
     /* ============ 공고수집·메일 설정(통합관리 > 솔라피설정과 같은 구성) ============ */
     .set-wrap { width: 100%; padding-top: 6px; }            /* 위쪽 화면 전환 줄과 같은 폭을 쓴다 */
@@ -438,6 +545,8 @@
             <h2 class="page-title">입찰공고관리</h2>
             {% if can_settings %}<button type="button" class="title-gear" id="settingsGear" title="공고수집·메일 설정" aria-label="공고수집·메일 설정"><i class="fa-solid fa-gear"></i></button>{% endif %}
         </div>
+        <button type="button" class="btn small" id="scheduleBtn"
+                title="입찰 마감과 설명회 일정을 달력과 주간표로 봅니다"><i class="fa-regular fa-calendar-days"></i> 입찰일정표</button>
     </div>
 
     <div class="view-tabs" id="viewTabs">
@@ -516,8 +625,9 @@
                 <thead>
                     <tr><th class="chk"><input type="checkbox" class="pick" id="checkAll" title="이 쪽의 공고를 모두 선택/해제"></th><th class="no">번호</th><th class="sortable" data-sort="posted" title="누르면 공고 게시일 순으로 정렬합니다">게시일<span class="arrow">↕</span></th><th>공고명</th><th><select id="regionFilter" class="head-select" title="고른 지역의 공고만 봅니다">
                             <option value="">지역 (전체)</option>
-                        </select></th><th>학교</th>
+                        </select></th>
                         <th class="sortable" data-sort="close" title="누르면 입찰 마감일시 순으로 정렬합니다">입찰 마감<span class="arrow">↕</span></th>
+                        <th class="sortable" data-sort="briefing" title="누르면 설명회 날짜·시간 순으로 정렬합니다(설명회가 없는 공고는 맨 뒤)">설명회<span class="arrow">↕</span></th>
                         <th class="right">기초금액</th>
                         <th class="sortable" data-sort="winner" title="누르면 낙찰 업체 이름순으로 정렬합니다">
                             <select id="resultFilter" class="head-select" title="결과가 있는 공고나 고른 낙찰 업체의 공고만 봅니다">
@@ -724,6 +834,63 @@
                 <span class="grow"></span>
                 <button type="button" class="btn" id="memoCancel">취소</button>
                 <button type="button" class="btn primary" id="memoSave">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 입찰일정표: 큰 달력 + 오른쪽 주간입찰일정표 -->
+    <div class="dlg-back" id="scheduleDlg" role="dialog" aria-modal="true" aria-labelledby="scheduleTitle">
+        <div class="dlg schedule-dlg">
+            <div class="sc-head">
+                <h3 id="scheduleTitle"><i class="fa-regular fa-calendar-days" style="color:var(--primary-color,#4a90e2)"></i> 입찰일정표</h3>
+                <div class="sc-legend">
+                    <span class="sc-chip close">마감</span>입찰 마감
+                    <span class="sc-chip briefing">설명</span>설명회 예정
+                    <span>· 흐리게 보이는 것은 가격투찰을 마친 공고 · 학교명에 마우스를 올리면 자세한 내용이 나옵니다</span>
+                </div>
+                <span class="sc-status" id="scStatus" aria-live="polite"></span>
+                <button type="button" class="btn" id="scClose">닫기</button>
+            </div>
+            <div class="sc-body">
+                <section class="sc-month">
+                    <div class="sc-nav">
+                        <button type="button" class="btn" id="scPrevMonth" title="이전 달">◀</button>
+                        <h4 id="scMonthTitle"></h4>
+                        <button type="button" class="btn" id="scNextMonth" title="다음 달">▶</button>
+                        <button type="button" class="btn" id="scToday">오늘</button>
+                    </div>
+                    <div class="sc-weekdays"><div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div></div>
+                    <div class="sc-grid" id="scGrid"></div>
+                </section>
+                <aside class="sc-week">
+                    <div class="sc-nav">
+                        <button type="button" class="btn" id="scPrevWeek" title="이전 주">◀</button>
+                        <h4 id="scWeekTitle"></h4>
+                        <button type="button" class="btn" id="scNextWeek" title="다음 주">▶</button>
+                    </div>
+                    <div id="scWeek"></div>
+                </aside>
+            </div>
+        </div>
+    </div>
+    <div class="sc-tip" id="scTip" role="tooltip"></div>
+
+    <!-- 설명회 날짜·시간·담당자 창 -->
+    <div class="dlg-back" id="briefingDlg" role="dialog" aria-modal="true" aria-labelledby="briefingDlgTitle">
+        <div class="dlg briefing-dlg">
+            <h3 id="briefingDlgTitle"><i class="fa-solid fa-chalkboard-user" style="color:#2563eb"></i> 설명회</h3>
+            <div class="memo-target" id="briefingTarget"></div>
+            <div class="bf-grid">
+                <label>날짜<input type="date" id="briefingDate"></label>
+                <label>시간 <small>(선택)</small><input type="time" id="briefingTime"></label>
+            </div>
+            <label class="bf-manager-label">담당자 · 메모<input type="text" id="briefingManager" maxlength="30" placeholder="담당자 이름이나 간단한 메모"></label>
+            <div class="memo-meta"><span id="briefingUpdated"></span></div>
+            <div class="dlg-actions">
+                <button type="button" class="btn danger" id="briefingClear">지우기</button>
+                <span class="grow"></span>
+                <button type="button" class="btn" id="briefingCancel">취소</button>
+                <button type="button" class="btn primary" id="briefingSave">저장</button>
             </div>
         </div>
     </div>
@@ -969,6 +1136,18 @@ function myBidCell(item) {
     return `<input type="text" class="mybid-input" inputmode="numeric" maxlength="20" placeholder="금액 입력"
                 data-mybid-for="${item.id}" value="${amount ? Number(amount).toLocaleString('ko-KR') : ''}"
                 title="${base ? `기초금액 ${won(base)} 대비 비율을 계산합니다. 엔터나 다른 칸을 누르면 저장됩니다.` : '기초금액이 아직 없어 비율은 계산하지 않습니다. 엔터나 다른 칸을 누르면 저장됩니다.'}">`;
+}
+// 설명회 칸: 날짜·시간과 담당자를 두 줄로 보여 주고, 누르면 창에서 입력·수정한다(비어 있으면 [+ 입력]).
+function briefingCell(item) {
+    const has = Boolean(item.briefing_date || item.briefing_manager);
+    if (!has) {
+        return CAN_EDIT
+            ? `<button type="button" class="bf-btn empty" data-briefing-for="${item.id}" title="설명회 날짜·시간·담당자 입력">+ 입력</button>`
+            : '<span class="sub">-</span>';
+    }
+    const when = [item.briefing_date, item.briefing_time].filter(Boolean).join(' ');
+    return `<button type="button" class="bf-btn" data-briefing-for="${item.id}" title="${CAN_EDIT ? '누르면 설명회 정보를 고칩니다' : '누르면 설명회 정보를 봅니다'}">
+        <span class="num bf-when">${esc(when) || '날짜 미정'}</span>${item.briefing_manager ? `<span class="sub bf-manager">${esc(item.briefing_manager)}</span>` : ''}</button>`;
 }
 function memoCell(item) {
     const has = Boolean(item.memo);
@@ -1224,9 +1403,10 @@ function renderNotices() {
                     ${item.url ? `<a class="title-link" href="${esc(item.url)}" target="_blank" rel="noopener" title="${esc(item.title)}">${esc(item.title)}</a>`
                                : `<span class="title-link" title="${esc(item.title)}">${esc(item.title)}</span>`}</div>
                 <div class="history" id="history-${item.id}" style="display:none"></div></td>
-            <td data-label="지역" class="num">${esc(item.region || '-')}</td>
-            <td data-label="학교" class="num" title="${esc(item.demand_name)}">${esc(item.school_label || '-')}</td>
+            <td data-label="지역" class="region-cell" title="${esc(item.demand_name)}">
+                <span class="num">${esc(item.region || '-')}</span>${item.school_label ? `<span class="sub school-name">${esc(item.school_label)}</span>` : ''}</td>
             <td data-label="입찰 마감">${closeCell(item)}</td>
+            <td data-label="설명회" class="briefing-cell">${briefingCell(item)}</td>
             <td data-label="기초금액" class="right">${amountCell(item)}</td>
             <td data-label="결과" class="result-cell">${resultCell(item)}</td>
             <td>${actionCell(item)}</td>
@@ -1612,6 +1792,190 @@ el('memoClear').addEventListener('click', () => {
     withSpinner(el('memoClear'), '지우는 중…', () => saveMemo(''));
 });
 
+// 설명회: 날짜·시간(선택)·담당자를 창에서 입력한다. 모두 비우고 저장하면 지워진다.
+let BRIEFING_ITEM = null;
+function openBriefing(item) {
+    BRIEFING_ITEM = item;
+    el('briefingTarget').textContent = [item.school_label, item.title].filter(Boolean).join(' · ');
+    el('briefingDate').value = item.briefing_date || '';
+    el('briefingTime').value = item.briefing_time || '';
+    el('briefingManager').value = item.briefing_manager || '';
+    ['briefingDate', 'briefingTime', 'briefingManager'].forEach(id => { el(id).disabled = !CAN_EDIT; });
+    el('briefingUpdated').textContent = item.briefing_updated ? `마지막 저장: ${item.briefing_updated}` : '';
+    el('briefingClear').style.display = CAN_EDIT && (item.briefing_date || item.briefing_manager) ? '' : 'none';
+    el('briefingSave').style.display = CAN_EDIT ? '' : 'none';
+    el('briefingCancel').textContent = CAN_EDIT ? '취소' : '닫기';
+    el('briefingDlg').style.display = 'flex';
+    (CAN_EDIT ? el('briefingDate') : el('briefingCancel')).focus();
+}
+function closeBriefing() { el('briefingDlg').style.display = 'none'; BRIEFING_ITEM = null; }
+async function saveBriefing(date, time, manager) {
+    const item = BRIEFING_ITEM;
+    if (!item) return;
+    const data = await postJson(`/bid-notice/api/notices/${item.id}/briefing`, { date, time, manager });
+    item.briefing_date = data.briefing_date;
+    item.briefing_time = data.briefing_time;
+    item.briefing_manager = data.briefing_manager;
+    item.briefing_updated = data.briefing_updated;
+    const button = document.querySelector(`[data-briefing-for="${item.id}"]`);
+    if (button) button.closest('td').innerHTML = briefingCell(item);
+    closeBriefing();
+}
+el('briefingCancel').addEventListener('click', closeBriefing);
+el('briefingDlg').addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); }       // 적던 내용이 사라지지 않게 Esc로는 닫지 않는다
+    if (event.key === 'Enter' && CAN_EDIT) { event.preventDefault(); el('briefingSave').click(); }
+});
+el('briefingSave').addEventListener('click', () => withSpinner(el('briefingSave'), '저장 중…',
+    () => saveBriefing(el('briefingDate').value, el('briefingTime').value, el('briefingManager').value)));
+el('briefingClear').addEventListener('click', () => {
+    if (!confirm('이 공고의 설명회 정보를 지울까요?')) return;
+    withSpinner(el('briefingClear'), '지우는 중…', () => saveBriefing('', '', ''));
+});
+
+// ---- 입찰일정표: 큰 달력(월) + 오른쪽 주간입찰일정표. 입찰 마감(빨강 [마감])과 설명회(파랑 [설명])를 함께 보여 준다 ----
+const SC_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+let SC_ANCHOR = new Date();          // 고른 날: 이 날이 속한 달이 달력에, 이 날이 속한 주가 주간표에 나온다
+let SC_EVENTS = [];
+let SC_MONTH = '';                   // 지금 불러와 둔 달('YYYY-MM')
+let SC_SEQ = 0;
+const pad2 = number => String(number).padStart(2, '0');
+const ymd = date => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+const addDays = (date, days) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+const monthKey = date => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+const scRows = date => Math.ceil((new Date(date.getFullYear(), date.getMonth(), 1).getDay() + new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()) / 7);
+const scGridStart = date => { const first = new Date(date.getFullYear(), date.getMonth(), 1); return addDays(first, -first.getDay()); };
+
+async function scLoad() {
+    const start = scGridStart(SC_ANCHOR), end = addDays(start, scRows(SC_ANCHOR) * 7 - 1);
+    const seq = ++SC_SEQ;
+    el('scStatus').textContent = '불러오는 중…';
+    try {
+        const data = await api(`/bid-notice/api/schedule?start=${ymd(start)}&end=${ymd(end)}`);
+        if (seq !== SC_SEQ) return;
+        SC_EVENTS = data.events;
+        SC_MONTH = monthKey(SC_ANCHOR);
+        el('scStatus').textContent = '';
+    } catch (error) {
+        if (seq !== SC_SEQ) return;
+        SC_EVENTS = [];
+        el('scStatus').textContent = error.message;
+    }
+    scRender();
+}
+// 고른 날을 바꾼다. 달이 바뀌면 그 달의 일정을 새로 불러온다.
+function scGo(date) {
+    SC_ANCHOR = date;
+    if (monthKey(date) === SC_MONTH) scRender(); else scLoad();
+}
+
+function scEventsByDate() {
+    const map = {};
+    SC_EVENTS.forEach((ev, index) => (map[ev.date] = map[ev.date] || []).push({ ev, index }));
+    return map;
+}
+function scLabel(ev) { return ev.type === 'close' ? '마감' : '설명'; }
+
+function scRender() {
+    const byDate = scEventsByDate();
+    const today = ymd(new Date()), picked = ymd(SC_ANCHOR);
+    const weekStart = addDays(SC_ANCHOR, -SC_ANCHOR.getDay()), weekEnd = addDays(weekStart, 6);
+    const inWeek = day => day >= ymd(weekStart) && day <= ymd(weekEnd);
+    el('scMonthTitle').textContent = `${SC_ANCHOR.getFullYear()}년 ${SC_ANCHOR.getMonth() + 1}월`;
+
+    // 달력: 일요일 시작, 그 달에 필요한 주(4~6줄)만 그린다. 칸이 좁으면 일부만 보이고 [+N건]을 누르면 그날이 주간표에 펼쳐진다.
+    const rows = scRows(SC_ANCHOR), limit = rows >= 6 ? 3 : 4;
+    const start = scGridStart(SC_ANCHOR);
+    let cells = '';
+    for (let index = 0; index < rows * 7; index++) {
+        const date = addDays(start, index), key = ymd(date), list = byDate[key] || [];
+        const classes = ['sc-cell', date.getDay() === 0 ? 'sun' : '', date.getDay() === 6 ? 'sat' : '',
+            date.getMonth() !== SC_ANCHOR.getMonth() ? 'other' : '', key === today ? 'today' : '',
+            key === picked ? 'selected' : (inWeek(key) ? 'inweek' : '')].filter(Boolean).join(' ');
+        const shown = list.slice(0, limit).map(({ ev, index: at }) =>
+            `<div class="sc-ev ${ev.type}${ev.priced ? ' priced' : ''}" data-ev="${at}" tabindex="0"><b>${scLabel(ev)}</b>${ev.time ? `<i>${esc(ev.time)}</i>` : ''}<span>${esc(ev.school)}</span></div>`).join('');
+        cells += `<div class="${classes}" data-day="${key}"><span class="sc-day">${date.getDate()}</span>${shown}${list.length > limit ? `<div class="sc-more">+${list.length - limit}건 더 보기</div>` : ''}</div>`;
+    }
+    el('scGrid').innerHTML = cells;
+
+    // 주간입찰일정표
+    el('scWeekTitle').innerHTML = `주간입찰일정표<small>${weekStart.getMonth() + 1}월 ${weekStart.getDate()}일 ~ ${weekEnd.getMonth() + 1}월 ${weekEnd.getDate()}일</small>`;
+    let week = '';
+    for (let offset = 0; offset < 7; offset++) {
+        const date = addDays(weekStart, offset), key = ymd(date), list = byDate[key] || [];
+        const closes = list.filter(item => item.ev.type === 'close').length, briefings = list.length - closes;
+        const counts = list.length ? [closes ? `마감 ${closes}` : '', briefings ? `설명회 ${briefings}` : ''].filter(Boolean).join(' · ') : '';
+        const items = list.map(({ ev, index }) =>
+            `<div class="scw-ev ${ev.type}${ev.priced ? ' priced' : ''}" data-ev="${index}" tabindex="0"><span class="sc-chip ${ev.type}">${ev.type === 'close' ? '입찰마감' : '설명회'}</span><b>${esc(ev.time || '시간 미정')}</b><strong>${esc(ev.school)}</strong></div>`).join('');
+        const dayClass = date.getDay() === 0 ? 'sun' : date.getDay() === 6 ? 'sat' : '';
+        week += `<div class="scw-day ${key === today ? 'today' : ''} ${key === picked ? 'selected' : ''}">
+            <div class="scw-date ${dayClass}" data-day="${key}">${date.getMonth() + 1}/${date.getDate()} <small>(${SC_WEEKDAYS[date.getDay()]})${key === today ? ' 오늘' : ''}</small><em>${counts}</em></div>
+            ${items || '<div class="scw-none">일정 없음</div>'}</div>`;
+    }
+    el('scWeek').innerHTML = week;
+}
+
+// 학교명에 마우스를 올리면 나오는 풍선말
+function scTipHtml(ev) {
+    const rows = [['공고명', ev.title]];
+    if (ev.region) rows.push(['지역', [ev.region, ev.demand_name].filter(Boolean).join(' · ')]);
+    if (ev.bid_close) rows.push(['입찰마감', ev.bid_close + (ev.open_dt ? `\n개찰 ${ev.open_dt}` : '')]);
+    if (ev.briefing_date || ev.briefing_manager) {
+        rows.push(['설명회', [[ev.briefing_date, ev.briefing_time].filter(Boolean).join(' '), ev.briefing_manager && `담당 ${ev.briefing_manager}`].filter(Boolean).join(' · ')]);
+    }
+    const base = ev.base_amount ? won(ev.base_amount) : (ev.budget ? `${won(ev.budget)} (배정예산)` : '');
+    if (base) rows.push(['기초금액', base]);
+    const state = [ev.bid_type, ev.work_status].filter(Boolean).join(' · ');
+    if (state) rows.push(['구분·상태', state]);
+    if (ev.memo) rows.push(['메모', ev.memo]);
+    return `<div class="tip-head"><span class="sc-chip ${ev.type}">${ev.type === 'close' ? '입찰마감' : '설명회'}</span>${esc(ev.school)}</div>`
+        + rows.map(row => `<div class="tip-row"><em>${row[0]}</em><span>${esc(row[1])}</span></div>`).join('')
+        + (ev.priced ? '<div class="tip-row"><em></em><span>가격투찰을 마친 공고입니다.</span></div>' : '');
+}
+function scTipPlace(x, y) {
+    const tip = el('scTip');
+    const width = tip.offsetWidth, height = tip.offsetHeight;
+    tip.style.left = Math.max(8, Math.min(x + 16, window.innerWidth - width - 8)) + 'px';
+    tip.style.top = Math.max(8, (y + 18 + height > window.innerHeight - 8) ? y - height - 14 : y + 18) + 'px';
+}
+function scTipShow(target, x, y) {
+    const ev = SC_EVENTS[Number(target.dataset.ev)];
+    if (!ev) return;
+    el('scTip').innerHTML = scTipHtml(ev);
+    el('scTip').style.display = 'block';
+    scTipPlace(x, y);
+}
+function scTipHide() { el('scTip').style.display = 'none'; }
+
+function openSchedule() {
+    SC_ANCHOR = new Date();
+    SC_MONTH = '';
+    el('scheduleDlg').style.display = 'flex';
+    scLoad();
+}
+function closeSchedule() { el('scheduleDlg').style.display = 'none'; scTipHide(); }
+el('scheduleBtn').addEventListener('click', openSchedule);
+el('scClose').addEventListener('click', closeSchedule);
+// 바깥을 눌러도 닫히지 않는다(닫기 버튼·Esc로만 닫는다)
+el('scheduleDlg').addEventListener('click', event => {
+    const day = event.target.closest('[data-day]');
+    if (day) { const [y, m, d] = day.dataset.day.split('-').map(Number); scGo(new Date(y, m - 1, d)); }
+});
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && el('scheduleDlg').style.display === 'flex') closeSchedule(); });
+el('scPrevMonth').addEventListener('click', () => scGo(new Date(SC_ANCHOR.getFullYear(), SC_ANCHOR.getMonth() - 1, 1)));
+el('scNextMonth').addEventListener('click', () => scGo(new Date(SC_ANCHOR.getFullYear(), SC_ANCHOR.getMonth() + 1, 1)));
+el('scToday').addEventListener('click', () => scGo(new Date()));
+el('scPrevWeek').addEventListener('click', () => scGo(addDays(SC_ANCHOR, -7)));
+el('scNextWeek').addEventListener('click', () => scGo(addDays(SC_ANCHOR, 7)));
+el('scheduleDlg').addEventListener('mouseover', event => { const target = event.target.closest('[data-ev]'); if (target) scTipShow(target, event.clientX, event.clientY); });
+el('scheduleDlg').addEventListener('mousemove', event => { if (event.target.closest('[data-ev]') && el('scTip').style.display === 'block') scTipPlace(event.clientX, event.clientY); });
+el('scheduleDlg').addEventListener('mouseout', event => { if (event.target.closest('[data-ev]')) scTipHide(); });
+el('scheduleDlg').addEventListener('focusin', event => {
+    const target = event.target.closest('[data-ev]');
+    if (target) { const box = target.getBoundingClientRect(); scTipShow(target, box.left, box.bottom - 12); }
+});
+el('scheduleDlg').addEventListener('focusout', scTipHide);
+
 // 첨부 받기: 서버가 나라장터에서 받아 압축파일로 묶어 바로 내려 준다(서버에 저장하지 않음).
 async function downloadFiles(button) {
     const item = pick(button.dataset.fileGet);
@@ -1652,6 +2016,7 @@ el('noticeBody').addEventListener('click', async event => {
         return;
     }
     if (button.dataset.memoFor) { openMemo(pick(button.dataset.memoFor)); return; }
+    if (button.dataset.briefingFor) { openBriefing(pick(button.dataset.briefingFor)); return; }
     if (button.dataset.resultDetail) {
         // 상세 결과는 그 공고 바로 아래에 표 전체 폭의 줄로 펼친다(참가 업체 표가 넉넉히 보이게).
         const row = button.closest('tr'), next = row.nextElementSibling;
