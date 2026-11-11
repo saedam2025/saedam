@@ -357,10 +357,11 @@ def _send_subscription(conn, row, payload):
 
 
 def _notification_url(conn, guardian_id, kind=None):
-    """알림을 눌렀을 때 열 화면. 학부모통합지원 홈이 도착 화면이다(출결 알림은 출석 탭, 그 밖은 알림 탭)."""
+    """알림을 눌렀을 때 열 화면. 학부모통합지원 홈이 도착 화면이다(출결 알림은 출석 탭, 그 밖은 홈 — 알림 탭은 없앴다)."""
     invite = _active_invite(conn, guardian_id)
-    tab = 'attendance' if kind in ATTENDANCE_KINDS else 'notices'
-    return f"/parent/home/{invite['token']}?tab={tab}"
+    if kind in ATTENDANCE_KINDS:
+        return f"/parent/home/{invite['token']}?tab=attendance"
+    return f"/parent/home/{invite['token']}"
 
 
 def _send_notification(conn, guardian_ids, kind, title, body, *, class_id=None,

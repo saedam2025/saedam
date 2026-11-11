@@ -3,16 +3,17 @@
 학부모가 휴대폰(기본)이나 PC에서 같은 주소 하나로 아래를 한 곳에서 본다.
 
 1. 출석알림·출석현황 : 자녀가 수업에 도착하면 푸시알림을 받고, 오늘 출석과 월별 출석표·출석률을 본다.
-2. 강사 프로필       : 자녀가 등록된 강의부서의 강사 사진·소개글(본사 승인본)을 본다.
-3. 학교 e리플렛      : 본사가 올린 표지·안내 + 강사들이 올린 홍보(승인본)가 한 권으로 합쳐져 보인다.
+2. 담당강사안내       : 자녀가 등록된 강의부서의 강사 사진·소개글(본사가 올린 것)을 본다.
+3. 학교 e리플렛      : 본사가 올린 표지·안내와 강사별 홍보 쪽(역시 본사가 올린다)이 한 권으로 합쳐져 보인다.
 4. 3D 교실안내       : [교실안내]에서 공유를 켠 학교의 3D 안내도. 자녀 강좌가 있는 교실로 바로 안내한다.
+5. 수업안내         : 본사가 [학교지원 > 수업안내]에 올린 학교 시간표·안내장·소식지(글·그림·PDF, routes/lesson_info.py).
 
 흐름
 - 본사 담당자는 [학부모통합지원] 메뉴에서 학교마다 포털(링크·QR)을 만들고, 학교 e리플렛의 앞·뒤쪽을 채운다.
 - 학부모는 가정통신문의 학교 링크로 들어와 '자녀 이름 + 보호자 휴대폰번호'를 한 번 확인하면
   보호자 개인 주소(/parent/home/<개인토큰>)로 이동한다. 개인 주소는 [학부모알림전송]이 이미 쓰는
   보호자 초대 토큰과 같아서, 출결 푸시 구독·홈 화면 아이콘·알림 내역이 모두 한 사람 기준으로 이어진다.
-- 출석·알림은 보호자 본인의 자녀 것만 보여 주고, 강사 프로필·리플렛·교실안내는 학교 포털 설정(보일 항목)을 따른다.
+- 출석·알림은 보호자 본인의 자녀 것만 보여 주고, 담당강사안내·리플렛·교실안내는 학교 포털 설정(보일 항목)을 따른다.
 
 학부모의 입구는 이 포털 하나다. 과목별 QR·예전 알림 등록 주소(/parent/register, /student-attendance/p)는
 이 포털(또는 보호자 개인 화면)로 이어 주기만 하고 새로 만들지 않는다. 학부모에게 보내는 링크는 학교 포털에서
@@ -38,6 +39,7 @@ from flask import (
 )
 
 from . import instructor_hub as hub
+from . import lesson_info
 from . import parent_notifications as pn
 from . import solapi_settings as solapi
 from . import student_attendance as sa
@@ -59,7 +61,10 @@ COOKIE_NAME = 'saedam_parent_hub'
 COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 MAX_HQ_PAGES = 40                     # 본사가 한 구역(앞쪽·뒤쪽)에 둘 수 있는 쪽 수
 LEAFLET_SECTIONS = {'front': '앞쪽 (표지·학교 소개)', 'back': '뒤쪽 (마무리·안내)'}
-TABS = ('home', 'attendance', 'teachers', 'leaflet', 'guide', 'notices')
+# 알림(notices) 탭은 없앴다(예전 ?tab=notices 주소는 홈으로 열린다). 수업안내(lessons)는 홈 바로 다음 칸이다.
+TABS = ('home', 'attendance', 'lessons', 'teachers', 'guide', 'leaflet')
+LESSON_TAB = ('lessons', '수업안내', 'fa-clipboard-list')
+ATTENDANCE_TAB = ('attendance', '출석', 'fa-calendar-check')
 # 학부모 화면 디자인. 학교(포털)마다 하나를 고르고, 'classic'이 기본이다.
 # 새 디자인을 더하려면 여기에 한 줄 + static/css/ 아래 덮어쓰기 CSS(기본 CSS 다음에 불러온다)를 만든다.
 DEFAULT_DESIGN = 'classic'
@@ -114,6 +119,8 @@ def ensure_parent_hub_schema(conn):
     pn._add_missing_columns(conn, 'ph_portals', {'last_sent_at': 'TEXT', 'last_sent_count': 'INTEGER NOT NULL DEFAULT 0',
                                                  'last_sent_method': "TEXT NOT NULL DEFAULT ''",
                                                  'design': f"TEXT NOT NULL DEFAULT '{DEFAULT_DESIGN}'"})
+    # 학부모 홈의 [수업안내] 탭이 읽는 표(관리 화면은 routes/lesson_info.py)
+    lesson_info.ensure_lesson_info_schema(conn)
     conn.commit()
 
 
@@ -211,7 +218,7 @@ def _hq_pages(conn, portal_id, section=None):
 
 
 def _live_instructor_promos(conn, school_name):
-    """이 학교에서 승인되어 공개 중인 강사 홍보 리플렛. 반환: [{'account_id','name','department','pages'}]"""
+    """이 학교에서 공개 중인 강사 홍보 리플렛(본사가 올린 것). 반환: [{'account_id','name','department','pages'}]"""
     key = _norm(school_name)
     assignments = {}
     for row in hub.school_assignment_rows(conn, school_name):
@@ -507,7 +514,7 @@ def attendance_report(conn, class_info, student_id, month_text=None):
 
 
 def _instructors_for_class(conn, class_info):
-    """과목에 연결된 강사와 '승인된' 프로필. 계정이 없으면 과목에 적힌 강사 이름만 보여 준다."""
+    """과목에 연결된 강사와 본사가 올려 공개 중인 담당강사안내. 계정이 없으면 과목에 적힌 강사 이름만 보여 준다."""
     people = []
     for account in hub.linked_accounts(conn, class_info):
         profile = conn.execute('SELECT bio, photo_path FROM ih_profiles WHERE account_id=?',
@@ -540,15 +547,19 @@ def _push_state(conn, guardian_id):
             'warn': bool(health.get('warn'))}
 
 
-def _notices(conn, guardian_id, limit=30):
-    return [pn._with_kst(row) for row in conn.execute('''
-        SELECT n.kind, n.title, n.body, n.created_at, r.status, r.received_at
-        FROM parent_notification_recipients r JOIN parent_notifications n ON n.id=r.notification_id
-        WHERE r.guardian_id=? ORDER BY r.id DESC LIMIT ?
-    ''', (guardian_id, limit)).fetchall()]
+def _lesson_context(conn, school_names, tab, category):
+    """수업안내: 탭에서는 고른 종류의 글 전부, 홈에서는 최근 글 3개."""
+    if tab == 'lessons':
+        cats = lesson_info.categories_for_schools(conn, school_names)
+        category = category if category in {key for key, _label, _icon in cats} else ''
+        return {'lessons': lesson_info.posts_for_schools(conn, school_names, category=category or None),
+                'lesson_categories': cats, 'lesson_category': category}
+    if tab == 'home':
+        return {'lessons': lesson_info.posts_for_schools(conn, school_names, limit=3)}
+    return {}
 
 
-def home_context(conn, invite, token, tab, child_id, month_text):
+def home_context(conn, invite, token, tab, child_id, month_text, category=''):
     """보호자 개인 화면에 필요한 자료를 모은다(탭마다 필요한 것만 무겁게 계산한다)."""
     children = _children(conn, invite['guardian_id'])
     portals = _portals_by_school(conn)
@@ -570,16 +581,17 @@ def home_context(conn, invite, token, tab, child_id, month_text):
     active = [item for item in schools if item['portal'] and item['portal']['is_active']]
     show = {key: any(_show(item['portal'])[key] for item in active) for key in ('profile', 'leaflet', 'guide')}
     show['attendance'] = any(child['show']['attendance'] for child in children) or not active
+    # 학부모 화면 메뉴 이름과 순서: 홈 → 출석 → 수업안내 → 담당강사 → 교실안내 → 리플렛
     tabs = [('home', '홈', 'fa-house')]
     if show['attendance']:
-        tabs.append(('attendance', '출석', 'fa-calendar-check'))
+        tabs.append(ATTENDANCE_TAB)
+    tabs.append(LESSON_TAB)
     if show['profile']:
-        tabs.append(('teachers', '강사', 'fa-chalkboard-user'))
-    if show['leaflet']:
-        tabs.append(('leaflet', '리플렛', 'fa-book-open-reader'))
+        tabs.append(('teachers', '담당강사', 'fa-chalkboard-user'))
     if show['guide']:
         tabs.append(('guide', '교실안내', 'fa-map-location-dot'))
-    tabs.append(('notices', '알림', 'fa-bell'))
+    if show['leaflet']:
+        tabs.append(('leaflet', '리플렛', 'fa-book-open-reader'))
     if tab not in {key for key, _label, _icon in tabs}:
         tab = 'home'
 
@@ -591,7 +603,8 @@ def home_context(conn, invite, token, tab, child_id, month_text):
         'token': token, 'guardian_name': invite['guardian_name'], 'tab': tab, 'tabs': tabs,
         'children': children, 'selected': selected, 'schools': schools, 'show': show,
         'push': _push_state(conn, invite['guardian_id']), 'push_configured': pn._push_ready(),
-        'notices': [], 'reports': {}, 'teachers': [], 'leaflets': [], 'guides': [],
+        'lessons': [], 'lesson_categories': [], 'lesson_category': '', 'multi_school': len(schools) > 1,
+        'reports': {}, 'teachers': [], 'leaflets': [], 'guides': [],
         'month': month_text or '', 'weekday_labels': WEEKDAY_FIRST_SUNDAY,
         'portal_notices': [item['portal'] for item in active if item['portal']['notice']],
         'more_tabs': [item for item in tabs if item[0] in ('teachers', 'leaflet', 'guide')],
@@ -648,10 +661,9 @@ def home_context(conn, invite, token, tab, child_id, month_text):
                         })
             context['guides'].append({'school': item['name'], 'path': guide['path'] if guide else '',
                                       'rooms': rooms})
-    if tab == 'notices':
-        context['notices'] = _notices(conn, invite['guardian_id'])
-    elif tab == 'home':
-        context['notices'] = _notices(conn, invite['guardian_id'], 3)
+    # 수업안내는 자녀가 다니는 학교(포털 유무와 상관없이)의 공개 글만 보여 준다.
+    lesson_schools = [item['name'] for item in schools]
+    context.update(_lesson_context(conn, lesson_schools, tab, category))
     return context
 
 
@@ -752,7 +764,7 @@ def leaflet_hq_image(token, page_id):
 
 @parent_hub_bp.route('/parent/hub/<token>/leaflet/eb/<int:page_id>')
 def leaflet_eb_image(token, page_id):
-    """강사 홍보 쪽 그림. 이 학교 리플렛에 실린(승인된) 쪽만 보여 준다."""
+    """강사 홍보 쪽 그림. 이 학교 리플렛에 실린(공개 중인) 쪽만 보여 준다."""
     conn = get_db()
     try:
         portal = _portal_by_token(conn, token, staff_preview=True)
@@ -781,7 +793,7 @@ def parent_home(token):
         conn.commit()
         tab = request.args.get('tab') if request.args.get('tab') in TABS else 'home'
         context = home_context(conn, invite, token, tab, _int(request.args.get('child')),
-                               _text(request.args.get('month'), 7))
+                               _text(request.args.get('month'), 7), _text(request.args.get('cat'), 20))
         response = _no_store(Response(render_template('parent_hub/home.html', **context)))
         return _remember_guardian(response, token)
     finally:
@@ -790,7 +802,7 @@ def parent_home(token):
 
 @parent_hub_bp.route('/parent/home/<token>/photo/<int:account_id>')
 def parent_teacher_photo(token, account_id):
-    """내 자녀의 과목에 연결된 강사의 '승인된' 사진만 보여 준다."""
+    """내 자녀의 과목에 연결된 강사의 담당강사안내 사진만 보여 준다."""
     conn = get_db()
     try:
         invite = pn._invite_from_token(conn, token)
@@ -818,7 +830,7 @@ def parent_home_manifest(token):
     icons = '/static/images/parent_app'
     manifest = {
         'id': start_url, 'name': '새담 학부모 홈', 'short_name': '새담학부모',
-        'description': '자녀 출석, 강사 소개, 방과후 e리플렛, 교실 안내를 한곳에서 봅니다.',
+        'description': '수업 안내, 자녀 출석, 강사 소개, 방과후 e리플렛, 교실 안내를 한곳에서 봅니다.',
         'lang': 'ko', 'start_url': start_url, 'scope': '/parent/', 'display': 'standalone',
         'background_color': '#fff9f0', 'theme_color': '#e78100',
         'icons': [
@@ -946,6 +958,32 @@ def admin_save_portal(portal_id):
     return _admin_redirect('portal')
 
 
+SHOW_FIELDS = {'profile': ('show_profile', '담당강사안내'), 'leaflet': ('show_leaflet', '학교 e리플렛'),
+               'guide': ('show_guide', '3D 교실안내')}
+
+
+@parent_hub_bp.route('/parent-hub/portals/<int:portal_id>/show', methods=['POST'])
+@menu_permission_required(MENU_KEY)
+def admin_set_show(portal_id):
+    """담당강사안내·e리플렛·3D 교실안내 화면에서 학부모 화면에 보일지(켬/끔)만 바꾼다. 다른 설정은 건드리지 않는다."""
+    item = SHOW_FIELDS.get(request.form.get('item'))
+    if not item:
+        abort(404)
+    column, label = item
+    on = 1 if request.form.get('value') == '1' else 0
+    conn = get_db()
+    try:
+        portal = conn.execute('SELECT * FROM ph_portals WHERE id=?', (portal_id,)).fetchone()
+        if not portal:
+            abort(404)
+        conn.execute(f'UPDATE ph_portals SET {column}=? WHERE id=?', (on, portal_id))
+        conn.commit()
+        flash(f"학부모 화면에서 [{label}] 항목을 {'보이게' if on else '숨기게'} 했습니다.", 'success')
+        return _admin_redirect('portal', portal['school_name'])
+    finally:
+        conn.close()
+
+
 @parent_hub_bp.route('/parent-hub/portals/<int:portal_id>/design', methods=['POST'])
 @menu_permission_required(MENU_KEY)
 def admin_save_design(portal_id):
@@ -1001,7 +1039,7 @@ def _demo_report(today):
     }
 
 
-def demo_home_context(conn, portal, tab, design):
+def demo_home_context(conn, portal, tab, design, category=''):
     """디자인 미리보기용 학부모 홈 화면 자료. 예시 자녀·과목을 쓰고 실제 학생 정보는 담지 않는다."""
     today = sa._now().date()
     school = portal['school_name']
@@ -1014,16 +1052,10 @@ def demo_home_context(conn, portal, tab, design):
     shown = {'attendance': True, 'profile': True, 'leaflet': True, 'guide': True}
     child = {'id': 1, 'name': '김새담', 'grade': '3', 'classroom': '2', 'school_name': school, 'classes': classes,
              'schools': [school], 'portal': portal, 'show': shown}
-    tabs = [('home', '홈', 'fa-house'), ('attendance', '출석', 'fa-calendar-check'),
-            ('teachers', '강사', 'fa-chalkboard-user'), ('leaflet', '리플렛', 'fa-book-open-reader'),
-            ('guide', '교실안내', 'fa-map-location-dot'), ('notices', '알림', 'fa-bell')]
+    tabs = [('home', '홈', 'fa-house'), ATTENDANCE_TAB, LESSON_TAB,
+            ('teachers', '담당강사', 'fa-chalkboard-user'), ('guide', '교실안내', 'fa-map-location-dot'),
+            ('leaflet', '리플렛', 'fa-book-open-reader')]
     tab = tab if tab in {key for key, _label, _icon in tabs} else 'home'
-    notices = [
-        {'kind': '출석', 'title': '김새담 학생이 도착했어요', 'body': '로봇과학A 수업에 15:02에 도착했어요.',
-         'created_at': f'{today} 15:02'},
-        {'kind': '공지', 'title': '이번 주 수업 안내', 'body': '금요일은 학교 행사로 수업이 오후 3시에 시작해요.',
-         'created_at': f'{today} 09:10'},
-    ]
     pages, toc = leaflet_pages(conn, portal)
     guide = _guide_for_school(conn, portal)
     lead = {'school_name': school, 'notice': portal['notice'] or '학부모 안내 문구가 이 자리에 보여요.'}
@@ -1032,7 +1064,10 @@ def demo_home_context(conn, portal, tab, design):
         'token': 'demo', 'guardian_name': '새담', 'tab': tab, 'tabs': tabs, 'children': [child], 'selected': child,
         'schools': [{'name': school, 'portal': portal}], 'show': shown,
         'push': {'registered': False, 'count': 0, 'last_received_at': '', 'warn': False}, 'push_configured': False,
-        'notices': notices, 'month': '', 'weekday_labels': WEEKDAY_FIRST_SUNDAY, 'portal_notices': [lead],
+        'month': '', 'weekday_labels': WEEKDAY_FIRST_SUNDAY, 'portal_notices': [lead],
+        # 수업안내는 학생 정보가 아니라 학교 자료라 이 학교의 실제 공개 글을 보여 준다(파일은 직원용 주소로 연다).
+        'lessons': [], 'lesson_categories': [], 'lesson_category': '', 'multi_school': False,
+        **_lesson_context(conn, [school], tab, category),
         'reports': {(1, info['id']): _demo_report(today) for info in classes} if tab in ('home', 'attendance') else {},
         'more_tabs': [item for item in tabs if item[0] in ('teachers', 'leaflet', 'guide')],
         'teachers': [{'child': child, 'department': '로봇과학', 'classes': ['로봇과학A'], 'people': [
@@ -1057,7 +1092,8 @@ def admin_design_preview(portal_id):
         portal = conn.execute('SELECT * FROM ph_portals WHERE id=?', (portal_id,)).fetchone()
         if not portal:
             abort(404)
-        context = demo_home_context(conn, portal, request.args.get('tab') or 'home', design)
+        context = demo_home_context(conn, portal, request.args.get('tab') or 'home', design,
+                                    _text(request.args.get('cat'), 20))
         return _no_store(Response(render_template('parent_hub/home.html', **context)))
     finally:
         conn.close()
@@ -1085,7 +1121,7 @@ def admin_portal_action(portal_id, action):
         elif action == 'delete':
             _delete_leaflet_files(conn, portal_id)
             conn.execute('DELETE FROM ph_portals WHERE id=?', (portal_id,))
-            flash('포털과 본사가 올린 리플렛 쪽을 삭제했습니다. 강사 홍보 자료는 그대로 남아 있습니다.', 'success')
+            flash('포털과 본사가 올린 리플렛 쪽을 삭제했습니다. 강사별 홍보 쪽은 그대로 남아 있습니다.', 'success')
         else:
             abort(404)
         conn.commit()
@@ -1196,7 +1232,7 @@ LINK_METHODS_WITH = {'kakao': '카카오 알림톡으로', 'text': '문자로'} 
 LINK_SUBJECT = '[새담] 방과후 학부모 안내'
 # 알림톡 템플릿 #{변수}에 넣을 값은 학교 이름과 안내 주소 두 가지다. 변수 이름은 솔라피설정에서 정하고(solapi.link_variable_source),
 # 정하지 않은 변수는 이름 속 단어(학교·school·url·링크…)로 짐작한다.
-DEFAULT_LINK_INTRO = '자녀 출석 알림·출석률, 강사 소개, 방과후 e리플렛, 3D 교실 안내를 한곳에서 확인하세요.'
+DEFAULT_LINK_INTRO = '수업 안내(시간표·안내장), 자녀 출석 알림·출석률, 강사 소개, 방과후 e리플렛, 3D 교실 안내를 한곳에서 확인하세요.'
 PHONE_PATTERN = re.compile(r'01\d{8,9}')
 
 

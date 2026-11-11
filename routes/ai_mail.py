@@ -1695,7 +1695,7 @@ def create_campaign():
         if not group:
             return _error('작업그룹을 찾을 수 없습니다.', 404, code='GROUP_NOT_FOUND')
         if mode in {'smart', 'smart_and_common'} and not _group_feature_enabled(group, 'smart_attachment'):
-            return _error('이 작업그룹에 개별파일 자동분류 기능이 선택되어 있지 않습니다.', 403, code='FEATURE_NOT_ENABLED')
+            return _error('이 작업그룹에 수신자 자동분류 기능이 선택되어 있지 않습니다.', 403, code='FEATURE_NOT_ENABLED')
         if mode in {'common', 'smart_and_common'} and not _group_feature_enabled(group, 'common_attachment'):
             return _error('이 작업그룹에 공통파일 일괄첨부 기능이 선택되어 있지 않습니다.', 403, code='FEATURE_NOT_ENABLED')
         sender = _owned_row(conn, 'ai_mail_senders', sender_id) if sender_id else None
@@ -1862,6 +1862,29 @@ def _filename_match_key(filename):
     return _canonical_school_name(prefix)
 
 
+def _match_recipient_keys(filename, recipient_keys):
+    """파일명 어디에 있든(앞·중간·끝) 파일명 속에 들어 있는 수신자명 키를 찾는다.
+
+    1순위: 구분자(공백 _ - * . , 괄호)로 나눈 낱말 하나가 수신자명과 정확히 같음.
+    2순위: 낱말이 붙어 있는 경우를 위해 파일명 전체에 수신자명이 포함됨(2글자 이상).
+    다른 수신자명에 포함되는 짧은 이름(예: 수원초 ⊂ 남수원초)은 긴 이름이 있으면 뺀다.
+    """
+    stem = os.path.splitext(_safe_original_filename(filename))[0]
+    normalized = unicodedata.normalize('NFKC', stem).strip()
+    tokens = [t for t in re.split(r'[\s_\-*.,()\[\]{}]+', normalized) if t]
+    token_keys = {_canonical_school_name(t) for t in tokens}
+    found = [key for key in recipient_keys if key in token_keys]
+    if not found:
+        joined = re.sub(r'[^0-9a-zA-Zㄱ-ㆎ가-힣]+', '', normalized.lower())
+        for old, new in (('초등학교', '초'), ('초교', '초'), ('중학교', '중'),
+                         ('중교', '중'), ('고등학교', '고'), ('고교', '고')):
+            joined = joined.replace(old, new)
+        found = [key for key in recipient_keys if len(key) >= 2 and key in joined]
+    # 더 긴 수신자명 안에 들어 있는 짧은 이름은 오탐이므로 제외
+    return [key for key in found
+            if not any(key != other and key in other for other in found)]
+
+
 def _preflight_campaign(conn, campaign):
     campaign_id = campaign['id']
     recipients = conn.execute('''
@@ -1915,8 +1938,9 @@ def _preflight_campaign(conn, campaign):
                 ''', (attachment['id'], campaign_id))
                 continue
 
-        key = _filename_match_key(attachment['original_name'])
-        candidates = recipient_keys.get(key, []) if key else []
+        matched_keys = _match_recipient_keys(attachment['original_name'], recipient_keys)
+        key = ', '.join(matched_keys)
+        candidates = [row for k in matched_keys for row in recipient_keys[k]]
         if len(candidates) == 1:
             conn.execute('''
                 UPDATE ai_mail_campaign_attachments
@@ -1926,7 +1950,7 @@ def _preflight_campaign(conn, campaign):
             ''', (candidates[0]['id'], attachment['id'], campaign_id))
         elif len(candidates) > 1:
             names = [f"{row['recipient_name']} <{row['email']}>" for row in candidates]
-            diagnostic = '같은 수신자명이 여러 명입니다.'
+            diagnostic = '파일명에 해당하는 수신자가 여러 명입니다.'
             conn.execute('''
                 UPDATE ai_mail_campaign_attachments
                 SET campaign_recipient_id=NULL, match_method='auto',
@@ -1938,7 +1962,7 @@ def _preflight_campaign(conn, campaign):
                 'match_key': key, 'candidates': names, 'message': diagnostic
             })
         else:
-            diagnostic = '파일명 앞부분과 일치하는 수신자명이 없습니다.'
+            diagnostic = '파일명에서 일치하는 수신자명을 찾지 못했습니다.'
             conn.execute('''
                 UPDATE ai_mail_campaign_attachments
                 SET campaign_recipient_id=NULL, match_method='auto',

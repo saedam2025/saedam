@@ -62,17 +62,18 @@ DEFAULT_POSITIONS = tuple(LEVEL_MAP.items())
 INVITE_MAIL_SUBJECT_KEY = 'user_invite_mail_subject'
 INVITE_MAIL_BODY_KEY = 'user_invite_mail_body'
 INVITE_SENDER_ID_KEY = 'user_invite_sender_id'
+INTRANET_DIRECT_URL = 'https://works.saedam.org'
+INVITE_ACCESS_LINE = f'가입 승인 후 인트라넷 주소 {INTRANET_DIRECT_URL} 로 접속할 수 있습니다.'
+# 예전 기본 문구. 이미 저장해 둔 초대 메일 내용에 남아 있으면 불러올 때 새 안내로 바꾼다.
+LEGACY_INVITE_ACCESS_LINE = '가입 승인 후 새담 홈페이지 www.saedam.org를 통해 인트라넷에 접속할 수 있습니다.'
 DEFAULT_INVITE_MAIL_SUBJECT = '[새담 인트라넷] 회원 가입 초대장'
 DEFAULT_INVITE_MAIL_BODY = (
     '안녕하세요. (사)새담청소년교육문화원입니다.\n'
     '새담 인트라넷 가입 신청을 위한 초대 메일입니다.\n'
     '가입 신청하기 버튼을 눌러 본인 정보를 입력해 주세요.\n'
-    '가입 승인 후 새담 홈페이지 www.saedam.org를 통해 인트라넷에 접속할 수 있습니다.'
+    f'{INVITE_ACCESS_LINE}'
 )
 PRIVACY_SECURITY_CONSENT_VERSION = '2026-08-10-v1'
-INTRANET_HOMEPAGE_URL = 'https://www.saedam.org'
-MEMBERSHIP_HOMEPAGE_URL = 'http://www.saedam.org'
-INTRANET_DIRECT_URL = 'https://works.saedam.org'
 PASSWORD_MAX_LENGTH = 12
 PASSWORD_ALLOWED_RE = re.compile(
     r'^[A-Za-z0-9!@#$%^&*()_+~`\-={}\[\]:;"\'<>,.?/|\\]{1,12}$'
@@ -286,9 +287,10 @@ def _load_invite_mail_template(conn):
         (INVITE_MAIL_SUBJECT_KEY, INVITE_MAIL_BODY_KEY),
     ).fetchall()
     settings = {row['key']: row['value'] for row in rows}
+    body = settings.get(INVITE_MAIL_BODY_KEY) or DEFAULT_INVITE_MAIL_BODY
     return {
         'subject': settings.get(INVITE_MAIL_SUBJECT_KEY) or DEFAULT_INVITE_MAIL_SUBJECT,
-        'body': settings.get(INVITE_MAIL_BODY_KEY) or DEFAULT_INVITE_MAIL_BODY,
+        'body': body.replace(LEGACY_INVITE_ACCESS_LINE, INVITE_ACCESS_LINE),
     }
 
 
@@ -324,18 +326,18 @@ def send_real_email(target_email, invite_link, subject, content, sender=None):
     msg['To'] = target_email
     msg['Subject'] = subject
 
-    safe_content = '<br>'.join(escape(content).splitlines())
-    access_guide = (
-        '가입 승인 후 새담 홈페이지 www.saedam.org를 통해 인트라넷에 접속할 수 있습니다.'
+    safe_content = '<br>'.join(escape(content).splitlines()).replace(
+        escape(INTRANET_DIRECT_URL),
+        f'<a href="{INTRANET_DIRECT_URL}" target="_blank" style="color:#2563eb; font-weight:bold;">{INTRANET_DIRECT_URL}</a>',
     )
-    access_guide_html = '' if 'saedam.org' in str(content).lower() else f'''
+    # 본문에 인트라넷 주소가 없으면 접속 안내를 따로 덧붙인다.
+    has_access_guide = 'works.saedam.org' in str(content).lower()
+    access_guide_html = '' if has_access_guide else f'''
                 <p style="margin: 18px 0 0; padding: 12px 14px; background: #f0f7ff; border-radius: 8px; color: #334155; font-size: 14px; line-height: 1.7;">
-                    인트라넷 접속 방법: 가입 승인 후 <a href="{INTRANET_HOMEPAGE_URL}" target="_blank" style="color:#2563eb; font-weight:bold;">새담 홈페이지 www.saedam.org</a>를 이용해 주세요.
+                    인트라넷 접속 방법: 가입 승인 후 인트라넷 주소 <a href="{INTRANET_DIRECT_URL}" target="_blank" style="color:#2563eb; font-weight:bold;">{INTRANET_DIRECT_URL}</a> 로 접속해 주세요.
                 </p>
     '''
-    access_guide_plain = '' if 'saedam.org' in str(content).lower() else (
-        f'\n\n{access_guide}\n새담 홈페이지: {INTRANET_HOMEPAGE_URL}'
-    )
+    access_guide_plain = '' if has_access_guide else f'\n\n{INVITE_ACCESS_LINE}'
 
     # [수정됨] 이메일 클라이언트(아웃룩, 지메일 등)에서 호환성이 높은 테이블을 사용한 가로 배열 디자인
     body = f"""
@@ -410,8 +412,7 @@ def send_membership_result_email(
             f'소속부서: {department}',
             f'직급: {position}',
             '이제 새담 인트라넷에 로그인하여 이용하실 수 있습니다.',
-            f'접속방법: 새담 홈페이지 {MEMBERSHIP_HOMEPAGE_URL} 접속 후 인트라넷 메뉴로 접속가능.',
-            f'인트라넷 주소: {INTRANET_DIRECT_URL}',
+            f'접속방법: 인트라넷 주소 {INTRANET_DIRECT_URL} 로 접속해 주세요.',
         ]
     else:
         subject = '[새담 인트라넷] 가입 승인 거부 안내'
@@ -427,9 +428,6 @@ def send_membership_result_email(
     safe_content = '<br>'.join(escape(line) for line in detail_lines)
     if approved:
         safe_content = safe_content.replace(
-            escape(MEMBERSHIP_HOMEPAGE_URL),
-            f'<a href="{MEMBERSHIP_HOMEPAGE_URL}" target="_blank" style="color:#2563eb;">{MEMBERSHIP_HOMEPAGE_URL}</a>',
-        ).replace(
             escape(INTRANET_DIRECT_URL),
             f'<a href="{INTRANET_DIRECT_URL}" target="_blank" style="color:#2563eb;">{INTRANET_DIRECT_URL}</a>',
         )

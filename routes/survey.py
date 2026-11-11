@@ -24,6 +24,7 @@ from .solapi_settings import (
     fill_template_text,
     format_phone,
     get_settings as get_solapi_settings,
+    get_template_ref,
     mask_phone,
     message_byte_length,
     normalize_phone,
@@ -204,6 +205,7 @@ def _add_missing_columns(conn):
         ('survey_responses', 'is_anonymous', 'INTEGER NOT NULL DEFAULT 0'),
         ('surveys', 'send_method', f"TEXT NOT NULL DEFAULT '{DEFAULT_SEND_METHOD}'"),
         ('surveys', 'kakao_variables', 'TEXT'),
+        ('surveys', 'kakao_template', 'TEXT'),
         ('survey_recipients', 'send_channel', 'TEXT'),
         ('survey_send_logs', 'channel', 'TEXT'),
     )
@@ -369,6 +371,7 @@ def _survey_dict(row, *, response_count=0, recipient_count=0, sent_count=0):
         'sms_template': row['sms_template'] or DEFAULT_SMS_TEMPLATE,
         'send_method': _row_send_method(row),
         'kakao_variables': _load_kakao_variables(_row_value(row, 'kakao_variables')),
+        'kakao_template': _row_kakao_template(row),
         'created_by': row['created_by'] or '',
         'created_by_name': row['created_by_name'] or '',
         'created_at': str(row['created_at'] or '')[:16],
@@ -440,6 +443,74 @@ def _clean_send_method(value, fallback=DEFAULT_SEND_METHOD):
 
 def _row_send_method(row):
     return _clean_send_method(_row_value(row, 'send_method'))
+
+
+def _row_kakao_template(row):
+    """설문에 기억해 둔 알림톡 템플릿 이름. 빈 값이면 솔라피설정의 기본(설문조사) 템플릿."""
+    return str(_row_value(row, 'kakao_template') or '').strip()
+
+
+def _kakao_choices(solapi):
+    """고를 수 있는 알림톡 템플릿 목록: 기본 설문조사 템플릿 + 솔라피설정의 [추가 템플릿]."""
+    choices = [{
+        'key': '',
+        'label': '기본 · 설문조사 템플릿',
+        'pf_id': solapi.get('survey_pf_id') or '',
+        'template_id': solapi.get('survey_template_id') or '',
+        'memo': '',
+        'default': True,
+    }]
+    for item in solapi.get('extra_templates') or []:
+        choices.append({
+            'key': item['name'],
+            'label': item['name'],
+            'pf_id': item.get('channel_id') or item.get('pf_id') or '',
+            'template_id': item['template_id'],
+            'memo': item.get('memo') or '',
+            'default': False,
+        })
+    for choice in choices:
+        choice['usable'] = bool(choice['pf_id'] and choice['template_id'])
+    return choices
+
+
+def _pick_kakao_choice(solapi, key):
+    """이름(key)에 맞는 템플릿 선택지. 빈 이름은 기본 템플릿, 솔라피설정에서 지워진 이름은 None."""
+    choices = _kakao_choices(solapi)
+    if not str(key or '').strip():
+        return choices[0]
+    ref = get_template_ref(key, solapi)
+    if not ref:
+        return None
+    return next((choice for choice in choices[1:] if choice['key'] == ref['name']), None)
+
+
+def _choice_problem(choice, key):
+    """고른 템플릿으로 알림톡을 보낼 수 없을 때의 안내 문구(보낼 수 있으면 빈 문자열)."""
+    if choice is None:
+        return (f'선택한 알림톡 템플릿 「{str(key).strip()}」을(를) 통합관리 > 솔라피설정에서 찾을 수 없습니다. '
+                '삭제했다면 다른 템플릿을 골라 주세요.')
+    if choice['usable']:
+        return ''
+    if choice['default']:
+        return ('통합관리 > 솔라피설정에서 API KEY·API SECRET·발신번호와 '
+                '설문조사 알림톡 채널 ID·템플릿 ID를 먼저 저장해 주세요.')
+    return (f"추가 템플릿 「{choice['label']}」의 채널 ID·템플릿 ID를 "
+            '통합관리 > 솔라피설정에서 확인해 주세요.')
+
+
+def _kakao_ready(solapi):
+    """알림톡을 보낼 수 있는 템플릿이 하나라도 있는지."""
+    return bool(solapi.get('sms_configured')) and any(
+        choice['usable'] for choice in _kakao_choices(solapi)
+    )
+
+
+def _payload_kakao_template(payload, row):
+    """화면에서 넘어온 템플릿 이름. 넘어오지 않았으면 설문에 저장된 값을 쓴다."""
+    if 'kakao_template' in payload:
+        return str(payload.get('kakao_template') or '').strip()[:60]
+    return _row_kakao_template(row)
 
 
 def _load_kakao_variables(raw):
@@ -577,10 +648,10 @@ def _template_problem(template):
     return ''
 
 
-def _kakao_summary(conn, row, overrides, *, solapi, refresh=False):
+def _kakao_summary(conn, row, overrides, *, solapi, choice, refresh=False):
     """편집 화면에 보여 줄 템플릿 정보·변수표·미리보기를 만든다."""
     template = fetch_kakao_template(
-        solapi.get('survey_template_id'), settings=solapi, refresh=refresh
+        choice['template_id'], settings=solapi, refresh=refresh
     )
     sample = conn.execute(
         'SELECT * FROM survey_recipients WHERE survey_id=? ORDER BY id LIMIT 1', (row['id'],)
@@ -601,7 +672,7 @@ def _kakao_summary(conn, row, overrides, *, solapi, refresh=False):
             'content': template['content'],
             'buttons': template['buttons'],
         },
-        'pf_id': solapi.get('survey_pf_id') or '',
+        'pf_id': choice['pf_id'],
         'variables': rows,
         'missing': missing,
         'problem': _template_problem(template),
@@ -707,7 +778,7 @@ def api_list():
         'items': items,
         'statuses': SURVEY_STATUSES,
         'sms_ready': bool(get_solapi_settings().get('sms_configured')),
-        'kakao_ready': bool(get_solapi_settings().get('survey_kakao_configured')),
+        'kakao_ready': _kakao_ready(get_solapi_settings()),
     })
 
 
@@ -774,7 +845,11 @@ def api_detail(survey_id):
         'recipients': recipients,
         'send_logs': logs,
         'sms_ready': bool(solapi.get('sms_configured')),
-        'kakao_ready': bool(solapi.get('survey_kakao_configured')),
+        'kakao_ready': _kakao_ready(solapi),
+        'kakao_templates': [
+            {key: choice[key] for key in ('key', 'label', 'memo', 'default', 'usable')}
+            for choice in _kakao_choices(solapi)
+        ],
         'send_methods': SEND_METHODS,
         'default_send_method': DEFAULT_SEND_METHOD,
         'sender_name': solapi.get('sender_name') or DEFAULT_SENDER_NAME,
@@ -801,6 +876,7 @@ def api_save():
     kakao_variables = json.dumps(
         _load_kakao_variables(payload.get('kakao_variables') or {}), ensure_ascii=False
     )
+    kakao_template = str(payload.get('kakao_template') or '').strip()[:60]
 
     try:
         starts_on = _clean_date(payload.get('starts_on'))
@@ -836,7 +912,7 @@ def api_save():
                 '''UPDATE surveys
                       SET title=?, description=?, starts_on=?, ends_on=?,
                           allow_public_link=?, allow_anonymous=?, sms_template=?,
-                          send_method=?, kakao_variables=?,
+                          send_method=?, kakao_variables=?, kakao_template=?,
                           updated_at=CURRENT_TIMESTAMP
                     WHERE id=?''',
                 (title, description, starts_on, ends_on,
@@ -844,6 +920,8 @@ def api_save():
                  send_method if 'send_method' in payload else _row_send_method(row),
                  kakao_variables if 'kakao_variables' in payload
                  else _row_value(row, 'kakao_variables'),
+                 kakao_template if 'kakao_template' in payload
+                 else _row_kakao_template(row),
                  survey_id),
             )
             if not responded:
@@ -854,12 +932,12 @@ def api_save():
                 '''INSERT INTO surveys
                        (title, description, status, public_token, starts_on, ends_on,
                         allow_public_link, allow_anonymous, sms_template,
-                        send_method, kakao_variables,
+                        send_method, kakao_variables, kakao_template,
                         created_by, created_by_name)
-                   VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                   VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                 (title, description, _new_token(), starts_on, ends_on,
                  allow_public_link, allow_anonymous, template,
-                 send_method, kakao_variables,
+                 send_method, kakao_variables, kakao_template,
                  actor['emp_no'], actor['name']),
             )
             survey_id = cursor.lastrowid
@@ -952,13 +1030,14 @@ def api_duplicate(survey_id):
             '''INSERT INTO surveys
                    (title, description, status, public_token, starts_on, ends_on,
                     allow_public_link, allow_anonymous, sms_template,
-                    send_method, kakao_variables,
+                    send_method, kakao_variables, kakao_template,
                     created_by, created_by_name)
-               VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+               VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (f"{row['title']} (복사본)"[:200], row['description'], _new_token(),
              row['starts_on'], row['ends_on'], row['allow_public_link'],
              row['allow_anonymous'], row['sms_template'],
              _row_send_method(row), _row_value(row, 'kakao_variables'),
+             _row_kakao_template(row),
              actor['emp_no'], actor['name']),
         )
         new_id = cursor.lastrowid
@@ -1297,19 +1376,22 @@ def api_kakao_template(survey_id):
     payload = request.get_json(silent=True) or {}
     refresh = bool(payload.get('refresh')) or request.args.get('refresh') == '1'
     solapi = get_solapi_settings()
-    if not solapi.get('survey_kakao_configured'):
-        return _json_error(
-            '통합관리 > 솔라피설정에서 API KEY·API SECRET·발신번호와 '
-            '설문조사 알림톡 채널 ID·템플릿 ID를 먼저 저장해 주세요.'
-        )
     conn = get_db()
     try:
         row = _survey_row(conn, survey_id)
         if not row:
             return _json_error('설문을 찾을 수 없습니다.', 404)
+        template_key = _payload_kakao_template(payload, row)
+        choice = _pick_kakao_choice(solapi, template_key)
+        problem = _choice_problem(choice, template_key)
+        if not problem and not solapi.get('sms_configured'):
+            problem = _choice_problem(_kakao_choices({})[0], '')
+        if problem:
+            return _json_error(problem)
         try:
             summary = _kakao_summary(
-                conn, row, _payload_overrides(payload, row), solapi=solapi, refresh=refresh
+                conn, row, _payload_overrides(payload, row),
+                solapi=solapi, choice=choice, refresh=refresh,
             )
         except RuntimeError as exc:
             return _json_error(str(exc), 502)
@@ -1333,12 +1415,17 @@ def api_preview(survey_id):
         solapi = get_solapi_settings()
         kakao = None
         if method == 'kakao':
-            if not solapi.get('survey_kakao_configured'):
-                return _json_error(
-                    '통합관리 > 솔라피설정에서 설문조사 알림톡 설정을 먼저 저장해 주세요.'
-                )
+            template_key = _payload_kakao_template(payload, row)
+            choice = _pick_kakao_choice(solapi, template_key)
+            problem = _choice_problem(choice, template_key)
+            if not problem and not solapi.get('sms_configured'):
+                problem = _choice_problem(_kakao_choices({})[0], '')
+            if problem:
+                return _json_error(problem)
             try:
-                kakao = _kakao_summary(conn, row, _payload_overrides(payload, row), solapi=solapi)
+                kakao = _kakao_summary(
+                    conn, row, _payload_overrides(payload, row), solapi=solapi, choice=choice
+                )
             except RuntimeError as exc:
                 return _json_error(str(exc), 502)
     finally:
@@ -1420,13 +1507,15 @@ def api_send(survey_id):
         title = row['title']
         # 화면에서 고른 발송방법·문자내용·변수값을 설문에 남겨 다음에도 그대로 쓰게 하고,
         # 발송 시점에 진행중으로 바꿔 응답 링크가 바로 열리게 한다.
+        template_key = _payload_kakao_template(payload, row)
         conn.execute(
             '''UPDATE surveys
-                  SET send_method=?, kakao_variables=?, sms_template=?,
+                  SET send_method=?, kakao_variables=?, sms_template=?, kakao_template=?,
                       status=CASE WHEN status='draft' THEN 'open' ELSE status END,
                       updated_at=CURRENT_TIMESTAMP
                 WHERE id=?''',
-            (method, json.dumps(overrides, ensure_ascii=False), template, survey_id),
+            (method, json.dumps(overrides, ensure_ascii=False), template, template_key,
+             survey_id),
         )
         conn.commit()
     finally:
@@ -1451,13 +1540,11 @@ def api_send(survey_id):
 
     try:
         if method == 'kakao':
-            if not solapi.get('survey_kakao_configured'):
-                return _json_error(
-                    '통합관리 > 솔라피설정에서 설문조사 알림톡 채널 ID·템플릿 ID를 먼저 저장해 주세요.'
-                )
-            kakao_template = fetch_kakao_template(
-                solapi.get('survey_template_id'), settings=solapi
-            )
+            choice = _pick_kakao_choice(solapi, template_key)
+            choice_problem = _choice_problem(choice, template_key)
+            if choice_problem:
+                return _json_error(choice_problem)
+            kakao_template = fetch_kakao_template(choice['template_id'], settings=solapi)
             problem = _template_problem(kakao_template)
             if problem:
                 return _json_error(problem)
@@ -1483,8 +1570,8 @@ def api_send(survey_id):
                 })
             results = send_bulk_alimtalk(
                 messages,
-                pf_id=solapi.get('survey_pf_id'),
-                template_id=solapi.get('survey_template_id'),
+                pf_id=choice['pf_id'],
+                template_id=choice['template_id'],
                 fallback=fallback,
                 settings=solapi,
             )

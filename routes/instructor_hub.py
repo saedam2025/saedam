@@ -1,17 +1,17 @@
 """학교지원 > 강사통합지원.
 
 본사 담당자가 학교를 골라 강사를 직접 등록(한 명 · 붙여넣기 · 엑셀)하면, 강사마다 개인별 접속 링크와
-6자리 비밀번호가 무작위로 만들어진다. 강사는 그 링크로 자기 페이지에 들어가 아래 세 가지를 한다.
+6자리 비밀번호가 무작위로 만들어진다. 강사는 그 링크로 자기 페이지에 들어가 **학생출석관리**만 쓴다:
+출석 QR 화면, 학생 등록, 학부모 알림 등록 안내.
 
-1. 강사프로필  : 사진과 소개글을 올린다. 본사 승인 후 학부모통합지원 화면에 보인다.
-2. 홍보페이지  : 그림·PDF를 올리면 그 학교의 e리플렛으로 자동 등록된다(없으면 새로 만든다).
-                  본사 승인 전에는 외부 링크가 열리지 않고, 승인되면 학부모통합지원의 학교 e리플렛에 합쳐진다.
-3. 학생출석관리: 출석 QR 화면, 학생 등록, 학부모 알림 등록 안내를 쓴다.
+[담당강사안내](강사 사진·소개글)와 강사 홍보 리플렛 쪽은 **본사가 전적으로 올리고 고친다.** 강사는 접근하지도
+올리지도 못하므로 승인 절차가 없다. 본사가 저장하면 곧바로 학부모 화면에 보인다.
+(예전에 강사가 올려 승인을 기다리던 자료가 남아 있으면 본사 화면에 '공개 대기'로 보이고, 본사가 [공개하기]를 눌러야 보인다.)
 
-본사 담당자는 [학부모·강사 통합지원](routes/support_hub.py) 화면의 ① 강사 탭(접속 안내 문자·비밀번호 재발급 등)과
-③ 승인관리 탭(강사별로 프로필과 홍보 자료를 한 줄에 보며 승인·반려)에서 이 모듈의 기능을 쓴다.
-화면은 support_hub가 그리고, 이 모듈은 강사 계정·승인·강사 포털의 규칙과 처리 경로를 맡는다.
-학부모에게 링크를 보내는 일도 같은 화면의 ④ 학부모 안내 탭이 맡는다.
+본사 담당자는 [학부모·강사 통합지원](routes/support_hub.py) 화면의 강사 등록·관리 탭(접속 안내 문자·비밀번호 재발급 등)과
+담당강사안내·e리플렛 탭에서 이 모듈의 기능을 쓴다. 화면은 support_hub가 그리고, 이 모듈은 강사 계정·
+담당강사안내·홍보 리플렛·강사 포털의 규칙과 처리 경로를 맡는다.
+학부모에게 링크를 보내는 일도 같은 화면의 학부모 안내 탭이 맡는다.
 
 강사 계정은 인트라넷 계정(emp_no)과 무관하다. 링크(비밀 토큰) + 비밀번호 + 별도 세션으로
 보호하며, 이 세션은 인트라넷 메뉴 권한을 전혀 주지 않는다.
@@ -74,7 +74,8 @@ BIO_LIMIT = 1500
 LOGIN_WINDOW_SECONDS = 10 * 60
 LOGIN_MAX_FAILURES = 8
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
-STATUS_LABELS = {'none': '미등록', 'pending': '승인대기', 'approved': '승인됨', 'rejected': '반려됨'}
+# 본사가 직접 올리므로 승인 절차는 없다. pending은 예전에 강사가 올려 공개를 기다리는 자료, rejected는 예전 반려 자료(미등록과 같게 본다).
+STATUS_LABELS = {'none': '미등록', 'pending': '공개 대기', 'approved': '등록됨', 'rejected': '미등록'}
 
 _login_failures: dict[str, list[float]] = {}
 
@@ -721,8 +722,12 @@ def _profile(conn, account_id):
     return conn.execute('SELECT * FROM ih_profiles WHERE account_id=?', (account_id,)).fetchone()
 
 
-def submit_profile(conn, account_id, bio, photo_upload=None):
-    """프로필을 제출한다(승인대기). 반환: 오류 메시지 또는 None."""
+def save_profile(conn, account_id, bio, photo_upload=None, remove_photo=False, editor=''):
+    """본사가 담당강사안내(소개글·사진)를 저장한다. 저장하면 곧바로 학부모 화면에 보인다.
+
+    사진 칸을 비워 두면 있던 사진을 그대로 두고, remove_photo면 사진만 지운다.
+    소개글과 사진이 모두 없으면 안내를 비운 것으로 본다. 반환: 오류 메시지 또는 None.
+    """
     bio = _multiline(bio, BIO_LIMIT)
     profile = _profile(conn, account_id)
     new_photo = ''
@@ -731,37 +736,32 @@ def submit_profile(conn, account_id, bio, photo_upload=None):
             new_photo = _save_photo(photo_upload)
         except ValueError as exc:
             return str(exc)
-    has_photo = bool(new_photo or profile['draft_photo_path'] or profile['photo_path'])
-    if not bio and not has_photo:
-        return '프로필 사진이나 소개글을 입력해 주세요.'
-    if new_photo:
-        delete_file(profile['draft_photo_path'])
+    photo = new_photo or ('' if remove_photo else profile['photo_path'])
+    if profile['photo_path'] and photo != profile['photo_path']:
+        delete_file(profile['photo_path'])
+    # 예전에 강사가 올려 공개 전이던 수정본은 본사가 직접 저장한 내용으로 대신한다.
+    delete_file(profile['draft_photo_path'])
     conn.execute('''
-        UPDATE ih_profiles SET draft_bio=?, draft_photo_path=?, status='pending',
-            submitted_at=?, reject_reason='' WHERE account_id=?
-    ''', (bio, new_photo or profile['draft_photo_path'], _now_text(), account_id))
+        UPDATE ih_profiles SET bio=?, photo_path=?, draft_bio='', draft_photo_path='', status=?,
+            submitted_at=?, reviewed_by=?, reviewed_at=?, reject_reason='' WHERE account_id=?
+    ''', (bio, photo, 'approved' if (bio or photo) else 'none', _now_text(), editor, _now_text(), account_id))
     conn.commit()
     return None
 
 
-def review_profile(conn, account_id, approve, reviewer, reason=''):
+def publish_profile_draft(conn, account_id, editor=''):
+    """예전에 강사가 올려 공개를 기다리던 프로필을 그대로 공개한다. 반환: 오류 메시지 또는 None."""
     profile = conn.execute('SELECT * FROM ih_profiles WHERE account_id=?', (account_id,)).fetchone()
     if not profile or profile['status'] != 'pending':
-        return '승인대기 중인 프로필이 아닙니다.'
-    if approve:
-        photo = profile['photo_path']
-        if profile['draft_photo_path']:
-            delete_file(photo)
-            photo = profile['draft_photo_path']
-        conn.execute('''
-            UPDATE ih_profiles SET bio=?, photo_path=?, draft_bio='', draft_photo_path='',
-                status='approved', reviewed_by=?, reviewed_at=?, reject_reason='' WHERE account_id=?
-        ''', (profile['draft_bio'], photo, reviewer, _now_text(), account_id))
-    else:
-        conn.execute('''
-            UPDATE ih_profiles SET status='rejected', reviewed_by=?, reviewed_at=?, reject_reason=?
-            WHERE account_id=?
-        ''', (reviewer, _now_text(), _text(reason, 300), account_id))
+        return '공개를 기다리는 담당강사안내가 아닙니다.'
+    photo = profile['photo_path']
+    if profile['draft_photo_path']:
+        delete_file(photo)
+        photo = profile['draft_photo_path']
+    conn.execute('''
+        UPDATE ih_profiles SET bio=?, photo_path=?, draft_bio='', draft_photo_path='',
+            status='approved', reviewed_by=?, reviewed_at=?, reject_reason='' WHERE account_id=?
+    ''', (profile['draft_bio'], photo, editor, _now_text(), account_id))
     conn.commit()
     return None
 
@@ -834,8 +834,14 @@ def _ensure_leaflet(conn, account, promo):
     return ebook_id
 
 
-def submit_promo(conn, account, assignment, uploads):
-    """홍보 자료를 올린다. 해당 학교 e리플렛에 자동 등록되고(없으면 생성) 승인대기가 된다."""
+def save_promo(conn, account, school_name, uploads, editor=''):
+    """본사가 강사의 홍보 리플렛 쪽을 올린다. 올린 쪽이 이전 쪽을 통째로 바꾸고 곧바로 학교 e리플렛에 보인다.
+
+    반환: 오류 메시지 또는 None.
+    """
+    assignment = next((a for a in _assignments(conn, account['id']) if norm(a['school_name']) == norm(school_name)), None)
+    if not assignment:
+        return '이 강사가 배정된 학교가 아닙니다.'
     try:
         frames = _frames_from_uploads(uploads)
     except ValueError as exc:
@@ -848,39 +854,49 @@ def submit_promo(conn, account, assignment, uploads):
             INSERT INTO ih_promo_pages (promo_id, position, path, name, width, height) VALUES (?, ?, ?, ?, ?, ?)
         ''', (promo['id'], number, _store_jpeg(folder, f'draft{number}', jpeg), name, width, height))
     ebook_id = _ensure_leaflet(conn, account, promo)
-    book = conn.execute('SELECT approval_status FROM ebooks WHERE id=?', (ebook_id,)).fetchone()
-    if book['approval_status'] != 'approved':
-        # 아직 공개된 적 없는 리플렛은 곧바로 내용을 채워 둔다(본사 담당자가 미리 볼 수 있다).
-        _apply_pages_to_leaflet(conn, ebook_id, _draft_pages(conn, promo['id']))
-        conn.execute("UPDATE ebooks SET approval_status='pending' WHERE id=?", (ebook_id,))
+    _apply_pages_to_leaflet(conn, ebook_id, _draft_pages(conn, promo['id']))
+    _clear_drafts(conn, promo['id'])
+    conn.execute("UPDATE ebooks SET approval_status='approved', updated_at=CURRENT_TIMESTAMP WHERE id=?", (ebook_id,))
     conn.execute('''
-        UPDATE ih_promos SET status='pending', submitted_at=?, reject_reason='' WHERE id=?
-    ''', (_now_text(), promo['id']))
+        UPDATE ih_promos SET status='approved', submitted_at=?, reviewed_by=?, reviewed_at=?, reject_reason=''
+        WHERE id=?
+    ''', (_now_text(), editor, _now_text(), promo['id']))
     conn.commit()
     return None
 
 
-def review_promo(conn, promo_id, approve, reviewer, reason=''):
+def remove_promo(conn, account_id, school_name):
+    """강사의 홍보 리플렛(쪽·리플렛 자체)을 지운다. 반환: 지웠는지."""
+    promo = next((p for p in conn.execute('SELECT * FROM ih_promos WHERE account_id=?', (account_id,)).fetchall()
+                  if norm(p['school_name']) == norm(school_name)), None)
+    if not promo:
+        return False
+    _clear_drafts(conn, promo['id'])
+    if promo['ebook_id']:
+        for row in conn.execute('SELECT image_path FROM ebook_pages WHERE ebook_id=?', (promo['ebook_id'],)).fetchall():
+            delete_file(row['image_path'])
+        conn.execute('DELETE FROM ebook_pages WHERE ebook_id=?', (promo['ebook_id'],))
+        conn.execute('DELETE FROM ebooks WHERE id=?', (promo['ebook_id'],))
+        shutil.rmtree(ebook_mod.LEAFLET_ROOT / str(promo['ebook_id']), ignore_errors=True)
+    conn.execute("UPDATE ih_promos SET ebook_id=NULL, status='none', reject_reason='' WHERE id=?", (promo['id'],))
+    conn.commit()
+    return True
+
+
+def publish_promo_draft(conn, promo_id, editor=''):
+    """예전에 강사가 올려 공개를 기다리던 홍보 리플렛을 그대로 공개한다. 반환: 오류 메시지 또는 None."""
     promo = conn.execute('SELECT * FROM ih_promos WHERE id=?', (promo_id,)).fetchone()
     if not promo or promo['status'] != 'pending' or not promo['ebook_id']:
-        return '승인대기 중인 홍보페이지가 아닙니다.'
-    if approve:
-        drafts = _draft_pages(conn, promo_id)
-        if drafts:
-            _apply_pages_to_leaflet(conn, promo['ebook_id'], drafts)
-            _clear_drafts(conn, promo_id)
-        conn.execute("UPDATE ebooks SET approval_status='approved', updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                     (promo['ebook_id'],))
-        conn.execute('''
-            UPDATE ih_promos SET status='approved', reviewed_by=?, reviewed_at=?, reject_reason='' WHERE id=?
-        ''', (reviewer, _now_text(), promo_id))
-    else:
-        # 이미 공개 중인 리플렛은 그대로 두고, 새로 올린 초안만 반려한다.
-        conn.execute("UPDATE ebooks SET approval_status='rejected' WHERE id=? AND approval_status<>'approved'",
-                     (promo['ebook_id'],))
-        conn.execute('''
-            UPDATE ih_promos SET status='rejected', reviewed_by=?, reviewed_at=?, reject_reason=? WHERE id=?
-        ''', (reviewer, _now_text(), _text(reason, 300), promo_id))
+        return '공개를 기다리는 홍보 리플렛이 아닙니다.'
+    drafts = _draft_pages(conn, promo_id)
+    if drafts:
+        _apply_pages_to_leaflet(conn, promo['ebook_id'], drafts)
+        _clear_drafts(conn, promo_id)
+    conn.execute("UPDATE ebooks SET approval_status='approved', updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                 (promo['ebook_id'],))
+    conn.execute('''
+        UPDATE ih_promos SET status='approved', reviewed_by=?, reviewed_at=?, reject_reason='' WHERE id=?
+    ''', (editor, _now_text(), promo_id))
     conn.commit()
     return None
 
@@ -988,28 +1004,13 @@ def _portal_guard(conn, token):
 
 @instructor_hub_bp.route('/teacher-hub/<token>/home')
 def portal_home(token):
-    tab = request.args.get('tab') if request.args.get('tab') in ('profile', 'promo', 'attendance') else 'profile'
+    """강사 포털 첫 화면: 내 학교·과목의 출석 QR과 학생 등록 안내. (담당강사안내·홍보 자료는 본사가 올린다)"""
     conn = get_db()
     try:
         account, response = _portal_guard(conn, token)
         if response:
             return response
         assignments = _assignments(conn, account['id'])
-        profile = _profile(conn, account['id'])
-        promos = []
-        for item in _school_options(assignments):
-            promo = _promo(conn, account, item)
-            book = conn.execute('SELECT approval_status, share_token FROM ebooks WHERE id=?',
-                                (promo['ebook_id'],)).fetchone() if promo['ebook_id'] else None
-            promos.append({
-                'school_name': item['school_name'], 'school_id': item['school_id'],
-                'status': promo['status'], 'reject_reason': promo['reject_reason'],
-                'submitted_at': promo['submitted_at'] or '',
-                'live': bool(book and book['approval_status'] == 'approved'),
-                'live_url': (_external_root() + url_for('ebook.public_reader', token=book['share_token']))
-                if book and book['approval_status'] == 'approved' else '',
-                'draft_count': len(_draft_pages(conn, promo['id'])),
-            })
         classes = []
         grouped = {}
         for row in accessible_classes(conn, account):
@@ -1031,73 +1032,13 @@ def portal_home(token):
         for key, items in grouped.items():          # 수동으로 연결된 다른 부서 과목
             if key not in shown:
                 classes.append({'school_name': key[0], 'department': key[1], 'classes': items})
-        photo_exists = bool(profile['photo_path'] or profile['draft_photo_path'])
         return _no_store(Response(render_template(
-            'instructor_hub/portal_home.html', account=account, token=token, tab=tab, csrf=_csrf_token(),
-            profile=profile, photo_exists=photo_exists, promos=promos, class_groups=classes,
-            status_labels=STATUS_LABELS, weekday_labels=sa.WEEKDAY_LABELS,
+            'instructor_hub/portal_home.html', account=account, token=token, csrf=_csrf_token(),
+            class_groups=classes, weekday_labels=sa.WEEKDAY_LABELS,
             messages=get_flashed_messages(with_categories=True),
         )))
     finally:
         conn.close()
-
-
-def _back(token, tab):
-    return redirect(url_for('instructor_hub.portal_home', token=token, tab=tab))
-
-
-@instructor_hub_bp.route('/teacher-hub/<token>/profile', methods=['POST'])
-def portal_save_profile(token):
-    conn = get_db()
-    try:
-        account, response = _portal_guard(conn, token)
-        if response:
-            return response
-        _check_csrf()
-        error = submit_profile(conn, account['id'], request.form.get('bio'), request.files.get('photo'))
-        flash(error or '프로필을 제출했습니다. 본사 담당자가 승인하면 학부모 안내 페이지에 보입니다.',
-              'error' if error else 'success')
-    finally:
-        conn.close()
-    return _back(token, 'profile')
-
-
-@instructor_hub_bp.route('/teacher-hub/<token>/photo')
-def portal_photo(token):
-    """내 사진 미리보기(승인대기 중인 새 사진이 있으면 그것을 보여 준다)."""
-    conn = get_db()
-    try:
-        account, response = _portal_guard(conn, token)
-        if response:
-            return response
-        profile = _profile(conn, account['id'])
-    finally:
-        conn.close()
-    path = profile['draft_photo_path'] or profile['photo_path']
-    if not path or not Path(path).is_file():
-        abort(404)
-    return _no_store(encrypted_response(path, 'photo.jpg', as_attachment=False, mimetype='image/jpeg'))
-
-
-@instructor_hub_bp.route('/teacher-hub/<token>/promo', methods=['POST'])
-def portal_save_promo(token):
-    conn = get_db()
-    try:
-        account, response = _portal_guard(conn, token)
-        if response:
-            return response
-        _check_csrf()
-        school_name = _text(request.form.get('school_name'), 100)
-        assignment = next((a for a in _assignments(conn, account['id']) if a['school_name'] == school_name), None)
-        if not assignment:
-            flash('내 학교가 아닙니다.', 'error')
-        else:
-            error = submit_promo(conn, account, assignment, request.files.getlist('files'))
-            flash(error or f'‘{school_name}’ e리플렛에 등록했습니다. 본사 담당자가 승인하면 외부 링크가 열립니다.',
-                  'error' if error else 'success')
-    finally:
-        conn.close()
-    return _back(token, 'promo')
 
 
 @instructor_hub_bp.route('/teacher-hub/<token>/classes/<int:class_id>')
@@ -1345,8 +1286,11 @@ def _department_suggestions(conn, school_name):
     return names
 
 
-def _review_rows(conn, school_name):
-    """② 화면용: 이 학교 강사마다 한 줄 — 프로필과 홍보 리플렛 자료를 함께 보여 준다."""
+def _teacher_rows(conn, school_name):
+    """담당강사안내·e리플렛 화면용: 이 학교 강사마다 한 줄 — 프로필(사진·소개글)과 홍보 리플렛 쪽.
+
+    예전에 강사가 올려 공개 전인 자료(status가 pending)는 draft 값으로 보여 주고 `waiting`으로 표시한다.
+    """
     key = norm(school_name)
     people = {}
     for row in _all_assignments(conn):
@@ -1361,7 +1305,8 @@ def _review_rows(conn, school_name):
     for person in people.values():
         profile = conn.execute('SELECT * FROM ih_profiles WHERE account_id=?', (person['account_id'],)).fetchone()
         status = profile['status'] if profile else 'none'
-        if profile and status in ('pending', 'rejected'):
+        waiting_profile = status == 'pending'
+        if waiting_profile:
             bio, photo, which = profile['draft_bio'], bool(profile['draft_photo_path'] or profile['photo_path']), 'draft'
         elif profile:
             bio, photo, which = profile['bio'], bool(profile['photo_path']), 'live'
@@ -1378,18 +1323,17 @@ def _review_rows(conn, school_name):
                                      (promo['ebook_id'],)).fetchall()
                 from_ebook = True
         promo_status = promo['status'] if promo else 'none'
+        waiting_promo = promo_status == 'pending'
         rows.append({
             **person,
-            'profile': {'status': status, 'bio': bio, 'has_photo': photo, 'which': which,
-                        'old_bio': profile['bio'] if profile and status == 'pending' else '',
-                        'submitted_at': (profile['submitted_at'] or '')[:16] if profile else '',
-                        'reject_reason': profile['reject_reason'] if profile else ''},
-            'promo': {'status': promo_status, 'id': promo['id'] if promo else None,
-                      'ebook_id': promo['ebook_id'] if promo else None, 'from_ebook': from_ebook,
+            'profile': {'has_content': bool(bio or photo), 'bio': bio, 'has_photo': photo, 'which': which,
+                        'waiting': waiting_profile,
+                        'updated_at': (profile['reviewed_at'] or profile['submitted_at'] or '')[:16] if profile else ''},
+            'promo': {'id': promo['id'] if promo else None, 'ebook_id': promo['ebook_id'] if promo else None,
+                      'from_ebook': from_ebook, 'waiting': waiting_promo,
                       'pages': [row['id'] for row in pages[:REVIEW_THUMBS]], 'total': len(pages),
-                      'submitted_at': (promo['submitted_at'] or '')[:16] if promo else '',
-                      'reject_reason': promo['reject_reason'] if promo else ''},
-            'needs_action': status == 'pending' or promo_status == 'pending',
+                      'updated_at': (promo['reviewed_at'] or promo['submitted_at'] or '')[:16] if promo else ''},
+            'waiting': waiting_profile or waiting_promo,
         })
     rows.sort(key=lambda r: (not r['departments'], ' '.join(r['departments']), r['name']))
     return rows
@@ -1416,7 +1360,7 @@ def _orphan_accounts(conn):
     ''').fetchall()]
 
 
-TAB_ALIASES = {'register': 'instructors', 'schools': 'instructors', 'links': 'instructors', 'review': 'review',
+TAB_ALIASES = {'register': 'instructors', 'schools': 'instructors', 'links': 'instructors', 'review': 'teachers',
                'instructors': 'instructors'}
 
 
@@ -1630,9 +1574,9 @@ def admin_account_action(account_id, action):
 
 
 def _access_sms_text(account):
-    return (f"[새담] {account['name']} 강사님 강사통합지원 접속 안내\n"
+    return (f"[새담] {account['name']} 강사님 접속 안내\n"
             f"주소: {_portal_url(account)}\n비밀번호: {_decrypt(account['pw_enc'])}\n"
-            "프로필·홍보페이지·학생출석을 이 주소에서 관리합니다.")
+            "출석 QR과 학생 등록을 이 주소에서 합니다.")
 
 
 def _send_access_sms(conn, account):
@@ -1693,35 +1637,6 @@ def admin_school_sms():
         message += f"\n보내지 못한 강사 {len(failed)}명: " + ', '.join(failed[:5])
     flash(message, 'error' if failed else 'success')
     return _redirect_back()
-
-
-# -- 승인
-
-@instructor_hub_bp.route('/instructor-hub/review/profile/<int:account_id>', methods=['POST'])
-@menu_permission_required(MENU_KEY)
-def admin_review_profile(account_id):
-    conn = get_db()
-    try:
-        approve = request.form.get('decision') == 'approve'
-        error = review_profile(conn, account_id, approve, _admin_name(), request.form.get('reason'))
-    finally:
-        conn.close()
-    flash(error or ('프로필을 승인했습니다.' if approve else '프로필을 반려했습니다.'), 'error' if error else 'success')
-    return _redirect_back('review')
-
-
-@instructor_hub_bp.route('/instructor-hub/review/promo/<int:promo_id>', methods=['POST'])
-@menu_permission_required(MENU_KEY)
-def admin_review_promo(promo_id):
-    conn = get_db()
-    try:
-        approve = request.form.get('decision') == 'approve'
-        error = review_promo(conn, promo_id, approve, _admin_name(), request.form.get('reason'))
-    finally:
-        conn.close()
-    flash(error or ('홍보페이지를 승인했습니다. 학교 e리플렛에 합쳐져 학부모에게 보입니다.' if approve else '홍보페이지를 반려했습니다.'),
-          'error' if error else 'success')
-    return _redirect_back('review')
 
 
 @instructor_hub_bp.route('/instructor-hub/photo/<int:account_id>/<which>')
