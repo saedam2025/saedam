@@ -36,7 +36,9 @@ STATE_AWARDED = '최종낙찰'
 STATE_OPENED = '개찰완료'
 PAGE_SIZE = 999
 MAX_PAGES = 20
-MAX_RANGE_DAYS = 28
+# 나라장터가 한 번에 받아 주는 조회 기간. 예전에는 한 달이었지만 2026-11 현재 날짜 차이 6일까지만 받아 주고
+# 7일부터는 07 오류를 돌려준다. 더 긴 기간은 이 길이로 잘라 여러 번 조회한다(`RangeTooLong`이 나면 더 잘게 나눠 재시도).
+MAX_RANGE_DAYS = 6
 REQUEST_TIMEOUT = 40
 DOWNLOAD_TIMEOUT = 90
 DOWNLOAD_CHUNK = 256 * 1024
@@ -61,7 +63,7 @@ _SCHOOL_IN_TITLE = re.compile(r'([가-힣A-Za-z0-9]+(?:초등학교|중학교|�
 _SCHOOL_SUFFIXES = ('학교', '유치원')
 
 RESULT_MESSAGES = {
-    '07': '조회 기간이 너무 깁니다(최대 1개월).',
+    '07': '조회 기간이 나라장터가 허용하는 길이를 넘었습니다. 기간을 줄여 다시 시도해 주세요.',
     '08': '필수 조회 조건이 빠졌습니다.',
     '12': '나라장터 서비스 이용 신청이 되어 있지 않습니다(공공데이터포털에서 입찰공고정보·낙찰정보 서비스 활용신청 확인).',
     '20': '인증키로 이 서비스를 쓸 수 없습니다. 공공데이터포털에서 활용신청 상태를 확인해 주세요.',
@@ -73,6 +75,10 @@ RESULT_MESSAGES = {
 
 class G2BError(RuntimeError):
     """나라장터 조회 실패(화면에 그대로 보여 줄 수 있는 안내 문구를 담는다)."""
+
+
+class RangeTooLong(G2BError):
+    """조회 기간이 나라장터 허용 길이를 넘음(07 오류, 기간을 나눠 재조회 가능)."""
 
 
 class SearchPageLimit(G2BError):
@@ -131,7 +137,7 @@ def _request(operation, service_key, params, base=API_BASE):
     code = str(header.get('resultCode') or '')
     if code != '00':
         message = RESULT_MESSAGES.get(code) or f"나라장터 조회 오류: {header.get('resultMsg') or code or '알 수 없음'}"
-        raise G2BError(message)
+        raise (RangeTooLong if code == '07' else G2BError)(message)
     body = response.get('body') or {}
     items = body.get('items') or []
     if isinstance(items, dict):  # 한 건일 때 {"item": {...}} 로 오는 예전 형식
