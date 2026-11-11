@@ -120,7 +120,9 @@ MENU_GROUPS = (
             ('parent_notifications', '학부모알림전송', 'fa-bell', 7),
             ('school_billing', '청구업무', 'fa-file-invoice-dollar', 5),
             ('school_support_hub', '학부모·강사 통합지원', 'fa-people-roof', 7),
+            ('school_lesson_info', '수업안내', 'fa-clipboard-list', 7),
             ('school_personality', '강사 인성·직무적합성 검사', 'fa-clipboard-question', 4),
+            ('school_instructor_notify', '강사알림전송', 'fa-comment-sms', 4),
         ),
     },
     {
@@ -569,12 +571,21 @@ def resolve_request_menu(path, endpoint='', view_args=None):
     # 강사 포털(/teacher-hub)은 계정 없이 여는 공개 주소다.
     if path.startswith('/teacher-hub'):
         return None
+    # 강사용 학생등록 링크(/student-register)도 링크 + 6자리 비밀번호로 여는 공개 주소다.
+    if path.startswith('/student-register/'):
+        return None
     # 학부모 학교 링크(/parent/hub)와 보호자 개인 화면(/parent/home)은 계정 없이 여는 공개 주소다.
     if path.startswith('/parent/hub/') or path.startswith('/parent/home/'):
         return None
     # 강사통합지원 + 학부모통합지원 = [학부모·강사 통합지원] 한 메뉴(예전 주소도 같은 권한을 쓴다)
     if path.startswith(('/support-hub', '/instructor-hub', '/parent-hub')):
         return 'school_support_hub'
+    # 수업안내 관리 화면(학부모가 보는 파일은 /parent/home/ 아래라 위에서 공개 처리된다)
+    if path.startswith('/lesson-info'):
+        return 'school_lesson_info'
+    # 강사알림전송: 강사 명단(주민번호 포함)과 문자 발송이라 로그인·메뉴 권한이 필요하다.
+    if path.startswith('/instructor-notify'):
+        return 'school_instructor_notify'
     if path.startswith('/survey'):
         return 'school_survey'
     # 인성검사 응시 링크(/personality/t/)는 응시자가 계정 없이 여는 공개 주소다.
