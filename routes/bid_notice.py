@@ -62,7 +62,7 @@ EDIT_MAX_LEVEL = 2               # 진행 상태·투찰금액·메모를 바꾸
 EDIT_DENIED_MESSAGE = '진행 상태·투찰금액·메모는 레벨 1·2 직원만 바꿀 수 있습니다.'
 EMAIL_PATTERN = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$')
 
-COLLECT_DAYS = g2b.MAX_RANGE_DAYS    # [최근 4주 공고 가져오기]가 보는 기간(28일)
+COLLECT_DAYS = 28    # [최근 4주 공고 가져오기]가 보는 기간(나라장터 1회 조회 한도 g2b.MAX_RANGE_DAYS씩 잘라 조회)
 RESULT_LIMIT = 100               # [낙찰 결과 가져오기] 요청 한 번에 확인하는 공고 수(화면이 남은 공고가 없을 때까지 이어 부른다)
 BASE_AMOUNT_LIMIT = 60           # 한 번 수집할 때 기초금액을 확인할 공고 수
 BASE_AMOUNT_AFTER_CLOSE_DAYS = 14
@@ -657,7 +657,8 @@ def _search_term_pages(settings, term, begin, end):
         for page in g2b.iter_search_notices(settings['service_key'], term, begin, end):
             emitted = True
             yield page
-    except g2b.SearchPageLimit:
+    except (g2b.SearchPageLimit, g2b.RangeTooLong):
+        # 결과가 너무 많거나(페이지 한도) 나라장터 허용 기간을 넘었으면(07 오류) 반으로 나눠 다시 조회한다.
         if emitted or end - begin <= timedelta(minutes=1):
             raise
         middle = begin + (end - begin) / 2
