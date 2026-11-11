@@ -1,0 +1,503 @@
+{% extends 'base.html' %}
+{% block title %}강사알림전송{% endblock %}
+{% block extra_css %}
+{% include 'support_hub/_style.html' %}
+<style>
+.in-sel{position:sticky;top:0;z-index:5;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 16px;padding:10px 14px;border:1px solid var(--ih-primary-ring);border-radius:13px;background:var(--ih-primary-soft)}
+.in-sel b{color:var(--ih-primary);font-weight:600}
+.in-sel .grow{margin-right:auto;font-size:.88rem}
+.in-filter{display:grid;grid-template-columns:minmax(160px,1fr) minmax(140px,.8fr) minmax(180px,1.2fr) auto;gap:10px;align-items:end;margin:0 0 14px}
+.in-filter label{display:flex;flex-direction:column;gap:5px;font-size:.78rem;font-weight:500;color:var(--ih-muted)}
+.in-filter .btns{display:flex;gap:8px;flex-wrap:wrap}
+.in-school{margin:0 0 16px;border:1px solid var(--ih-border);border-radius:14px;overflow:hidden;background:var(--ih-card)}
+.in-school>header{display:flex;gap:10px;align-items:center;padding:10px 14px;background:var(--ih-surface);border-bottom:1px solid var(--ih-border)}
+.in-school>header label{display:flex;gap:9px;align-items:center;cursor:pointer;font-weight:500;font-size:.92rem}
+.in-school>header .cnt{margin-left:auto;color:var(--ih-muted);font-size:.78rem}
+.in-school table{margin:0}
+.in-school td:first-child,.in-school th:first-child{width:42px;text-align:center}
+.in-school tr.sel td{background:var(--ih-primary-soft)}
+.in-school tr.bad td{color:#b91c1c}
+.in-acts{display:flex;gap:5px;justify-content:flex-end;white-space:nowrap}
+.in-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.in-grid label{display:flex;flex-direction:column;gap:5px;font-size:.78rem;font-weight:500;color:var(--ih-muted)}
+.in-result{margin-top:12px;padding:12px 16px;border:1px solid var(--ih-border);border-radius:12px;background:var(--ih-surface);font-size:.86rem}
+.in-result ul{margin:8px 0 0;padding-left:18px;max-height:220px;overflow:auto}
+.in-chips{display:flex;gap:6px;flex-wrap:wrap;max-height:150px;overflow:auto;padding:2px}
+.in-chip{display:inline-flex;gap:6px;align-items:center;padding:3px 6px 3px 11px;border:1px solid var(--ih-border);border-radius:99px;background:#fff;font-size:.8rem}
+.in-chip button{border:0;background:none;color:var(--ih-muted);cursor:pointer;padding:0 4px;font-size:1rem;line-height:1}
+.in-chip button:hover{color:#dc2626}
+.in-compose{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(260px,1fr);gap:18px;align-items:start}
+.in-phone{max-width:300px;margin:0 auto;padding:14px;border:1px solid var(--ih-border);border-radius:22px;background:var(--ih-surface)}
+.in-phone .bubble{padding:12px 14px;border-radius:6px 16px 16px 16px;background:#fff;border:1px solid var(--ih-line);font-size:.84rem;white-space:pre-wrap;word-break:break-all;min-height:80px}
+.in-phone .who{margin:0 0 8px;color:var(--ih-muted);font-size:.74rem}
+.in-bytes{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 0;color:var(--ih-muted);font-size:.8rem}
+.in-vars{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0 0;font-size:.8rem;color:var(--ih-muted)}
+.in-vars button{padding:2px 10px;border:1px solid var(--ih-border);border-radius:99px;background:#fff;color:var(--ih-primary);cursor:pointer;font-size:.8rem}
+.in-tpl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.in-tpl select{width:auto;min-width:180px;flex:1 1 180px}
+.in-detail td{background:var(--ih-surface)}
+.in-empty{padding:34px 10px;text-align:center;color:var(--ih-muted)}
+dialog.in-dlg{width:min(520px,94vw);padding:22px;border:1px solid var(--ih-border);border-radius:18px;background:var(--ih-card);color:var(--ih-text)}
+dialog.in-dlg::backdrop{background:rgba(15,23,42,.45)}
+dialog.in-dlg h3{margin:0 0 14px;font-size:1.05rem}
+dialog.in-dlg .in-grid{grid-template-columns:1fr 1fr}
+dialog.in-dlg .foot{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+@media (max-width:860px){.in-filter,.in-compose{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="ih-page" id="inApp">
+  <header class="ih-hero">
+    <div class="ih-hero-copy">
+      <div class="ih-hero-icon"><i class="fa-solid fa-comment-sms"></i></div>
+      <div><h1>강사알림전송</h1><p>강사 명단을 엑셀로 등록해 두고, <b>학교별 · 강사별로 골라</b> 솔라피 문자를 보냅니다. 보낸 기록과 자주 쓰는 문구도 남아요.</p></div>
+    </div>
+  </header>
+
+  <div class="ih-warn" id="smsWarn" hidden><i class="fa-solid fa-triangle-exclamation"></i> 문자 발송 설정이 아직 없어 문자를 보낼 수 없습니다. 통합관리 &gt; 솔라피설정에서 API 키 · 시크릿 · 발신번호를 먼저 저장해 주세요. (명단 등록은 지금도 할 수 있어요.)</div>
+  <div class="ih-flash" id="flash" hidden></div>
+
+  <div class="ih-card ih-main">
+    <nav class="ih-tabs" id="tabs">
+      <a href="#roster" data-tab="roster" class="on"><i class="fa-solid fa-address-book"></i> ① 강사 명단</a>
+      <a href="#send" data-tab="send"><i class="fa-solid fa-paper-plane"></i> ② 문자 보내기</a>
+      <a href="#history" data-tab="history"><i class="fa-solid fa-clock-rotate-left"></i> ③ 발송 기록</a>
+    </nav>
+
+    <div class="ih-panel">
+      <div class="in-sel" id="selBar">
+        <span class="grow">선택한 강사 <b id="selCount">0</b>명</span>
+        <button class="ih-btn sm" type="button" id="selClear">선택 해제</button>
+        <button class="ih-btn sm danger" type="button" id="selDelete">선택 삭제</button>
+        <button class="ih-btn sm primary" type="button" id="selSend"><i class="fa-solid fa-paper-plane"></i> 선택한 강사에게 문자 보내기</button>
+      </div>
+
+      {# ===================== ① 명단 #}
+      <section data-panel="roster">
+        <details class="ih-way" id="addBox">
+          <summary><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> 엑셀로 명단 올리기 <span class="ih-badge">학교명 · 부서명 · 강사명 · 주민번호 · 연락처</span></summary>
+          <div class="body">
+            <p class="ih-hint">첫 줄에 머리글(학교명·부서명·강사명·주민번호·연락처)을 쓰면 칸 순서가 달라도 찾아서 읽고, 머리글이 없으면 이 순서대로 읽습니다.
+              같은 학교의 같은 이름·연락처는 새로 만들지 않고 정보를 고칩니다. 주민번호 칸을 비워 올리면 이미 저장된 값은 그대로 둡니다. (한 번에 3,000줄까지)</p>
+            <div class="ih-row mid">
+              <input class="ih-input" type="file" id="xlsxFile" accept=".xlsx" style="max-width:340px">
+              <button class="ih-btn primary" type="button" id="xlsxUpload"><i class="fa-solid fa-upload"></i> 올리기</button>
+              <a class="ih-btn" href="{{ url_for('instructor_notify.download_template') }}"><i class="fa-solid fa-download"></i> 엑셀 양식 받기</a>
+            </div>
+            <div class="in-result" id="importResult" hidden></div>
+          </div>
+        </details>
+        <details class="ih-way">
+          <summary><i class="fa-solid fa-user-plus" style="color:var(--ih-primary)"></i> 강사 한 명 직접 추가</summary>
+          <div class="body">
+            <form id="addForm" class="in-grid" autocomplete="off">
+              <label>학교명 *<input class="ih-input" name="school" maxlength="100" required></label>
+              <label>부서명<input class="ih-input" name="department" maxlength="100"></label>
+              <label>강사명 *<input class="ih-input" name="name" maxlength="40" required></label>
+              <label>주민번호<input class="ih-input" name="rrn" maxlength="14" placeholder="900101-1234567" inputmode="numeric"></label>
+              <label>연락처 *<input class="ih-input" name="phone" maxlength="20" placeholder="010-1234-5678" inputmode="tel" required></label>
+            </form>
+            <div class="ih-row mid" style="margin-top:12px"><button class="ih-btn primary" type="button" id="addSave"><i class="fa-solid fa-plus"></i> 명단에 추가</button></div>
+          </div>
+        </details>
+
+        <div class="in-filter">
+          <label>학교<select id="fSchool"></select></label>
+          <label>부서<select id="fDept"></select></label>
+          <label>검색 (이름 · 연락처 · 학교)<input class="ih-input" id="fQuery" placeholder="검색어"></label>
+          <div class="btns">
+            <button class="ih-btn sm" type="button" id="selVisible"><i class="fa-solid fa-check-double"></i> 보이는 강사 모두 선택</button>
+            <a class="ih-btn sm" href="{{ url_for('instructor_notify.download_roster') }}"><i class="fa-solid fa-file-export"></i> 명단 엑셀</a>
+          </div>
+        </div>
+        <div class="ih-sum" id="rosterSum"></div>
+        <div id="rosterList"></div>
+      </section>
+
+      {# ===================== ② 문자 보내기 #}
+      <section data-panel="send" hidden>
+        <h2 style="font-size:1.04rem;margin:0 0 6px">받는 강사 <span class="ih-badge" id="sendCount">0명</span></h2>
+        <p class="ih-hint">명단 탭에서 학교 칸의 체크나 강사별 체크로 고른 사람입니다. ✕를 누르면 이 문자에서만 뺍니다.</p>
+        <div class="in-chips" id="sendChips"></div>
+        <div class="ih-hint" id="sendWarn" style="margin-top:8px"></div>
+
+        <h2 style="font-size:1.04rem;margin:20px 0 10px">문구</h2>
+        <div class="in-tpl">
+          <select class="ih-input" id="tplSelect"><option value="">저장한 문구 불러오기…</option></select>
+          <button class="ih-btn sm" type="button" id="tplSave"><i class="fa-solid fa-floppy-disk"></i> 지금 문구 저장</button>
+          <button class="ih-btn sm danger" type="button" id="tplDelete">선택한 문구 삭제</button>
+        </div>
+        <div class="in-compose">
+          <div>
+            <label class="ih-hint" style="display:block;margin:0 0 4px">제목 (장문일 때만 보입니다 · 선택)
+              <input class="ih-input" id="subject" maxlength="{{ max_subject }}" placeholder="예) 11월 방과후 안내"></label>
+            <textarea id="body" rows="9" maxlength="{{ max_text }}" placeholder="받는 강사에게 보낼 문구를 적어 주세요."></textarea>
+            <div class="in-vars">넣으면 사람마다 바뀝니다:
+              {% for v in variables %}<button type="button" data-var="{{ v }}">{{ '{' ~ v ~ '}' }}</button>{% endfor %}
+            </div>
+            <div class="in-bytes"><span class="ih-badge" id="typeBadge">문자(SMS)</span><span id="byteInfo">0 / 90 byte</span><span>· 90byte를 넘으면 장문(LMS)으로 자동 전환됩니다.</span></div>
+          </div>
+          <div>
+            <div class="in-phone"><p class="who" id="prevWho">미리보기</p><div class="bubble" id="prevText">문구를 적으면 여기에 보입니다.</div></div>
+          </div>
+        </div>
+        <div class="ih-row mid" style="margin-top:16px">
+          <button class="ih-btn primary" type="button" id="sendGo"><i class="fa-solid fa-paper-plane"></i> 문자 보내기</button>
+          <span class="ih-hint" style="margin:0">보내기 전에 확인 창이 한 번 뜹니다. 같은 휴대폰번호는 한 번만 보냅니다.</span>
+        </div>
+        <div class="in-result" id="sendResult" hidden></div>
+      </section>
+
+      {# ===================== ③ 발송 기록 #}
+      <section data-panel="history" hidden>
+        <div class="ih-listhead"><h2>발송 기록 <small class="ih-hint" style="margin:0">(최근 100건 · 접수 성공은 최종 수신 완료와 다를 수 있어요)</small></h2>
+          <button class="ih-btn sm" type="button" id="histReload"><i class="fa-solid fa-rotate"></i> 새로고침</button></div>
+        <div style="overflow-x:auto"><table class="ih-table"><thead><tr><th>보낸 때</th><th>보낸 사람</th><th>학교</th><th>문구</th><th>접수</th><th>실패</th><th></th></tr></thead>
+          <tbody id="histBody"></tbody></table></div>
+      </section>
+    </div>
+  </div>
+
+  <dialog class="in-dlg" id="editDlg">
+    <h3>강사 정보 고치기</h3>
+    <form id="editForm" method="dialog" autocomplete="off">
+      <input type="hidden" name="id">
+      <div class="in-grid">
+        <label>학교명<input class="ih-input" name="school" maxlength="100" required></label>
+        <label>부서명<input class="ih-input" name="department" maxlength="100"></label>
+        <label>강사명<input class="ih-input" name="name" maxlength="40" required></label>
+        <label>연락처<input class="ih-input" name="phone" maxlength="20" required></label>
+        <label>주민번호 <small>(비우면 그대로)</small><input class="ih-input" name="rrn" maxlength="14" placeholder="새로 바꿀 때만"></label>
+        <label style="justify-content:flex-end"><span style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="clear_rrn"> 저장된 주민번호 지우기</span></label>
+      </div>
+      <div class="foot"><button class="ih-btn" type="button" id="editCancel">취소</button><button class="ih-btn primary" type="button" id="editSave">저장</button></div>
+    </form>
+  </dialog>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const URLS = {
+    list: "{{ url_for('instructor_notify.api_list') }}",
+    save: "{{ url_for('instructor_notify.api_save') }}",
+    del: "{{ url_for('instructor_notify.api_delete') }}",
+    imp: "{{ url_for('instructor_notify.api_import') }}",
+    send: "{{ url_for('instructor_notify.api_send') }}",
+    status: "{{ url_for('instructor_notify.api_status') }}",
+    history: "{{ url_for('instructor_notify.api_history') }}",
+    templates: "{{ url_for('instructor_notify.api_templates') }}",
+  };
+  const CAN_REVEAL = {{ 'true' if can_reveal else 'false' }};
+  const $ = (id) => document.getElementById(id);
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const state = { people: [], selected: new Set(), smsReady: false, templates: [], loadedHistory: null };
+
+  async function api(url, options) {
+    const res = await fetch(url, options);
+    let data = {};
+    try { data = await res.json(); } catch (e) { data = {}; }
+    if (!res.ok || data.status === 'error') {
+      const err = new Error(data.message || ('요청에 실패했습니다 (' + res.status + ')'));
+      err.data = data; throw err;
+    }
+    return data;
+  }
+  const post = (url, body) => api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+  let flashTimer = null;
+  function flash(message, kind) {
+    const box = $('flash');
+    box.className = 'ih-flash ' + (kind || 'success'); box.textContent = message; box.hidden = false;
+    clearTimeout(flashTimer); flashTimer = setTimeout(() => { box.hidden = true; }, 7000);
+  }
+
+  // ---------- 탭
+  function showTab(name) {
+    if (!['roster', 'send', 'history'].includes(name)) name = 'roster';
+    document.querySelectorAll('[data-panel]').forEach((el) => { el.hidden = el.dataset.panel !== name; });
+    document.querySelectorAll('#tabs a').forEach((a) => a.classList.toggle('on', a.dataset.tab === name));
+    $('selBar').hidden = name === 'history';
+    if (name === 'send') renderSend();
+    if (name === 'history') loadHistory();
+  }
+  document.querySelectorAll('#tabs a').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); history.replaceState(null, '', '#' + a.dataset.tab); showTab(a.dataset.tab); }));
+
+  // ---------- 선택
+  function persistSelection() { try { sessionStorage.setItem('inSel', JSON.stringify([...state.selected])); } catch (e) {} }
+  function updateSelBar() {
+    $('selCount').textContent = state.selected.size;
+    $('sendCount').textContent = state.selected.size + '명';
+  }
+  function setSelected(ids, on) {
+    ids.forEach((id) => (on ? state.selected.add(id) : state.selected.delete(id)));
+    persistSelection(); renderRoster(); updateSelBar();
+    if (!document.querySelector('[data-panel="send"]').hidden) renderSend();
+  }
+
+  // ---------- 명단
+  function filtered() {
+    const school = $('fSchool').value, dept = $('fDept').value, q = $('fQuery').value.trim().toLowerCase();
+    const qDigits = q.replace(/\D/g, '');
+    return state.people.filter((p) => {
+      if (school && p.school !== school) return false;
+      if (dept && p.department !== dept) return false;
+      if (!q) return true;
+      return p.name.toLowerCase().includes(q) || p.school.toLowerCase().includes(q) || p.department.toLowerCase().includes(q)
+        || (qDigits.length >= 3 && p.phone.replace(/\D/g, '').includes(qDigits));
+    });
+  }
+  function fillFilters() {
+    const schoolSel = $('fSchool'), deptSel = $('fDept');
+    const keepSchool = schoolSel.value, keepDept = deptSel.value;
+    const counts = {}, depts = new Set();
+    state.people.forEach((p) => { counts[p.school] = (counts[p.school] || 0) + 1; });
+    const schools = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'ko'));
+    schoolSel.innerHTML = '<option value="">전체 학교 (' + schools.length + '곳)</option>' + schools.map((s) => '<option value="' + esc(s) + '">' + esc(s) + ' (' + counts[s] + ')</option>').join('');
+    if (schools.includes(keepSchool)) schoolSel.value = keepSchool;
+    state.people.filter((p) => !schoolSel.value || p.school === schoolSel.value).forEach((p) => { if (p.department) depts.add(p.department); });
+    const deptList = [...depts].sort((a, b) => a.localeCompare(b, 'ko'));
+    deptSel.innerHTML = '<option value="">전체 부서</option>' + deptList.map((d) => '<option value="' + esc(d) + '">' + esc(d) + '</option>').join('');
+    if (deptList.includes(keepDept)) deptSel.value = keepDept;
+  }
+  function renderRoster() {
+    const rows = filtered();
+    $('rosterSum').innerHTML = '<span>전체 <b>' + state.people.length + '</b>명</span><span>지금 보이는 강사 <b>' + rows.length + '</b>명</span><span>선택 <b>' + state.selected.size + '</b>명</span>';
+    if (!rows.length) {
+      $('rosterList').innerHTML = '<div class="in-empty">' + (state.people.length ? '조건에 맞는 강사가 없습니다.' : '아직 등록된 강사가 없습니다. 위의 [엑셀로 명단 올리기]로 시작해 보세요.') + '</div>';
+      return;
+    }
+    const groups = new Map();
+    rows.forEach((p) => { if (!groups.has(p.school)) groups.set(p.school, []); groups.get(p.school).push(p); });
+    let html = '';
+    groups.forEach((list, school) => {
+      const picked = list.filter((p) => state.selected.has(p.id)).length;
+      html += '<div class="in-school" data-school="' + esc(school) + '"><header><label><input type="checkbox" class="schoolCk" data-picked="' + picked + '" data-total="' + list.length + '"' + (picked === list.length ? ' checked' : '') + '> <i class="fa-solid fa-school"></i> ' + esc(school) + '</label><span class="cnt">선택 ' + picked + ' / ' + list.length + '명</span></header>'
+        + '<div style="overflow-x:auto"><table class="ih-table"><thead><tr><th></th><th>부서</th><th>강사명</th><th>연락처</th><th>주민번호</th><th>최근 발송</th><th></th></tr></thead><tbody>';
+      list.forEach((p) => {
+        const on = state.selected.has(p.id);
+        html += '<tr class="' + (on ? 'sel ' : '') + (p.phone_ok ? '' : 'bad') + '" data-id="' + p.id + '"><td><input type="checkbox" class="rowCk"' + (on ? ' checked' : '') + (p.phone_ok ? '' : ' title="휴대폰번호가 올바르지 않아 문자를 보낼 수 없습니다."') + '></td>'
+          + '<td>' + esc(p.department || '-') + '</td><td><b>' + esc(p.name) + '</b></td><td>' + esc(p.phone) + (p.phone_ok ? '' : ' <span class="ih-badge bad">번호 확인</span>') + '</td>'
+          + '<td class="ih-mono">' + (p.rrn ? esc(p.rrn) + (CAN_REVEAL ? ' <button class="ih-btn sm revealBtn" type="button">보기</button>' : '') : '-') + '</td>'
+          + '<td>' + esc(p.last_sent_at ? p.last_sent_at.slice(0, 16) : '-') + '</td>'
+          + '<td><div class="in-acts"><button class="ih-btn sm editBtn" type="button"><i class="fa-solid fa-pen"></i></button></div></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    });
+    $('rosterList').innerHTML = html;
+    document.querySelectorAll('.schoolCk').forEach((ck) => {
+      const picked = +ck.dataset.picked, total = +ck.dataset.total;
+      ck.indeterminate = picked > 0 && picked < total;
+    });
+  }
+  $('rosterList').addEventListener('change', (e) => {
+    if (e.target.classList.contains('rowCk')) {
+      setSelected([+e.target.closest('tr').dataset.id], e.target.checked);
+    } else if (e.target.classList.contains('schoolCk')) {
+      const school = e.target.closest('.in-school').dataset.school;
+      const ids = filtered().filter((p) => p.school === school && p.phone_ok).map((p) => p.id);
+      setSelected(ids, e.target.checked);
+    }
+  });
+  $('rosterList').addEventListener('click', async (e) => {
+    const row = e.target.closest('tr[data-id]');
+    if (!row) return;
+    const id = +row.dataset.id;
+    if (e.target.closest('.editBtn')) openEdit(id);
+    else if (e.target.closest('.revealBtn')) {
+      const btn = e.target.closest('.revealBtn');
+      try {
+        const data = await api('/instructor-notify/api/instructors/' + id + '/rrn');
+        btn.parentElement.textContent = data.rrn;
+        setTimeout(renderRoster, 8000);
+      } catch (err) { flash(err.message, 'error'); }
+    }
+  });
+  ['fSchool', 'fDept'].forEach((id) => $(id).addEventListener('change', () => { if (id === 'fSchool') { fillFilters(); } renderRoster(); }));
+  $('fQuery').addEventListener('input', renderRoster);
+  $('selVisible').addEventListener('click', () => setSelected(filtered().filter((p) => p.phone_ok).map((p) => p.id), true));
+  $('selClear').addEventListener('click', () => setSelected([...state.selected], false));
+  $('selSend').addEventListener('click', () => { history.replaceState(null, '', '#send'); showTab('send'); });
+  $('selDelete').addEventListener('click', async () => {
+    const ids = [...state.selected];
+    if (!ids.length) return flash('지울 강사를 먼저 체크해 주세요.', 'error');
+    if (!confirm('선택한 ' + ids.length + '명을 명단에서 지웁니다.\n되돌릴 수 없습니다. 계속할까요?')) return;
+    try {
+      const data = await post(URLS.del, { ids, confirm: true });
+      state.selected.clear(); persistSelection(); flash(data.message); await loadPeople();
+    } catch (err) { flash(err.message, 'error'); }
+  });
+
+  async function loadPeople() {
+    const data = await api(URLS.list);
+    state.people = data.instructors;
+    const alive = new Set(state.people.map((p) => p.id));
+    state.selected = new Set([...state.selected].filter((id) => alive.has(id)));
+    persistSelection(); fillFilters(); renderRoster(); updateSelBar();
+    if (!document.querySelector('[data-panel="send"]').hidden) renderSend();
+  }
+
+  // ---------- 엑셀 올리기 · 직접 추가 · 고치기
+  $('xlsxUpload').addEventListener('click', async () => {
+    const file = $('xlsxFile').files[0];
+    if (!file) return flash('올릴 엑셀 파일을 먼저 골라 주세요.', 'error');
+    const form = new FormData(); form.append('file', file);
+    const btn = $('xlsxUpload'); btn.disabled = true;
+    const box = $('importResult');
+    try {
+      const data = await api(URLS.imp, { method: 'POST', body: form });
+      box.hidden = false;
+      box.innerHTML = '<b>' + esc(data.message) + '</b>' + (data.errors.length ? '<ul>' + data.errors.map((m) => '<li>' + esc(m) + '</li>').join('') + (data.error_count > data.errors.length ? '<li>… 그 밖에 ' + (data.error_count - data.errors.length) + '줄</li>' : '') + '</ul>' : '');
+      $('xlsxFile').value = '';
+      await loadPeople();
+    } catch (err) { box.hidden = false; box.innerHTML = '<b style="color:#b91c1c">' + esc(err.message) + '</b>'; }
+    finally { btn.disabled = false; }
+  });
+  $('addSave').addEventListener('click', async () => {
+    const form = $('addForm'); const body = Object.fromEntries(new FormData(form));
+    try { const data = await post(URLS.save, body); flash(data.message); form.reset(); await loadPeople(); }
+    catch (err) { flash(err.message, 'error'); }
+  });
+  function openEdit(id) {
+    const p = state.people.find((x) => x.id === id); if (!p) return;
+    const f = $('editForm');
+    f.id.value = p.id; f.school.value = p.school; f.department.value = p.department; f.name.value = p.name;
+    f.phone.value = p.phone; f.rrn.value = ''; f.clear_rrn.checked = false;
+    $('editDlg').showModal();
+  }
+  $('editCancel').addEventListener('click', () => $('editDlg').close());
+  $('editSave').addEventListener('click', async () => {
+    const f = $('editForm');
+    const body = { id: f.id.value, school: f.school.value, department: f.department.value, name: f.name.value, phone: f.phone.value, rrn: f.rrn.value, clear_rrn: f.clear_rrn.checked };
+    try { const data = await post(URLS.save, body); $('editDlg').close(); flash(data.message.replace('이미 있는 강사라 ', '')); await loadPeople(); }
+    catch (err) { flash(err.message, 'error'); }
+  });
+
+  // ---------- 문자 보내기
+  function byteLength(text) {
+    let n = 0;
+    for (const ch of text) { n += ch.charCodeAt(0) < 128 ? 1 : 2; }
+    return n;
+  }
+  function selectedPeople() { return state.people.filter((p) => state.selected.has(p.id)); }
+  function renderSend() {
+    const people = selectedPeople();
+    $('sendChips').innerHTML = people.length ? people.map((p) => '<span class="in-chip" data-id="' + p.id + '">' + esc(p.school) + ' · ' + esc(p.name) + '<button type="button" title="이 문자에서 빼기">✕</button></span>').join('')
+      : '<span class="ih-hint" style="margin:0">선택한 강사가 없습니다. [① 강사 명단] 탭에서 먼저 골라 주세요.</span>';
+    const bad = people.filter((p) => !p.phone_ok).length;
+    $('sendWarn').textContent = bad ? '휴대폰번호가 올바르지 않은 ' + bad + '명은 자동으로 제외됩니다.' : '';
+    $('smsWarn').hidden = state.smsReady;
+    renderPreview();
+  }
+  $('sendChips').addEventListener('click', (e) => {
+    const chip = e.target.closest('.in-chip'); if (chip && e.target.tagName === 'BUTTON') setSelected([+chip.dataset.id], false);
+  });
+  function renderPreview() {
+    const text = $('body').value;
+    const bytes = byteLength(text);
+    const lms = bytes > 90;
+    $('typeBadge').textContent = lms ? '장문(LMS)' : '문자(SMS)';
+    $('typeBadge').className = 'ih-badge ' + (lms ? 'pend' : 'ok');
+    $('byteInfo').textContent = bytes + ' / 90 byte';
+    const sample = selectedPeople()[0];
+    const fill = (t) => sample ? t.replaceAll('{이름}', sample.name).replaceAll('{학교}', sample.school).replaceAll('{부서}', sample.department) : t;
+    $('prevWho').textContent = sample ? '미리보기 · ' + sample.school + ' ' + sample.name + ' 강사' : '미리보기';
+    $('prevText').textContent = text.trim() ? fill(text) : '문구를 적으면 여기에 보입니다.';
+  }
+  $('body').addEventListener('input', renderPreview);
+  document.querySelectorAll('[data-var]').forEach((btn) => btn.addEventListener('click', () => {
+    const ta = $('body'), token = '{' + btn.dataset.var + '}';
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
+    ta.focus(); ta.selectionStart = ta.selectionEnd = start + token.length; renderPreview();
+  }));
+  $('sendGo').addEventListener('click', async () => {
+    const ids = [...state.selected], text = $('body').value, subject = $('subject').value;
+    if (!ids.length) return flash('문자를 받을 강사를 먼저 골라 주세요.', 'error');
+    if (!text.trim()) return flash('보낼 문구를 적어 주세요.', 'error');
+    const btn = $('sendGo'); btn.disabled = true;
+    const box = $('sendResult');
+    try {
+      const check = await post(URLS.send, { ids, text, subject, dry_run: true });
+      const skip = check.skipped.length ? '\n\n제외되는 사람 ' + check.skipped.length + '명(번호 오류·중복 등)' : '';
+      const ask = check.total + '명에게 문자를 보냅니다.' + skip + '\n\n[미리보기 · ' + check.sample.school + ' ' + check.sample.name + ']\n' + check.sample.text + '\n\n실제로 발송할까요? 보낸 문자는 되돌릴 수 없습니다.';
+      if (!confirm(ask)) { btn.disabled = false; return; }
+      const data = await post(URLS.send, { ids, text, subject, confirm: true });
+      const failed = data.results.filter((r) => !r.ok);
+      box.hidden = false;
+      box.innerHTML = '<b>' + esc(data.message) + '</b> <span class="ih-hint" style="margin:0">(접수 기준이며 실제 수신 여부는 솔라피에서 확인할 수 있습니다.)</span>'
+        + (failed.length ? '<ul>' + failed.map((r) => '<li>' + esc(r.school) + ' ' + esc(r.name) + ' — ' + esc(r.error) + '</li>').join('') + '</ul><div class="ih-row" style="margin-top:8px"><button class="ih-btn sm" type="button" id="pickFailed">실패한 사람만 다시 선택</button></div>' : '');
+      if (failed.length) $('pickFailed').addEventListener('click', () => { state.selected = new Set(failed.map((r) => r.id)); persistSelection(); renderSend(); updateSelBar(); renderRoster(); });
+      await loadPeople();
+    } catch (err) { box.hidden = false; box.innerHTML = '<b style="color:#b91c1c">' + esc(err.message) + '</b>'; }
+    finally { btn.disabled = false; }
+  });
+
+  // ---------- 자주 쓰는 문구
+  async function loadTemplates() {
+    const data = await api(URLS.templates); state.templates = data.templates;
+    $('tplSelect').innerHTML = '<option value="">저장한 문구 불러오기…</option>' + state.templates.map((t) => '<option value="' + t.id + '">' + esc(t.title) + '</option>').join('');
+  }
+  $('tplSelect').addEventListener('change', () => {
+    const t = state.templates.find((x) => String(x.id) === $('tplSelect').value); if (!t) return;
+    $('subject').value = t.subject; $('body').value = t.body; renderPreview();
+  });
+  $('tplSave').addEventListener('click', async () => {
+    if (!$('body').value.trim()) return flash('저장할 문구를 먼저 적어 주세요.', 'error');
+    const current = state.templates.find((x) => String(x.id) === $('tplSelect').value);
+    const title = prompt('저장할 문구 이름을 적어 주세요. (같은 이름이면 덮어씁니다)', current ? current.title : '');
+    if (!title) return;
+    try { const data = await post(URLS.templates, { title, subject: $('subject').value, body: $('body').value }); flash(data.message); await loadTemplates(); $('tplSelect').value = String(data.id); }
+    catch (err) { flash(err.message, 'error'); }
+  });
+  $('tplDelete').addEventListener('click', async () => {
+    const id = $('tplSelect').value; if (!id) return flash('지울 문구를 먼저 골라 주세요.', 'error');
+    if (!confirm('이 저장 문구를 지울까요?')) return;
+    try { const data = await post(URLS.templates + '/' + id + '/delete', {}); flash(data.message); await loadTemplates(); }
+    catch (err) { flash(err.message, 'error'); }
+  });
+
+  // ---------- 발송 기록
+  async function loadHistory() {
+    try {
+      const data = await api(URLS.history);
+      $('histBody').innerHTML = data.history.length ? data.history.map((h) =>
+        '<tr data-id="' + h.id + '"><td>' + esc(h.sent_at.slice(0, 16)) + '</td><td>' + esc(h.sent_by_name || '-') + '</td>'
+        + '<td>' + esc(h.schools.join(', ')) + (h.school_count > h.schools.length ? ' 외 ' + (h.school_count - h.schools.length) + '곳' : '') + '</td>'
+        + '<td>' + esc(h.subject ? '[' + h.subject + '] ' : '') + esc(h.preview) + '</td><td>' + h.ok + ' / ' + h.total + '</td>'
+        + '<td>' + (h.failed ? '<span class="ih-badge bad">' + h.failed + '명</span>' : '-') + '</td>'
+        + '<td><button class="ih-btn sm detailBtn" type="button">자세히</button></td></tr>').join('')
+        : '<tr><td colspan="7" class="in-empty">아직 보낸 기록이 없습니다.</td></tr>';
+    } catch (err) { flash(err.message, 'error'); }
+  }
+  $('histReload').addEventListener('click', loadHistory);
+  $('histBody').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.detailBtn'); if (!btn) return;
+    const row = btn.closest('tr'), next = row.nextElementSibling;
+    if (next && next.classList.contains('in-detail')) { next.remove(); return; }
+    try {
+      const data = await api('/instructor-notify/api/history/' + row.dataset.id);
+      const failed = data.items.filter((i) => !i.ok && i.instructor_id);
+      const tr = document.createElement('tr'); tr.className = 'in-detail';
+      tr.innerHTML = '<td colspan="7"><div style="white-space:pre-wrap;margin-bottom:10px">' + esc(data.message.body) + '</div>'
+        + '<div class="in-chips">' + data.items.map((i) => '<span class="in-chip" style="padding:3px 11px;' + (i.ok ? '' : 'border-color:#fca5a5;color:#b91c1c') + '" title="' + esc(i.ok ? '접수 성공' : i.error) + '">' + esc(i.school) + ' · ' + esc(i.name) + ' ' + (i.ok ? '✓' : '✕') + '</span>').join('') + '</div>'
+        + '<div class="ih-row" style="margin-top:10px"><button class="ih-btn sm reuse" type="button">이 문구로 다시 보내기</button>'
+        + (failed.length ? '<button class="ih-btn sm retry" type="button">실패한 ' + failed.length + '명만 선택해서 다시 보내기</button>' : '') + '</div></td>';
+      row.after(tr);
+      tr.querySelector('.reuse').addEventListener('click', () => { $('subject').value = data.message.subject; $('body').value = data.message.body; history.replaceState(null, '', '#send'); showTab('send'); });
+      const retry = tr.querySelector('.retry');
+      if (retry) retry.addEventListener('click', () => { $('subject').value = data.message.subject; $('body').value = data.message.body; state.selected = new Set(failed.map((i) => i.instructor_id)); persistSelection(); updateSelBar(); renderRoster(); history.replaceState(null, '', '#send'); showTab('send'); });
+    } catch (err) { flash(err.message, 'error'); }
+  });
+
+  // ---------- 시작
+  (async function init() {
+    try { state.selected = new Set(JSON.parse(sessionStorage.getItem('inSel') || '[]')); } catch (e) {}
+    try { state.smsReady = (await api(URLS.status)).sms_ready; } catch (e) {}
+    $('smsWarn').hidden = state.smsReady;
+    try { await loadPeople(); await loadTemplates(); } catch (err) { flash(err.message, 'error'); }
+    showTab(location.hash.replace('#', '') || 'roster');
+  })();
+})();
+</script>
+{% endblock %}
