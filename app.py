@@ -60,6 +60,9 @@ from routes.instructor_attendance import (
 from routes.instructor_hub import instructor_hub_bp, init_instructor_hub_schema
 from routes.parent_hub import parent_hub_bp, init_parent_hub_schema
 from routes.support_hub import support_hub_bp
+from routes.student_register import student_register_bp, init_student_register_schema
+from routes.lesson_info import init_lesson_info_schema, lesson_info_bp
+from routes.instructor_notify import init_instructor_notify_schema, instructor_notify_bp
 from routes.student_attendance import (
     init_student_attendance_schema,
     student_attendance_bp,
@@ -130,7 +133,10 @@ with app.app_context():
         init_instructor_attendance_schema()
         init_student_attendance_schema()
         init_instructor_hub_schema()
+        init_student_register_schema()
         init_parent_hub_schema()
+        init_lesson_info_schema()
+        init_instructor_notify_schema()
         event_conn = get_db()
         try:
             ensure_event_schema(event_conn)
@@ -252,6 +258,8 @@ PUBLIC_PATH_PREFIXES = (
     '/student-attendance/p/',
     # 강사통합지원: 강사 포털(링크+비밀번호 세션)
     '/teacher-hub/',
+    # 학생등록: 강사용 학생등록 링크(링크 + 6자리 비밀번호 세션)
+    '/student-register/',
     # 학부모통합지원: 학교 링크와 보호자 개인 화면(자녀 이름·보호자 번호 확인 / 개인 토큰으로 보호)
     '/parent/hub/',
     '/parent/home/',
@@ -363,6 +371,8 @@ def _classify_menu(path):
         ('/school', '학교업무메뉴'),
         ('/survey', '설문조사'),
         ('/personality', '인성검사'),
+        ('/lesson-info', '수업안내'),
+        ('/instructor-notify', '강사알림전송'),
         ('/document', '증명발급'),
         ('/gall2', '갤러리'),
         ('/gallery', '갤러리'),
@@ -1178,6 +1188,9 @@ app.register_blueprint(student_attendance_bp)
 app.register_blueprint(instructor_hub_bp)
 app.register_blueprint(parent_hub_bp)
 app.register_blueprint(support_hub_bp)
+app.register_blueprint(student_register_bp)
+app.register_blueprint(lesson_info_bp)
+app.register_blueprint(instructor_notify_bp, url_prefix='/instructor-notify')
 app.register_blueprint(points_bp)
 app.register_blueprint(unified_search_bp)
 
