@@ -162,8 +162,10 @@
     .aim-file-list { display: grid; gap: 7px; margin-top: 10px; }
     .aim-file-item { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 8px; padding: 8px 9px; border: 1px solid var(--aim-border); border-radius: 10px; background: var(--aim-card); }
     .aim-file-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; background: var(--aim-primary-soft); color: var(--aim-primary); }
-    .aim-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; font-weight: 750; }
-    .aim-file-size { color: var(--aim-muted); font-size: .66rem; }
+    .aim-file-item > span:nth-child(2) { min-width: 0; }
+    .aim-file-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; font-weight: 750; }
+    .aim-file-size { display: block; color: var(--aim-muted); font-size: .66rem; }
+    .aim-file-item .remove-file { flex-shrink: 0; }
     .aim-check { display: inline-flex; align-items: flex-start; gap: 8px; color: var(--aim-muted); font-size: .75rem; line-height: 1.45; cursor: pointer; }
     .aim-check input { margin-top: 2px; accent-color: var(--aim-primary); }
     .aim-send-summary { display: grid; gap: 9px; padding: 15px; border: 1px solid var(--aim-border); border-radius: 13px; background: var(--aim-surface); }
@@ -408,11 +410,11 @@
                         <div class="aim-compose-section">
                             <h3 class="aim-subtitle"><i class="fa-solid fa-paperclip"></i> 첨부 방식</h3>
                             <div class="aim-mode-grid">
-                                <label class="aim-mode-card" tabindex="0"><input type="radio" name="attachmentMode" value="smart" checked><strong><i class="fa-solid fa-wand-magic-sparkles"></i> 개인별 자동분류</strong><small>파일명 앞부분과 수신자명을 비교해 자동 연결</small></label>
+                                <label class="aim-mode-card" tabindex="0"><input type="radio" name="attachmentMode" value="smart" checked><strong><i class="fa-solid fa-wand-magic-sparkles"></i> 수신자 자동분류</strong><small>파일명 속 수신자명을 찾아 자동 연결</small></label>
                                 <label class="aim-mode-card" tabindex="0"><input type="radio" name="attachmentMode" value="common"><strong><i class="fa-solid fa-people-group"></i> 공통파일 일괄</strong><small>선택한 모든 수신자에게 같은 파일 발송</small></label>
                             </div>
                             <label class="aim-dropzone" id="attachmentDropzone" for="attachmentInput"><span><i class="fa-solid fa-cloud-arrow-up"></i><strong>파일을 끌어놓거나 눌러 선택</strong><small>여러 파일을 한 번에 등록할 수 있습니다.</small></span><input id="attachmentInput" type="file" multiple hidden></label>
-                            <p class="aim-help" id="attachmentHelp">개인별 파일 예: <strong>청곡초등학교_07월_내역서.xlsx</strong> · Windows 파일명에는 * 대신 _를 사용해 주세요.</p>
+                            <p class="aim-help" id="attachmentHelp">수신자별 파일 예: <strong>청곡초등학교_07월_내역서.xlsx</strong> · 수신자명이 파일명 앞·중간·끝 어디에 있어도 연결됩니다.</p>
                             <div class="aim-file-list" id="attachmentList"></div>
                             <label class="aim-check" style="margin-top:11px"><input id="allowMissingAttachment" type="checkbox"><span>개인별 파일이 없는 수신자도 첨부 없이 발송 허용</span></label>
                         </div>
@@ -478,7 +480,7 @@
             <div class="aim-field"><label class="aim-label" for="groupName">작업그룹명</label><input class="aim-input" id="groupName" maxlength="60" required placeholder="예: 7월 학교별 내역서"></div>
             <p class="aim-section-label" style="margin-top:17px">그룹에서 사용할 기능</p>
             <div class="aim-form-grid">
-                <label class="aim-mode-card"><input type="checkbox" name="groupFeature" value="smart_attachment" checked><strong><i class="fa-solid fa-wand-magic-sparkles"></i> 개인별 자동분류</strong><small>수신자명과 파일명 자동 연결</small></label>
+                <label class="aim-mode-card"><input type="checkbox" name="groupFeature" value="smart_attachment" checked><strong><i class="fa-solid fa-wand-magic-sparkles"></i> 수신자 자동분류</strong><small>수신자명과 파일명 자동 연결</small></label>
                 <label class="aim-mode-card"><input type="checkbox" name="groupFeature" value="common_attachment" checked><strong><i class="fa-solid fa-people-group"></i> 공통파일 발송</strong><small>같은 파일을 선택 대상에게 발송</small></label>
                 <label class="aim-mode-card"><input type="checkbox" name="groupFeature" value="templates" checked><strong><i class="fa-solid fa-layer-group"></i> 메일 템플릿</strong><small>저장된 제목과 본문 사용</small></label>
             </div>
@@ -699,7 +701,7 @@
         } else {
             $('#attachmentDropzone').hidden = false;
             $('#attachmentHelp').hidden = false;
-            $('#attachmentHelp').innerHTML = smartEnabled ? '개인별 파일 예: <strong>청곡초등학교_07월_내역서.xlsx</strong> · Windows 파일명에는 * 대신 _를 사용해 주세요.' : '등록한 파일을 선택한 모든 수신자에게 각각 개별 메일로 발송합니다.';
+            $('#attachmentHelp').innerHTML = smartEnabled ? '수신자별 파일 예: <strong>청곡초등학교_07월_내역서.xlsx</strong> · 수신자명이 파일명 앞·중간·끝 어디에 있어도 연결됩니다.' : '등록한 파일을 선택한 모든 수신자에게 각각 개별 메일로 발송합니다.';
             $('#attachmentList').hidden = false;
             $('#allowMissingAttachment').closest('.aim-check').hidden = !smartEnabled;
         }
@@ -847,7 +849,7 @@
         if (!payload.subject) return '메일 제목을 입력해 주세요.';
         if (!htmlText(payload.body_html).trim() && !payload.body_html.includes('<img')) return '메일 내용을 입력해 주세요.';
         if (!payload.attachment_modes.length && state.attachments.length) return '첨부 방식을 선택해 주세요.';
-        if (payload.attachment_modes.includes('smart') && !state.attachments.length && !payload.allow_missing_attachment) return '개인별 자동분류 파일을 등록하거나 미첨부 발송 허용을 선택해 주세요.';
+        if (payload.attachment_modes.includes('smart') && !state.attachments.length && !payload.allow_missing_attachment) return '수신자 자동분류 파일을 등록하거나 미첨부 발송 허용을 선택해 주세요.';
         return '';
     }
 
