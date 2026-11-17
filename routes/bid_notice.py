@@ -58,8 +58,10 @@ DEFAULT_REGION = '경기도'
 DEFAULT_ORG_WORD = '초등학교'
 MAX_RECIPIENTS = 5
 SETTINGS_MAX_LEVEL = 1           # [공고수집·메일 설정](인증키·수집 조건·메일)은 레벨 1만 연다(admin 계정 포함)
-EDIT_MAX_LEVEL = 2               # 진행 상태·투찰금액·메모를 바꾸는 것은 레벨 1·2만(admin 계정 포함). 그 밖에는 보기만 한다
-EDIT_DENIED_MESSAGE = '진행 상태·투찰금액·메모는 레벨 1·2 직원만 바꿀 수 있습니다.'
+EDIT_MAX_LEVEL = 2               # 입찰구분·진행 상태·투찰금액을 바꾸는 것은 레벨 1·2만(admin 계정 포함). 그 밖에는 보기만 한다
+EDIT_DENIED_MESSAGE = '입찰구분·진행 상태·투찰금액은 레벨 1·2 직원만 바꿀 수 있습니다.'
+NOTE_MAX_LEVEL = 5               # 설명회·메모는 레벨 1~5(admin 계정 포함)가 입력한다
+NOTE_DENIED_MESSAGE = '설명회·메모는 레벨 1~5 직원만 입력할 수 있습니다.'
 EMAIL_PATTERN = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$')
 
 COLLECT_DAYS = 28    # [최근 4주 공고 가져오기]가 보는 기간(나라장터 1회 조회 한도 g2b.MAX_RANGE_DAYS씩 잘라 조회)
@@ -1231,7 +1233,8 @@ def _parse_day(value):
 def index():
     return render_template('bid_notice/bid_notice.html', is_admin=is_admin_session(),
                            can_settings=is_admin_session(max_level=SETTINGS_MAX_LEVEL),
-                           can_edit=is_admin_session(max_level=EDIT_MAX_LEVEL))
+                           can_edit=is_admin_session(max_level=EDIT_MAX_LEVEL),
+                           can_note=is_admin_session(max_level=NOTE_MAX_LEVEL))
 
 
 HAS_RESULT_SQL = "(COALESCE(n.result_state, '') <> '' OR COALESCE(n.winner_name, '') <> '')"
@@ -1708,8 +1711,8 @@ def api_my_bid(notice_id):
 @bid_notice_bp.route('/api/notices/<int:notice_id>/memo', methods=['POST'])
 def api_memo(notice_id):
     """[메모] 칸: 공고별 메모를 저장한다(비우면 지운다)."""
-    if not is_admin_session(max_level=EDIT_MAX_LEVEL):
-        return _json_error(EDIT_DENIED_MESSAGE, 403)
+    if not is_admin_session(max_level=NOTE_MAX_LEVEL):
+        return _json_error(NOTE_DENIED_MESSAGE, 403)
     payload = request.get_json(silent=True) or {}
     memo = str(payload.get('memo') or '').replace('\r\n', '\n').strip()
     if len(memo) > MEMO_MAX_LENGTH:
@@ -1731,8 +1734,8 @@ def api_memo(notice_id):
 @bid_notice_bp.route('/api/notices/<int:notice_id>/briefing', methods=['POST'])
 def api_briefing(notice_id):
     """[설명회] 칸: 설명회 날짜·시간(선택)·담당자를 저장한다. 모두 비우면 지운다."""
-    if not is_admin_session(max_level=EDIT_MAX_LEVEL):
-        return _json_error(EDIT_DENIED_MESSAGE, 403)
+    if not is_admin_session(max_level=NOTE_MAX_LEVEL):
+        return _json_error(NOTE_DENIED_MESSAGE, 403)
     payload = request.get_json(silent=True) or {}
     date_text = str(payload.get('date') or '').strip()
     time_text = str(payload.get('time') or '').strip()
