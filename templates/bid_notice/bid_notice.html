@@ -917,7 +917,8 @@
 <script>
 const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
 const CAN_SETTINGS = {{ 'true' if can_settings else 'false' }};      // 공고수집·메일 설정(레벨 1)
-const CAN_EDIT = {{ 'true' if can_edit else 'false' }};              // 진행 상태·투찰금액·메모 바꾸기(레벨 1·2), 그 밖에는 보기만
+const CAN_EDIT = {{ 'true' if can_edit else 'false' }};              // 입찰구분·진행 상태·투찰금액 바꾸기(레벨 1·2), 그 밖에는 보기만
+const CAN_NOTE = {{ 'true' if can_note else 'false' }};              // 설명회·메모 입력(레벨 1~5), 그 밖에는 보기만
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const won = value => value ? Number(value).toLocaleString('ko-KR') + '원' : '';
 const el = id => document.getElementById(id);
@@ -1141,17 +1142,17 @@ function myBidCell(item) {
 function briefingCell(item) {
     const has = Boolean(item.briefing_date || item.briefing_manager);
     if (!has) {
-        return CAN_EDIT
+        return CAN_NOTE
             ? `<button type="button" class="bf-btn empty" data-briefing-for="${item.id}" title="설명회 날짜·시간·담당자 입력">+ 입력</button>`
             : '<span class="sub">-</span>';
     }
     const when = [item.briefing_date, item.briefing_time].filter(Boolean).join(' ');
-    return `<button type="button" class="bf-btn" data-briefing-for="${item.id}" title="${CAN_EDIT ? '누르면 설명회 정보를 고칩니다' : '누르면 설명회 정보를 봅니다'}">
+    return `<button type="button" class="bf-btn" data-briefing-for="${item.id}" title="${CAN_NOTE ? '누르면 설명회 정보를 고칩니다' : '누르면 설명회 정보를 봅니다'}">
         <span class="num bf-when">${esc(when) || '날짜 미정'}</span>${item.briefing_manager ? `<span class="sub bf-manager">${esc(item.briefing_manager)}</span>` : ''}</button>`;
 }
 function memoCell(item) {
     const has = Boolean(item.memo);
-    if (!has && !CAN_EDIT) return '<span class="sub">-</span>';      // 보기만 하는 직원은 적힌 메모만 열어 본다
+    if (!has && !CAN_NOTE) return '<span class="sub">-</span>';      // 보기만 하는 직원은 적힌 메모만 열어 본다
     return `<button type="button" class="memo-btn ${has ? 'has' : ''}" data-memo-for="${item.id}"
         title="${has ? esc(item.memo.length > 200 ? item.memo.slice(0, 200) + '…' : item.memo) : '메모 쓰기'}" aria-label="${has ? '메모 보기' : '메모 쓰기'}">
         <i class="${has ? 'fa-solid' : 'fa-regular'} fa-note-sticky"></i></button>`;
@@ -1760,10 +1761,10 @@ function openMemo(item) {
     el('memoText').value = item.memo || '';
     el('memoUpdated').textContent = item.memo && item.memo_updated ? `마지막 저장: ${item.memo_updated}` : '';
     el('memoCount').textContent = `${el('memoText').value.length} / 2000`;
-    el('memoClear').style.display = CAN_EDIT && item.memo ? '' : 'none';
-    el('memoSave').style.display = CAN_EDIT ? '' : 'none';
-    el('memoText').readOnly = !CAN_EDIT;
-    el('memoCancel').textContent = CAN_EDIT ? '취소' : '닫기';
+    el('memoClear').style.display = CAN_NOTE && item.memo ? '' : 'none';
+    el('memoSave').style.display = CAN_NOTE ? '' : 'none';
+    el('memoText').readOnly = !CAN_NOTE;
+    el('memoCancel').textContent = CAN_NOTE ? '취소' : '닫기';
     el('memoDlg').style.display = 'flex';
     el('memoText').focus();
 }
@@ -1800,13 +1801,13 @@ function openBriefing(item) {
     el('briefingDate').value = item.briefing_date || '';
     el('briefingTime').value = item.briefing_time || '';
     el('briefingManager').value = item.briefing_manager || '';
-    ['briefingDate', 'briefingTime', 'briefingManager'].forEach(id => { el(id).disabled = !CAN_EDIT; });
+    ['briefingDate', 'briefingTime', 'briefingManager'].forEach(id => { el(id).disabled = !CAN_NOTE; });
     el('briefingUpdated').textContent = item.briefing_updated ? `마지막 저장: ${item.briefing_updated}` : '';
-    el('briefingClear').style.display = CAN_EDIT && (item.briefing_date || item.briefing_manager) ? '' : 'none';
-    el('briefingSave').style.display = CAN_EDIT ? '' : 'none';
-    el('briefingCancel').textContent = CAN_EDIT ? '취소' : '닫기';
+    el('briefingClear').style.display = CAN_NOTE && (item.briefing_date || item.briefing_manager) ? '' : 'none';
+    el('briefingSave').style.display = CAN_NOTE ? '' : 'none';
+    el('briefingCancel').textContent = CAN_NOTE ? '취소' : '닫기';
     el('briefingDlg').style.display = 'flex';
-    (CAN_EDIT ? el('briefingDate') : el('briefingCancel')).focus();
+    (CAN_NOTE ? el('briefingDate') : el('briefingCancel')).focus();
 }
 function closeBriefing() { el('briefingDlg').style.display = 'none'; BRIEFING_ITEM = null; }
 async function saveBriefing(date, time, manager) {
@@ -1824,7 +1825,7 @@ async function saveBriefing(date, time, manager) {
 el('briefingCancel').addEventListener('click', closeBriefing);
 el('briefingDlg').addEventListener('keydown', event => {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); }       // 적던 내용이 사라지지 않게 Esc로는 닫지 않는다
-    if (event.key === 'Enter' && CAN_EDIT) { event.preventDefault(); el('briefingSave').click(); }
+    if (event.key === 'Enter' && CAN_NOTE) { event.preventDefault(); el('briefingSave').click(); }
 });
 el('briefingSave').addEventListener('click', () => withSpinner(el('briefingSave'), '저장 중…',
     () => saveBriefing(el('briefingDate').value, el('briefingTime').value, el('briefingManager').value)));
