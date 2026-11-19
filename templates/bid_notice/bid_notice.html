@@ -461,10 +461,10 @@
     }
     .bf-btn:hover { background: #eff6ff; border-color: #bfdbfe; }
     .bf-btn .bf-when { display: block; font-weight: 600; color: #1d4ed8; }
-    .bf-btn .bf-manager { display: block; margin-top: 1px; }
+    .bf-btn .bf-manager { display: block; max-width: 150px; margin: 1px auto 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }   /* 긴 메모는 … 로 줄이고 전체는 툴팁 */
     .bf-btn.empty { color: #94a3b8; font-size: .75rem; }
     .bf-btn.empty:hover { color: #2563eb; }
-    .briefing-dlg { width: min(440px, 100%); }
+    .briefing-dlg { width: min(560px, 100%); }
     .briefing-dlg .memo-target { margin: -4px 0 12px; font-size: .8rem; color: var(--text-gray, #64748b); line-height: 1.5; word-break: keep-all; }
     .briefing-dlg .bf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .briefing-dlg label { display: block; font-size: .78rem; font-weight: 700; color: var(--text-gray, #64748b); }
@@ -475,8 +475,14 @@
         border: 1px solid var(--card-border, #e2e8f0); border-radius: 5px; background: var(--input-bg, #fff);
         color: var(--text-dark, #1e293b); font: inherit; font-size: .85rem; outline: none;
     }
-    .briefing-dlg input:focus { border-color: var(--primary-color, #4a90e2); }
-    .briefing-dlg input:disabled { background: #f8fafc; color: var(--text-dark, #1e293b); opacity: 1; }
+    .briefing-dlg textarea {
+        display: block; width: 100%; min-height: 84px; margin-top: 5px; padding: 8px 10px; box-sizing: border-box; resize: vertical;
+        border: 1px solid var(--card-border, #e2e8f0); border-radius: 5px; background: var(--input-bg, #fff);
+        color: var(--text-dark, #1e293b); font: inherit; font-size: .9rem; line-height: 1.5; outline: none;
+    }
+    .briefing-dlg .bf-manager-label small { float: right; font-weight: 500; }
+    .briefing-dlg input:focus, .briefing-dlg textarea:focus { border-color: var(--primary-color, #4a90e2); }
+    .briefing-dlg input:disabled, .briefing-dlg textarea:disabled { background: #f8fafc; color: var(--text-dark, #1e293b); opacity: 1; }
     .briefing-dlg .memo-meta { min-height: 1em; }
 
     /* ============ 공고수집·메일 설정(통합관리 > 솔라피설정과 같은 구성) ============ */
@@ -884,7 +890,7 @@
                 <label>날짜<input type="date" id="briefingDate"></label>
                 <label>시간 <small>(선택)</small><input type="time" id="briefingTime"></label>
             </div>
-            <label class="bf-manager-label">담당자 · 메모<input type="text" id="briefingManager" maxlength="30" placeholder="담당자 이름이나 간단한 메모"></label>
+            <label class="bf-manager-label">담당자 · 메모 <small id="briefingManagerCount">0 / {{ briefing_manager_max }}자</small><textarea id="briefingManager" rows="3" maxlength="{{ briefing_manager_max }}" placeholder="담당자 이름이나 간단한 메모"></textarea></label>
             <div class="memo-meta"><span id="briefingUpdated"></span></div>
             <div class="dlg-actions">
                 <button type="button" class="btn danger" id="briefingClear">지우기</button>
@@ -1148,7 +1154,7 @@ function briefingCell(item) {
     }
     const when = [item.briefing_date, item.briefing_time].filter(Boolean).join(' ');
     return `<button type="button" class="bf-btn" data-briefing-for="${item.id}" title="${CAN_NOTE ? '누르면 설명회 정보를 고칩니다' : '누르면 설명회 정보를 봅니다'}">
-        <span class="num bf-when">${esc(when) || '날짜 미정'}</span>${item.briefing_manager ? `<span class="sub bf-manager">${esc(item.briefing_manager)}</span>` : ''}</button>`;
+        <span class="num bf-when">${esc(when) || '날짜 미정'}</span>${item.briefing_manager ? `<span class="sub bf-manager" title="${esc(item.briefing_manager)}">${esc(item.briefing_manager)}</span>` : ''}</button>`;
 }
 function memoCell(item) {
     const has = Boolean(item.memo);
@@ -1801,6 +1807,7 @@ function openBriefing(item) {
     el('briefingDate').value = item.briefing_date || '';
     el('briefingTime').value = item.briefing_time || '';
     el('briefingManager').value = item.briefing_manager || '';
+    updateBriefingCount();
     ['briefingDate', 'briefingTime', 'briefingManager'].forEach(id => { el(id).disabled = !CAN_NOTE; });
     el('briefingUpdated').textContent = item.briefing_updated ? `마지막 저장: ${item.briefing_updated}` : '';
     el('briefingClear').style.display = CAN_NOTE && (item.briefing_date || item.briefing_manager) ? '' : 'none';
@@ -1810,6 +1817,11 @@ function openBriefing(item) {
     (CAN_NOTE ? el('briefingDate') : el('briefingCancel')).focus();
 }
 function closeBriefing() { el('briefingDlg').style.display = 'none'; BRIEFING_ITEM = null; }
+function updateBriefingCount() {
+    const box = el('briefingManager');
+    el('briefingManagerCount').textContent = `${box.value.length} / ${box.maxLength}자`;
+}
+el('briefingManager').addEventListener('input', updateBriefingCount);
 async function saveBriefing(date, time, manager) {
     const item = BRIEFING_ITEM;
     if (!item) return;
