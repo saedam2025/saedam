@@ -144,7 +144,7 @@ EXTRA_NOTICE_COLUMNS = {
     'briefing_updated_at': 'TEXT',
 }
 MEMO_MAX_LENGTH = 2000
-BRIEFING_MANAGER_MAX_LENGTH = 30
+BRIEFING_MANAGER_MAX_LENGTH = 60
 
 _collect_lock = threading.Lock()
 _attach_lock = threading.Lock()
@@ -1234,7 +1234,8 @@ def index():
     return render_template('bid_notice/bid_notice.html', is_admin=is_admin_session(),
                            can_settings=is_admin_session(max_level=SETTINGS_MAX_LEVEL),
                            can_edit=is_admin_session(max_level=EDIT_MAX_LEVEL),
-                           can_note=is_admin_session(max_level=NOTE_MAX_LEVEL))
+                           can_note=is_admin_session(max_level=NOTE_MAX_LEVEL),
+                           briefing_manager_max=BRIEFING_MANAGER_MAX_LENGTH)
 
 
 HAS_RESULT_SQL = "(COALESCE(n.result_state, '') <> '' OR COALESCE(n.winner_name, '') <> '')"
