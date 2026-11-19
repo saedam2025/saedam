@@ -321,6 +321,22 @@ def ensure_certificate_schema(conn):
         'ON excellent_certificate_request_groups('
         'group_id, applicant_name, resident_number_normalized)'
     )
+    # 한 신청이 어느 명단 항목(학교·과목)에 대한 것인지 기록한다.
+    # 그룹 단위로만 기록하면 같은 그룹의 두 번째 학교를 신청할 수 없다.
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS excellent_certificate_request_items (
+            request_id INTEGER NOT NULL,
+            eligibility_id INTEGER NOT NULL,
+            group_id INTEGER NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (request_id, eligibility_id),
+            FOREIGN KEY (request_id) REFERENCES excellent_certificate_requests(id) ON DELETE CASCADE
+        )
+    ''')
+    conn.execute(
+        'CREATE INDEX IF NOT EXISTS idx_excellent_cert_request_item_elig '
+        'ON excellent_certificate_request_items(eligibility_id)'
+    )
     if not conn.execute(
         'SELECT 1 FROM certificate_schema_meta WHERE key=?',
         (CERTIFICATE_SPLIT_META_KEY,),
@@ -499,6 +515,53 @@ def ensure_certificate_schema(conn):
         'ON excellent_instructor_request_groups('
         'group_id, applicant_name, resident_number_normalized)'
     )
+    backfill_excellent_request_items(conn)
+
+
+def _split_joined(text):
+    return {part.strip() for part in str(text or '').split(',') if part.strip()}
+
+
+def backfill_excellent_request_items(conn):
+    """예전 신청(그룹 단위 기록)이 어느 학교·과목 항목이었는지 신청서 내용으로 채운다.
+
+    항목 기록이 아직 없는 신청만 대상이라 여러 번 실행해도 안전하다.
+    신청서의 근무장소·강의과목과 맞는 항목을 찾고, 하나도 못 찾으면
+    예전 동작(그 그룹의 본인 항목 전체 사용)을 유지한다.
+    """
+    pending = conn.execute('''
+        SELECT rg.request_id, rg.group_id, rg.applicant_name,
+               rg.resident_number_normalized,
+               r.workplace, r.subject_or_duty
+        FROM excellent_certificate_request_groups rg
+        JOIN excellent_certificate_requests r ON r.id=rg.request_id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM excellent_certificate_request_items i
+            WHERE i.request_id=rg.request_id AND i.group_id=rg.group_id
+        )
+    ''').fetchall()
+    for row in pending:
+        candidates = conn.execute('''
+            SELECT id, school_name, subject
+            FROM excellent_instructor_eligibility
+            WHERE group_id=? AND applicant_name=?
+              AND resident_number_normalized=?
+        ''', (
+            row['group_id'], row['applicant_name'],
+            row['resident_number_normalized'],
+        )).fetchall()
+        schools = _split_joined(row['workplace'])
+        subjects = _split_joined(row['subject_or_duty'])
+        matched = [
+            item for item in candidates
+            if str(item['school_name']).strip() in schools
+            and str(item['subject']).strip() in subjects
+        ] or candidates
+        conn.executemany('''
+            INSERT OR IGNORE INTO excellent_certificate_request_items
+                (request_id, eligibility_id, group_id)
+            VALUES (?, ?, ?)
+        ''', [(row['request_id'], item['id'], row['group_id']) for item in matched])
 
 
 def _legacy_certificate_value(value):

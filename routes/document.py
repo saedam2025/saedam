@@ -704,27 +704,30 @@ def apply_excellent(token):
                 return '선택한 신청 대상 정보를 확인할 수 없습니다. 다시 조회해 주세요.', 400
 
             selected_group_ids = sorted({int(row['group_id']) for row in rows})
-            group_placeholders = ','.join('?' for _ in selected_group_ids)
+            # 중복 신청은 그룹이 아니라 학교·과목 항목 단위로 막는다.
+            # (한 그룹에 학교가 여러 곳인 강사가 두 번째 학교를 신청할 수 있어야 한다.)
+            item_ids = [int(row['id']) for row in rows]
+            item_placeholders = ','.join('?' for _ in item_ids)
             duplicate = conn.execute(f'''
-                SELECT rg.group_id, g.name, r.status
-                FROM excellent_certificate_request_groups rg
-                JOIN excellent_certificate_requests r ON r.id=rg.request_id
-                JOIN excellent_instructor_roster_groups g ON g.id=rg.group_id
-                WHERE rg.applicant_name=?
-                  AND rg.resident_number_normalized=?
-                  AND rg.group_id IN ({group_placeholders})
+                SELECT i.eligibility_id, r.status
+                FROM excellent_certificate_request_items i
+                JOIN excellent_certificate_requests r ON r.id=i.request_id
+                WHERE i.eligibility_id IN ({item_placeholders})
                 ORDER BY CASE WHEN r.status='발급완료' THEN 0 ELSE 1 END, r.id DESC
                 LIMIT 1
-            ''', (
-                applicant_name, resident_number_normalized, *selected_group_ids,
-            )).fetchone()
+            ''', item_ids).fetchone()
             if duplicate:
                 conn.rollback()
                 duplicate_status = (
                     '발급완료' if duplicate['status'] == '발급완료' else '신청중'
                 )
+                duplicate_row = next(
+                    row for row in rows
+                    if int(row['id']) == int(duplicate['eligibility_id'])
+                )
                 return (
-                    f'{duplicate["name"]} 그룹은 이미 {duplicate_status}입니다. '
+                    f'{duplicate_row["school_name"]} {duplicate_row["subject"]} 건은 '
+                    f'이미 {duplicate_status}입니다. '
                     '신청 대상을 다시 조회해 주세요.'
                 ), 409
 
@@ -765,6 +768,13 @@ def apply_excellent(token):
                 request_id, group_id, applicant_name,
                 resident_number_normalized,
             ) for group_id in selected_group_ids])
+            conn.executemany('''
+                INSERT INTO excellent_certificate_request_items (
+                    request_id, eligibility_id, group_id
+                ) VALUES (?, ?, ?)
+            ''', [(
+                request_id, int(row['id']), int(row['group_id']),
+            ) for row in rows])
             conn.commit()
         except Exception:
             conn.rollback()
@@ -828,14 +838,17 @@ def lookup_excellent_instructor(token):
             applicant_name, resident_number_normalized,
             int(workgroup['company_id']),
         )).fetchall()
+        # 발급·신청 내역은 그룹이 아니라 학교·과목 항목별로 본다.
         history_rows = conn.execute('''
-            SELECT rg.group_id, r.id AS request_id, r.status AS request_status,
+            SELECT i.eligibility_id, r.id AS request_id,
+                   r.status AS request_status,
                    r.applied_date, r.issued_date, r.issue_number
-            FROM excellent_certificate_request_groups rg
-            JOIN excellent_certificate_requests r ON r.id=rg.request_id
-            JOIN excellent_instructor_roster_groups g ON g.id=rg.group_id
-            WHERE rg.applicant_name=?
-              AND rg.resident_number_normalized=?
+            FROM excellent_certificate_request_items i
+            JOIN excellent_certificate_requests r ON r.id=i.request_id
+            JOIN excellent_instructor_eligibility e ON e.id=i.eligibility_id
+            JOIN excellent_instructor_roster_groups g ON g.id=e.group_id
+            WHERE e.applicant_name=?
+              AND e.resident_number_normalized=?
               AND g.company_id=?
             ORDER BY CASE WHEN r.status='발급완료' THEN 0 ELSE 1 END,
                      r.id DESC
@@ -850,10 +863,19 @@ def lookup_excellent_instructor(token):
             'status': 'error',
             'message': '우수강사인증서 신청 대상자가 아닙니다.',
         }), 404
-    history_by_group = {}
+    history_by_item = {}
     for history in history_rows:
-        history_by_group.setdefault(int(history['group_id']), dict(history))
+        history_by_item.setdefault(int(history['eligibility_id']), dict(history))
 
+    status_counts = {
+        'available': 0, 'pending': 0, 'issued': 0,
+        'upcoming': 0, 'expired': 0,
+    }
+    status_labels = {
+        'available': '발급 가능', 'pending': '신청중',
+        'issued': '발급완료', 'upcoming': '신청기간 전',
+        'expired': '신청기간 만료',
+    }
     groups_by_id = {}
     for row in rows:
         item = dict(row)
@@ -865,34 +887,23 @@ def lookup_excellent_instructor(token):
             'valid_until': item.pop('valid_until'),
             'items': [],
         })
-        group['items'].append(item)
-
-    status_counts = {
-        'available': 0, 'pending': 0, 'issued': 0,
-        'upcoming': 0, 'expired': 0,
-    }
-    status_labels = {
-        'available': '발급 가능', 'pending': '신청중',
-        'issued': '발급완료', 'upcoming': '신청기간 전',
-        'expired': '신청기간 만료',
-    }
-    for group in groups_by_id.values():
-        history = history_by_group.get(group['id'])
+        history = history_by_item.get(int(item['id']))
         if history and history['request_status'] == '발급완료':
-            group_status = 'issued'
+            item_status = 'issued'
         elif history:
-            group_status = 'pending'
+            item_status = 'pending'
         elif group['valid_from'] <= today <= group['valid_until']:
-            group_status = 'available'
+            item_status = 'available'
         elif today < group['valid_from']:
-            group_status = 'upcoming'
+            item_status = 'upcoming'
         else:
-            group_status = 'expired'
-        group['application_status'] = group_status
-        group['status_label'] = status_labels[group_status]
-        group['selectable'] = group_status == 'available'
-        group['history'] = history
-        status_counts[group_status] += 1
+            item_status = 'expired'
+        item['application_status'] = item_status
+        item['status_label'] = status_labels[item_status]
+        item['selectable'] = item_status == 'available'
+        item['history'] = history
+        status_counts[item_status] += 1
+        group['items'].append(item)
 
     return jsonify({
         'status': 'success',
@@ -1471,20 +1482,15 @@ def excellent_instructor_group_members_api(group_id):
                    CASE
                      WHEN EXISTS (
                        SELECT 1
-                       FROM excellent_certificate_request_groups rg
-                       JOIN excellent_certificate_requests r ON r.id=rg.request_id
-                       WHERE rg.group_id=e.group_id
-                         AND rg.applicant_name=e.applicant_name
-                         AND rg.resident_number_normalized=e.resident_number_normalized
+                       FROM excellent_certificate_request_items i
+                       JOIN excellent_certificate_requests r ON r.id=i.request_id
+                       WHERE i.eligibility_id=e.id
                          AND r.status='발급완료'
                      ) THEN '발급완료'
                      WHEN EXISTS (
                        SELECT 1
-                       FROM excellent_certificate_request_groups rg
-                       JOIN excellent_certificate_requests r ON r.id=rg.request_id
-                       WHERE rg.group_id=e.group_id
-                         AND rg.applicant_name=e.applicant_name
-                         AND rg.resident_number_normalized=e.resident_number_normalized
+                       FROM excellent_certificate_request_items i
+                       WHERE i.eligibility_id=e.id
                      ) THEN '신청중'
                      ELSE '미신청'
                    END AS application_status
