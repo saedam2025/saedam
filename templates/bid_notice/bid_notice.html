@@ -481,6 +481,11 @@
         color: var(--text-dark, #1e293b); font: inherit; font-size: .9rem; line-height: 1.5; outline: none;
     }
     .briefing-dlg .bf-manager-label small { float: right; font-weight: 500; }
+    .briefing-dlg .bf-none { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: .85rem; font-weight: 700; color: #dc2626; cursor: pointer; width: fit-content; }
+    .briefing-dlg .bf-none input { display: inline-block; width: 16px; height: 16px; margin: 0; padding: 0; accent-color: #dc2626; cursor: pointer; }
+    .briefing-dlg .bf-none input:disabled { cursor: default; }
+    .briefing-dlg .bf-grid.is-none { opacity: .45; }
+    .bf-btn .bf-when.none, .bf-btn.none .bf-when { color: #dc2626; }
     .briefing-dlg input:focus, .briefing-dlg textarea:focus { border-color: var(--primary-color, #4a90e2); }
     .briefing-dlg input:disabled, .briefing-dlg textarea:disabled { background: #f8fafc; color: var(--text-dark, #1e293b); opacity: 1; }
     .briefing-dlg .memo-meta { min-height: 1em; }
@@ -886,7 +891,8 @@
         <div class="dlg briefing-dlg">
             <h3 id="briefingDlgTitle"><i class="fa-solid fa-chalkboard-user" style="color:#2563eb"></i> 설명회</h3>
             <div class="memo-target" id="briefingTarget"></div>
-            <div class="bf-grid">
+            <label class="bf-none"><input type="checkbox" id="briefingNone"> 설명회 없음</label>
+            <div class="bf-grid" id="briefingGrid">
                 <label>날짜<input type="date" id="briefingDate"></label>
                 <label>시간 <small>(선택)</small><input type="time" id="briefingTime"></label>
             </div>
@@ -1146,14 +1152,15 @@ function myBidCell(item) {
 }
 // 설명회 칸: 날짜·시간과 담당자를 두 줄로 보여 주고, 누르면 창에서 입력·수정한다(비어 있으면 [+ 입력]).
 function briefingCell(item) {
-    const has = Boolean(item.briefing_date || item.briefing_manager);
+    const has = Boolean(item.briefing_date || item.briefing_manager || item.briefing_none);
     if (!has) {
         return CAN_NOTE
             ? `<button type="button" class="bf-btn empty" data-briefing-for="${item.id}" title="설명회 날짜·시간·담당자 입력">+ 입력</button>`
             : '<span class="sub">-</span>';
     }
-    const when = [item.briefing_date, item.briefing_time].filter(Boolean).join(' ');
-    return `<button type="button" class="bf-btn" data-briefing-for="${item.id}" title="${CAN_NOTE ? '누르면 설명회 정보를 고칩니다' : '누르면 설명회 정보를 봅니다'}">
+    // '설명회 없음'이면 날짜 대신 빨간 글씨로 보여 준다
+    const when = item.briefing_none ? '설명회 없음' : [item.briefing_date, item.briefing_time].filter(Boolean).join(' ');
+    return `<button type="button" class="bf-btn${item.briefing_none ? ' none' : ''}" data-briefing-for="${item.id}" title="${CAN_NOTE ? '누르면 설명회 정보를 고칩니다' : '누르면 설명회 정보를 봅니다'}">
         <span class="num bf-when">${esc(when) || '날짜 미정'}</span>${item.briefing_manager ? `<span class="sub bf-manager" title="${esc(item.briefing_manager)}">${esc(item.briefing_manager)}</span>` : ''}</button>`;
 }
 function memoCell(item) {
@@ -1807,28 +1814,40 @@ function openBriefing(item) {
     el('briefingDate').value = item.briefing_date || '';
     el('briefingTime').value = item.briefing_time || '';
     el('briefingManager').value = item.briefing_manager || '';
+    el('briefingNone').checked = Boolean(item.briefing_none);
     updateBriefingCount();
-    ['briefingDate', 'briefingTime', 'briefingManager'].forEach(id => { el(id).disabled = !CAN_NOTE; });
+    el('briefingManager').disabled = !CAN_NOTE;
+    el('briefingNone').disabled = !CAN_NOTE;
+    syncBriefingNone();
     el('briefingUpdated').textContent = item.briefing_updated ? `마지막 저장: ${item.briefing_updated}` : '';
-    el('briefingClear').style.display = CAN_NOTE && (item.briefing_date || item.briefing_manager) ? '' : 'none';
+    el('briefingClear').style.display = CAN_NOTE && (item.briefing_date || item.briefing_manager || item.briefing_none) ? '' : 'none';
     el('briefingSave').style.display = CAN_NOTE ? '' : 'none';
     el('briefingCancel').textContent = CAN_NOTE ? '취소' : '닫기';
     el('briefingDlg').style.display = 'flex';
     (CAN_NOTE ? el('briefingDate') : el('briefingCancel')).focus();
 }
 function closeBriefing() { el('briefingDlg').style.display = 'none'; BRIEFING_ITEM = null; }
+// '설명회 없음'을 고르면 날짜·시간 입력칸을 비우고 잠근다(저장해도 날짜·시간은 남지 않는다).
+function syncBriefingNone() {
+    const none = el('briefingNone').checked;
+    if (none) { el('briefingDate').value = ''; el('briefingTime').value = ''; }
+    el('briefingGrid').classList.toggle('is-none', none);
+    ['briefingDate', 'briefingTime'].forEach(id => { el(id).disabled = none || !CAN_NOTE; });
+}
+el('briefingNone').addEventListener('change', syncBriefingNone);
 function updateBriefingCount() {
     const box = el('briefingManager');
     el('briefingManagerCount').textContent = `${box.value.length} / ${box.maxLength}자`;
 }
 el('briefingManager').addEventListener('input', updateBriefingCount);
-async function saveBriefing(date, time, manager) {
+async function saveBriefing(date, time, manager, none) {
     const item = BRIEFING_ITEM;
     if (!item) return;
-    const data = await postJson(`/bid-notice/api/notices/${item.id}/briefing`, { date, time, manager });
+    const data = await postJson(`/bid-notice/api/notices/${item.id}/briefing`, { date, time, manager, none: Boolean(none) });
     item.briefing_date = data.briefing_date;
     item.briefing_time = data.briefing_time;
     item.briefing_manager = data.briefing_manager;
+    item.briefing_none = data.briefing_none;
     item.briefing_updated = data.briefing_updated;
     const button = document.querySelector(`[data-briefing-for="${item.id}"]`);
     if (button) button.closest('td').innerHTML = briefingCell(item);
@@ -1840,10 +1859,10 @@ el('briefingDlg').addEventListener('keydown', event => {
     if (event.key === 'Enter' && CAN_NOTE) { event.preventDefault(); el('briefingSave').click(); }
 });
 el('briefingSave').addEventListener('click', () => withSpinner(el('briefingSave'), '저장 중…',
-    () => saveBriefing(el('briefingDate').value, el('briefingTime').value, el('briefingManager').value)));
+    () => saveBriefing(el('briefingDate').value, el('briefingTime').value, el('briefingManager').value, el('briefingNone').checked)));
 el('briefingClear').addEventListener('click', () => {
     if (!confirm('이 공고의 설명회 정보를 지울까요?')) return;
-    withSpinner(el('briefingClear'), '지우는 중…', () => saveBriefing('', '', ''));
+    withSpinner(el('briefingClear'), '지우는 중…', () => saveBriefing('', '', '', false));
 });
 
 // ---- 입찰일정표: 큰 달력(월) + 오른쪽 주간입찰일정표. 입찰 마감(빨강 [마감])과 설명회(파랑 [설명])를 함께 보여 준다 ----
