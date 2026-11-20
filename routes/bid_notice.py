@@ -140,6 +140,7 @@ EXTRA_NOTICE_COLUMNS = {
     'briefing_date': 'TEXT',          # 설명회 날짜(YYYY-MM-DD, 직접 입력, 비면 없음)
     'briefing_time': 'TEXT',          # 설명회 시간(HH:MM, 선택 입력)
     'briefing_manager': 'TEXT',       # 설명회 담당자(직접 입력)
+    'briefing_none': 'INTEGER DEFAULT 0',   # 1 = '설명회 없음'으로 표시(이때는 날짜·시간을 비운다)
     'briefing_updated_by': 'TEXT',
     'briefing_updated_at': 'TEXT',
 }
@@ -1192,8 +1193,9 @@ def _notice_dict(row, now):
         'briefing_date': row['briefing_date'] or '',
         'briefing_time': row['briefing_time'] or '',
         'briefing_manager': row['briefing_manager'] or '',
+        'briefing_none': bool(row['briefing_none']),
         'briefing_updated': ' · '.join(filter(None, [row['briefing_updated_by'] or '', _short_dt(row['briefing_updated_at'])]))
-                            if row['briefing_date'] or row['briefing_manager'] else '',
+                            if row['briefing_date'] or row['briefing_manager'] or row['briefing_none'] else '',
         'archive_id': row['archive_id'],
         'result': {
             'state': row['result_state'] or ('직접입력' if row['winner_name'] else ''),
@@ -1501,6 +1503,7 @@ def _schedule_item(row, kind, day, time_text):
         'briefing_date': row['briefing_date'] or '',
         'briefing_time': row['briefing_time'] or '',
         'briefing_manager': row['briefing_manager'] or '',
+        'briefing_none': bool(row['briefing_none']),
         'memo': (row['memo'] or '')[:200],
         'url': row['url'] or '',
     }
@@ -1741,6 +1744,9 @@ def api_briefing(notice_id):
     date_text = str(payload.get('date') or '').strip()
     time_text = str(payload.get('time') or '').strip()
     manager = ' '.join(str(payload.get('manager') or '').split())
+    none = 1 if payload.get('none') in (True, 1, '1', 'true') else 0
+    if none:                    # '설명회 없음'이면 날짜·시간은 저장하지 않는다(메모는 그대로 둘 수 있다)
+        date_text = time_text = ''
     if date_text:
         try:
             date_text = datetime.strptime(date_text, '%Y-%m-%d').strftime('%Y-%m-%d')
@@ -1759,17 +1765,17 @@ def api_briefing(notice_id):
     conn = get_db()
     try:
         cursor = conn.execute(
-            'UPDATE bid_notices SET briefing_date=?, briefing_time=?, briefing_manager=?, '
+            'UPDATE bid_notices SET briefing_date=?, briefing_time=?, briefing_manager=?, briefing_none=?, '
             'briefing_updated_by=?, briefing_updated_at=? WHERE id=?',
-            (date_text or None, time_text or None, manager or None, by, at, notice_id))
+            (date_text or None, time_text or None, manager or None, none, by, at, notice_id))
         conn.commit()
         if not cursor.rowcount:
             return _json_error('공고를 찾을 수 없습니다.', 404)
     finally:
         conn.close()
-    has_any = bool(date_text or manager)
+    has_any = bool(date_text or manager or none)
     return jsonify({'status': 'success', 'briefing_date': date_text, 'briefing_time': time_text,
-                    'briefing_manager': manager,
+                    'briefing_manager': manager, 'briefing_none': bool(none),
                     'briefing_updated': ' · '.join(filter(None, [by, _short_dt(at)])) if has_any else ''})
 
 
