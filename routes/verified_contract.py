@@ -25,6 +25,7 @@ import pdfkit
 from PyPDF2 import PdfReader, PdfWriter
 import pandas as pd
 from email.mime.application import MIMEApplication
+from email.utils import formataddr
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -838,7 +839,18 @@ def _active_sender_row(conn):
     return row
 
 
-def _send_mail(to, subject: str, contents, attachments=None, inline_images=None) -> None:
+def _mail_from_header(sender: dict, company_name: str = "") -> str:
+    """보내는 사람 표시 이름: 그 계약 회사 이름(주소는 발송계정 그대로). 회사명이 없으면 계정 표시 이름."""
+    name = str(company_name or "").strip()
+    email = str(sender.get("email") or "").strip()
+    if name and email:
+        return formataddr((name, email), charset="utf-8")
+    return _sender_from_header(sender)
+
+
+def _send_mail(
+    to, subject: str, contents, attachments=None, inline_images=None, from_name: str = ""
+) -> None:
     """스마트명세서·인감증명서와 동일한 공유 발송계정(Gmail/ZeptoMail)으로 발송한다."""
     conn = get_db()
     try:
@@ -853,7 +865,7 @@ def _send_mail(to, subject: str, contents, attachments=None, inline_images=None)
     # 실제 SMTP 로그인에는 쓰면 안 된다(비밀번호가 없어 매번 복호화 실패로 이어진다).
     sender = dict(row)
     message = MIMEMultipart()
-    message["From"] = _sender_from_header(sender)
+    message["From"] = _mail_from_header(sender, from_name)
     message["To"] = to if isinstance(to, str) else ", ".join(to)
     message["Subject"] = subject
     message.attach(MIMEText(contents, "html", "utf-8"))
@@ -1092,20 +1104,22 @@ def _invitation_mail(row, invitation_url: str) -> None:
         row["signer_email"],
         f"[전자계약 요청] {row['title_snapshot']}",
         _invitation_html(row, invitation_url),
+        from_name=_row_company(row).get("company_name", ""),
     )
 
 
 def _invitation_html(row, invitation_url: str) -> str:
+    org_name = escape(str(_row_company(row).get("company_name") or "(사)새담청소년교육문화원"))
     return f"""
     <div style="font-family:Arial,'Malgun Gothic',sans-serif;line-height:1.7;color:#1f2937">
-      <h2 style="color:#123b6d">새담 인증전자계약 요청</h2>
+      <h2 style="color:#123b6d">{org_name} 인증전자계약 요청</h2>
       <p><b>{escape(row['signer_name'])}</b>님, {escape(row['title_snapshot'])} 확인과 서명을 요청드립니다.</p>
       <p>아래 버튼을 누른 후 본인 인증번호를 확인하면 계약서를 작성할 수 있습니다.</p>
       <p style="margin:28px 0">
         <a href="{escape(invitation_url)}" style="background:#123b6d;color:#fff;padding:13px 24px;border-radius:7px;text-decoration:none;font-weight:bold">계약서 확인하기</a>
       </p>
       <p style="font-size:13px;color:#64748b">유효기간: {escape(_format_kst(row['invitation_expires_at']))}<br>
-      본인이 요청한 계약이 아니라면 링크를 열지 말고 새담 담당자에게 알려주세요.</p>
+      본인이 요청한 계약이 아니라면 링크를 열지 말고 계약 담당자에게 알려주세요.</p>
     </div>
     """
 
@@ -1200,13 +1214,13 @@ def _void_notice_html(row, reason_label: str, has_attachment: bool = False) -> s
                 color:#46586e;font-size:12.5px;line-height:1.85;">
         · <b style="color:#a33330;">본 안내 이후로 위 계약서는 더 이상 유효하지 않으며 법적 효력이 없습니다.</b><br>
         · 이전에 받으신 계약 링크로는 계약서를 여실 수 없습니다.<br>
-        · 동일한 내용으로 다시 계약이 필요한 경우, 새담 담당자로부터 별도의 계약 요청 메일을 받으시게 됩니다.{attachment_line}
+        · 동일한 내용으로 다시 계약이 필요한 경우, 계약 담당자로부터 별도의 계약 요청 메일을 받으시게 됩니다.{attachment_line}
     </div>
 </td></tr>
 
 <tr><td style="padding:28px 32px 30px;text-align:center;">
     <div style="color:#33404f;font-size:14px;line-height:1.8;">
-        문의사항은 새담 계약 담당자에게 연락해 주세요.</div>
+        문의사항은 계약 담당자에게 연락해 주세요.</div>
 </td></tr>
 
 <tr><td style="padding:18px 20px 22px;border-top:1px solid #d7e0ea;text-align:center;
@@ -1214,7 +1228,7 @@ def _void_notice_html(row, reason_label: str, has_attachment: bool = False) -> s
     {logo_html}
     <div style="margin-top:0;color:#7b8aa0;font-size:11px;line-height:1.7;">
         {org_name}<br>
-        본 메일은 새담 인트라넷 인증전자계약에서 발송되었습니다.
+        본 메일은 인증전자계약 시스템에서 자동 발송되었습니다.
     </div>
 </td></tr>
 
@@ -1281,7 +1295,7 @@ def _completion_mail_html(row, pdf_hash: str, company_name: str = "") -> str:
     </table>
     <div style="margin-top:8px;color:#6b7889;font-size:12px;line-height:1.75;">
         이 번호는 첨부된 계약서 파일 내용으로 계산한 고유값으로, 이후 파일이 조금이라도 바뀌면 전혀 다른 값이 됩니다.<br>
-        보관하신 계약서가 원본과 같은지 확인이 필요할 때 새담 담당자에게 이 번호와 함께 문의해 주시면 되며, 평소에는 별도로 입력하거나 사용하실 필요가 없습니다.
+        보관하신 계약서가 원본과 같은지 확인이 필요할 때 계약 담당자에게 이 번호와 함께 문의해 주시면 되며, 평소에는 별도로 입력하거나 사용하실 필요가 없습니다.
     </div>
 </td></tr>
 
@@ -1295,7 +1309,7 @@ def _completion_mail_html(row, pdf_hash: str, company_name: str = "") -> str:
     {logo_html}
     <div style="margin-top:0;color:#7b8aa0;font-size:11px;line-height:1.7;">
         {org_name}<br>
-        본 메일은 새담 인트라넷 인증전자계약에서 발송되었습니다.
+        본 메일은 인증전자계약 시스템에서 자동 발송되었습니다.
     </div>
 </td></tr>
 
@@ -2258,7 +2272,9 @@ def bulk_send_invitations():
                 if smtp is not None:
                     try:
                         message = MIMEMultipart()
-                        message["From"] = _sender_from_header(smtp_sender)
+                        message["From"] = _mail_from_header(
+                            smtp_sender, _row_company(row).get("company_name", "")
+                        )
                         message["To"] = recipient
                         message["Subject"] = f"[전자계약 요청] {row['title_snapshot']}"
                         message.attach(
@@ -2456,6 +2472,7 @@ def bulk_void():
                             _void_notice_html(row, reason_label, has_attachment=True),
                             attachments=mail_pdf_path,
                             inline_images=_mail_logo(_row_company(row))[1],
+                            from_name=_row_company(row).get("company_name", ""),
                         )
                 else:
                     _send_mail(
@@ -2463,6 +2480,7 @@ def bulk_void():
                         f"[전자계약 {reason_label} 안내] {row['title_snapshot']}",
                         _void_notice_html(row, reason_label),
                         inline_images=_mail_logo(_row_company(row))[1],
+                        from_name=_row_company(row).get("company_name", ""),
                     )
                 mail_sent += 1
             except Exception as exc:
@@ -3440,9 +3458,10 @@ def send_otp(token: str):
         conn.close()
     message_id = ""
     try:
+        otp_company = _row_company(row).get("company_name") or "새담"
         _send_mail(
             entered_email,
-            "[새담 인증전자계약] 이메일 인증번호",
+            f"[{otp_company} 인증전자계약] 이메일 인증번호",
             f"""
             <div style="font-family:Arial,'Malgun Gothic',sans-serif;line-height:1.7">
               <h2>이메일 인증번호</h2>
@@ -3452,6 +3471,7 @@ def send_otp(token: str):
               <p>계약을 마치면 서명된 계약서 원본도 이 주소로 발송됩니다.</p>
             </div>
             """,
+            from_name=_row_company(row).get("company_name", ""),
         )
     except Exception as exc:
         conn = get_db()
@@ -4019,6 +4039,7 @@ def complete_contract(token: str):
                     _completion_mail_html(row, pdf_hash, company.get("company_name")),
                     attachments=mail_pdf_path,
                     inline_images=_mail_logo(company)[1],
+                    from_name=company.get("company_name", ""),
                 )
             mail_status, mail_error = "sent", ""
         except Exception as exc:
