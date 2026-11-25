@@ -3162,7 +3162,7 @@ def admin_preview(contract_id: int):
     .info th,.info td{{border-bottom:1px solid #ccc;padding:8px;text-align:left}}
     .info th{{width:110px}}
     .terms table{{width:100%;border-collapse:collapse;margin:12px 0}}
-    .terms th,.terms td{{border:1px solid #333;padding:7px}}
+    .terms th,.terms td{{border:1px solid #333;padding:10px 7px}}
     .terms p{{margin:0 0 8px}}
     .terms{{font-size:15px;margin-bottom:48px}}
     .terms *{{font-size:inherit!important}}
@@ -3903,7 +3903,7 @@ def _build_pdf(row, contract_data: dict, company: dict, signature_uri: str, sign
     .info th,.info td{{border-bottom:1px solid #ccc;padding:8px;text-align:left}}
     .info th{{width:110px}}
     .terms table{{width:100%;border-collapse:collapse;margin:12px 0}}
-    .terms th,.terms td{{border:1px solid #333;padding:7px}}
+    .terms th,.terms td{{border:1px solid #333;padding:10px 7px}}
     .terms p{{margin:0 0 8px}}
     .terms{{font-size:16px;margin-bottom:48px}}
     .terms *{{font-size:inherit!important}}
