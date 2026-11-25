@@ -99,7 +99,7 @@
 <div class="sign-layout">
 <div class="main-col">
   <section class="card">
-    <div class="contract-head"><div class="badge-row"><span class="badge">본인 인증 완료</span></div><h2>{{ data.title_snapshot }}</h2><div class="contract-meta"><div class="meta"><b>계약자 성명:</b><span class="meta-value">{{ data.signer_name }}</span></div><div class="meta"><b>수탁학교 / 담당부서</b><span class="meta-value">{{ data.school_name or '-' }} / {{ data.department or '-' }}</span></div></div></div>
+    <div class="contract-head"><div class="badge-row"><span class="badge">본인 인증 완료</span></div><h2>{{ data.title_snapshot }}</h2><div class="contract-meta"><div class="meta"><b>계약자 성명:</b><span class="meta-value">{{ data.signer_name }}</span></div><div class="meta"><b>{{ data.workplace_label if data.workplace_label == '근무처' else '수탁학교' }} / 담당부서</b><span class="meta-value">{{ data.school_name or '-' }} / {{ data.department or '-' }}</span></div></div></div>
     <div class="form-grid form-grid-3">
       <div class="field"><label>주민등록번호 *</label><input id="residentNumber" inputmode="numeric" maxlength="14" autocomplete="off" placeholder="000000-0000000"></div>
       <div class="field"><label>연락처 *</label><input id="phone" inputmode="numeric" maxlength="13" autocomplete="tel" value="{{ data.signer_phone_display }}" placeholder="010-1234-5678"{% if data.signer_phone %} readonly{% endif %}></div>
