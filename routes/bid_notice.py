@@ -143,9 +143,15 @@ EXTRA_NOTICE_COLUMNS = {
     'briefing_none': 'INTEGER DEFAULT 0',   # 1 = '설명회 없음'으로 표시(이때는 날짜·시간을 비운다)
     'briefing_updated_by': 'TEXT',
     'briefing_updated_at': 'TEXT',
+    'proposal_date': 'TEXT',          # 제안접수 예정 날짜(YYYY-MM-DD, 직접 입력, 비면 없음)
+    'proposal_time': 'TEXT',          # 제안접수 시간(HH:MM, 선택 입력)
+    'proposal_manager': 'TEXT',       # 제안접수 담당자·메모(직접 입력)
+    'proposal_updated_by': 'TEXT',
+    'proposal_updated_at': 'TEXT',
 }
 MEMO_MAX_LENGTH = 2000
-BRIEFING_MANAGER_MAX_LENGTH = 60
+BRIEFING_MANAGER_MAX_LENGTH = 100
+PROPOSAL_MANAGER_MAX_LENGTH = 100
 
 _collect_lock = threading.Lock()
 _attach_lock = threading.Lock()
@@ -1196,6 +1202,11 @@ def _notice_dict(row, now):
         'briefing_none': bool(row['briefing_none']),
         'briefing_updated': ' · '.join(filter(None, [row['briefing_updated_by'] or '', _short_dt(row['briefing_updated_at'])]))
                             if row['briefing_date'] or row['briefing_manager'] or row['briefing_none'] else '',
+        'proposal_date': row['proposal_date'] or '',
+        'proposal_time': row['proposal_time'] or '',
+        'proposal_manager': row['proposal_manager'] or '',
+        'proposal_updated': ' · '.join(filter(None, [row['proposal_updated_by'] or '', _short_dt(row['proposal_updated_at'])]))
+                            if row['proposal_date'] or row['proposal_manager'] else '',
         'archive_id': row['archive_id'],
         'result': {
             'state': row['result_state'] or ('직접입력' if row['winner_name'] else ''),
@@ -1237,7 +1248,8 @@ def index():
                            can_settings=is_admin_session(max_level=SETTINGS_MAX_LEVEL),
                            can_edit=is_admin_session(max_level=EDIT_MAX_LEVEL),
                            can_note=is_admin_session(max_level=NOTE_MAX_LEVEL),
-                           briefing_manager_max=BRIEFING_MANAGER_MAX_LENGTH)
+                           briefing_manager_max=BRIEFING_MANAGER_MAX_LENGTH,
+                           proposal_manager_max=PROPOSAL_MANAGER_MAX_LENGTH)
 
 
 HAS_RESULT_SQL = "(COALESCE(n.result_state, '') <> '' OR COALESCE(n.winner_name, '') <> '')"
@@ -1348,6 +1360,9 @@ def _order_sql(status, sort, direction):
     if sort == 'briefing':      # 설명회 날짜 → 시간 순(날짜가 없는 공고는 항상 맨 뒤)
         return (f"CASE WHEN COALESCE(n.briefing_date, '') = '' THEN 1 ELSE 0 END, n.briefing_date {descending}, "
                 f"COALESCE(n.briefing_time, '') {descending}, {tail}")
+    if sort == 'proposal':      # 제안접수 날짜 → 시간 순(날짜가 없는 공고는 항상 맨 뒤)
+        return (f"CASE WHEN COALESCE(n.proposal_date, '') = '' THEN 1 ELSE 0 END, n.proposal_date {descending}, "
+                f"COALESCE(n.proposal_time, '') {descending}, {tail}")
     if sort == 'winner':
         return f"CASE WHEN COALESCE(n.winner_name, '') = '' THEN 1 ELSE 0 END, n.winner_name {descending}, {tail}"
     if status in ('open', 'soon', 'tomorrow', 'week'):
@@ -1536,7 +1551,59 @@ def api_schedule():
     events += [_schedule_item(row, 'briefing', row['briefing_date'], row['briefing_time']) for row in briefings]
     # 같은 날은 시간 순(시간이 없는 것은 뒤), 같은 시간이면 입찰 마감이 먼저
     events.sort(key=lambda item: (item['date'], item['time'] == '', item['time'], item['type'] != 'close', item['school']))
-    return jsonify({'status': 'success', 'events': events})
+    return _no_store(jsonify({'status': 'success', 'events': events}))
+
+
+def _no_store(response):
+    """일정표는 입찰구분·날짜를 바꾸는 즉시 달라져야 하므로 브라우저가 기억해 두지 않게 한다."""
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@bid_notice_bp.route('/api/proposal-schedule')
+def api_proposal_schedule():
+    """[접수일정표]: 기간(start~end) 안의 제안접수 예정 공고를 날짜별로 돌려준다.
+
+    [입찰일정표]와는 완전히 따로다(입찰 마감·설명회는 싣지 않는다). 입찰일정표와 같이
+    취소된 공고·보관함 공고·입찰구분이 '입찰제외'인 공고는 뺀다.
+    """
+    start, end = _parse_day(request.args.get('start')), _parse_day(request.args.get('end'))
+    if not start or not end or end < start:
+        return _json_error('조회할 기간(start·end)을 날짜로 알려 주세요.')
+    if (end - start).days + 1 > SCHEDULE_MAX_DAYS:
+        return _json_error(f'한 번에 {SCHEDULE_MAX_DAYS}일까지만 조회할 수 있습니다.')
+    first, after = f'{start:%Y-%m-%d}', f'{end + timedelta(days=1):%Y-%m-%d}'
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM bid_notices WHERE archive_id IS NULL AND COALESCE(kind, '') <> ? "
+            "AND COALESCE(bid_type, '') <> '입찰제외' AND proposal_date >= ? AND proposal_date < ?",
+            (g2b.KIND_CANCEL, first, after)).fetchall()
+    finally:
+        conn.close()
+    events = [{
+        'date': row['proposal_date'],
+        'id': row['id'],
+        'bid_no': row['bid_no'],
+        'title': row['title'],
+        'school': _school_label(row) or row['title'],
+        'region': row['region'] or '',
+        'demand_name': row['demand_name'] or '',
+        'bid_close': _short_dt(row['bid_close']),
+        'base_amount': row['base_amount'],
+        'budget': row['budget'],
+        'bid_type': row['bid_type'] or '',
+        'work_status': row['work_status'] or '',
+        'proposal_date': row['proposal_date'],
+        'proposal_time': row['proposal_time'] or '',
+        'proposal_manager': row['proposal_manager'] or '',
+        'time': row['proposal_time'] or '',
+        'memo': (row['memo'] or '')[:200],
+        'url': row['url'] or '',
+    } for row in rows]
+    # 같은 날은 시간 순(시간이 없는 것은 뒤)
+    events.sort(key=lambda item: (item['date'], item['time'] == '', item['time'], item['school'], item['id']))
+    return _no_store(jsonify({'status': 'success', 'events': events}))
 
 
 @bid_notice_bp.route('/api/notices/<int:notice_id>/events')
@@ -1777,6 +1844,46 @@ def api_briefing(notice_id):
     return jsonify({'status': 'success', 'briefing_date': date_text, 'briefing_time': time_text,
                     'briefing_manager': manager, 'briefing_none': bool(none),
                     'briefing_updated': ' · '.join(filter(None, [by, _short_dt(at)])) if has_any else ''})
+
+
+@bid_notice_bp.route('/api/notices/<int:notice_id>/proposal', methods=['POST'])
+def api_proposal(notice_id):
+    """[제안접수] 칸: 제안접수 예정 날짜·시간(선택)과 담당자·메모를 저장한다. 모두 비우면 지운다."""
+    if not is_admin_session(max_level=NOTE_MAX_LEVEL):
+        return _json_error(NOTE_DENIED_MESSAGE, 403)
+    payload = request.get_json(silent=True) or {}
+    date_text = str(payload.get('date') or '').strip()
+    time_text = str(payload.get('time') or '').strip()
+    manager = ' '.join(str(payload.get('manager') or '').split())
+    if date_text:
+        try:
+            date_text = datetime.strptime(date_text, '%Y-%m-%d').strftime('%Y-%m-%d')
+        except ValueError:
+            return _json_error('제안접수 날짜는 달력에서 골라 주세요.')
+    if time_text:
+        try:
+            time_text = datetime.strptime(time_text, '%H:%M').strftime('%H:%M')
+        except ValueError:
+            return _json_error('제안접수 시간은 시:분(예: 14:00)으로 적어 주세요.')
+        if not date_text:
+            return _json_error('시간을 적으려면 제안접수 날짜도 함께 골라 주세요.')
+    if len(manager) > PROPOSAL_MANAGER_MAX_LENGTH:
+        return _json_error(f'담당자·메모는 {PROPOSAL_MANAGER_MAX_LENGTH}자까지 적을 수 있습니다.')
+    by, at = session.get('user_name') or '', _stamp()
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            'UPDATE bid_notices SET proposal_date=?, proposal_time=?, proposal_manager=?, '
+            'proposal_updated_by=?, proposal_updated_at=? WHERE id=?',
+            (date_text or None, time_text or None, manager or None, by, at, notice_id))
+        conn.commit()
+        if not cursor.rowcount:
+            return _json_error('공고를 찾을 수 없습니다.', 404)
+    finally:
+        conn.close()
+    has_any = bool(date_text or manager)
+    return jsonify({'status': 'success', 'proposal_date': date_text, 'proposal_time': time_text, 'proposal_manager': manager,
+                    'proposal_updated': ' · '.join(filter(None, [by, _short_dt(at)])) if has_any else ''})
 
 
 @bid_notice_bp.route('/api/notices/<int:notice_id>/files')
