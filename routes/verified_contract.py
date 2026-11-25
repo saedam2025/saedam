@@ -504,6 +504,15 @@ def _categories(kind: str | None = None) -> list[str]:
     return [name for name in names if _category_kind(name, kind_map) == kind]
 
 
+def _workplace_label(row) -> str:
+    """계약서 상단 학교 칸의 이름: 임직원 계약은 '근무처', 강사 계약은 '학교'."""
+    try:
+        contract_type = row["contract_type"]
+    except (KeyError, IndexError, TypeError):
+        contract_type = ""
+    return "근무처" if category_kind_of_type()(contract_type) == "employee" else "학교"
+
+
 def category_kind_of_type():
     """계약구분 이름 -> 'instructor'|'employee' 판정 함수(예전 계약을 두 테이블로 나눌 때 사용)."""
     kind_map = _category_kind_map()
@@ -1004,6 +1013,7 @@ def _row_for_view(row) -> dict:
     if not isinstance(company_snapshot, dict):
         company_snapshot = {}
     item["company_name"] = str(company_snapshot.get("company_name") or "").strip()
+    item["workplace_label"] = _workplace_label(item)
     item["company_profile_id"] = str(company_snapshot.get("profile_id") or "")
     item["company_label"] = str(company_snapshot.get("label") or "").strip()
     item["주민번호"] = _decrypt_sensitive(item.pop("signer_rrn_encrypted", ""))
@@ -1133,7 +1143,7 @@ def _void_notice_html(row, reason_label: str, has_attachment: bool = False) -> s
         <tr><td style="padding:13px 16px;color:#16243a;font-size:14px;font-weight:700;">
             {title}
             <div style="margin-top:6px;color:#5f6f85;font-size:12.5px;font-weight:500;">
-                계약구분 {escape(row['contract_type'])} · 수탁학교 {escape(row['school_name'] or '-')}
+                계약구분 {escape(row['contract_type'])} · {_workplace_label(row)} {escape(row['school_name'] or '-')}
                 · 부서 {escape(row['department'] or '-')}
             </div>
         </td></tr>
@@ -2979,7 +2989,7 @@ def admin_preview(contract_id: int):
       <h1>{escape(row['title_snapshot'])}</h1>
       <table class="info">
         <tr><th>계약자</th><td>{escape(row['signer_name'])}</td><th>주민번호</th><td>(서명 시 입력)</td></tr>
-        <tr><th>학교</th><td>{values.get('수탁학교명','')}</td><th>부서</th><td>{values.get('부서명','')}</td></tr>
+        <tr><th>{_workplace_label(row)}</th><td>{values.get('수탁학교명','')}</td><th>부서</th><td>{values.get('부서명','')}</td></tr>
         <tr><th>연락처</th><td>{values.get('연락처','') or '(서명 시 입력)'}</td><th>이메일</th><td>{escape(row['signer_email'])}</td></tr>
         <tr><th>주소</th><td colspan="3">{values.get('거주지','') or '(서명 시 입력)'}</td></tr>
         <tr><th>은행</th><td>(서명 시 입력)</td><th>계좌번호</th><td>(서명 시 입력)</td></tr>
@@ -3725,7 +3735,7 @@ def _build_pdf(row, contract_data: dict, company: dict, signature_uri: str, sign
       <h1>{escape(row['title_snapshot'])}</h1>
       <table class="info">
         <tr><th>계약자</th><td>{escape(row['signer_name'])}</td><th>주민번호</th><td>{values.get('주민번호','')}</td></tr>
-        <tr><th>학교</th><td>{values.get('수탁학교명','')}</td><th>부서</th><td>{values.get('부서명','')}</td></tr>
+        <tr><th>{_workplace_label(row)}</th><td>{values.get('수탁학교명','')}</td><th>부서</th><td>{values.get('부서명','')}</td></tr>
         <tr><th>연락처</th><td>{values.get('연락처','')}</td><th>이메일</th><td>{escape(row['signer_email'])}</td></tr>
         <tr><th>주소</th><td colspan="3">{values.get('거주지','')}</td></tr>
         <tr><th>은행</th><td>{values.get('은행','')}</td><th>계좌번호</th><td>{values.get('계좌번호','')}</td></tr>
