@@ -20,6 +20,7 @@
         margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid rgba(0, 0, 0, 0.05);
     }
     .page-brand { display: flex; align-items: center; gap: 12px; }
+    .head-actions { display: flex; align-items: center; gap: 8px; }
     .page-brand img { height: 35px; mix-blend-mode: multiply; }
     .page-title { margin: 0; font-size: 1.3rem; font-weight: 700; color: var(--text-dark, #1e293b); }
     /* 제목 오른쪽 톱니바퀴: [공고수집·메일 설정]으로 들어간다(레벨 1만 보인다) */
@@ -336,7 +337,7 @@
     .content-container { max-width: none !important; padding-left: 20px; padding-right: 20px; }
     /* 카드 폭 = 표가 필요한 만큼(칸이 쓸데없이 늘어나지 않게). 화면보다 넓으면 표만 가로로 밀린다 */
     .bn-container { width: fit-content; min-width: min(1200px, 100%); max-width: 100%; padding-left: 20px; padding-right: 20px; }
-    #noticeTable { width: auto; min-width: 1880px; }      /* 공고가 없어도 표 폭이 줄어들지 않게 */
+    #noticeTable { width: auto; min-width: 2000px; }      /* 공고가 없어도 표 폭이 줄어들지 않게 */
     /* 칸 좌우 여백을 줄여 1970px 화면에서도 표가 한 화면에 들어오게 한다 */
     #noticeTable th:not(.chk), #noticeTable td:not(.chk) { padding-left: 4px; padding-right: 4px; }
     #noticeTable th.right, #noticeTable td.right { padding-right: 10px; }
@@ -490,6 +491,15 @@
     .briefing-dlg input:disabled, .briefing-dlg textarea:disabled { background: #f8fafc; color: var(--text-dark, #1e293b); opacity: 1; }
     .briefing-dlg .memo-meta { min-height: 1em; }
 
+    /* ============ 제안접수 칸·창, 접수일정표(입찰일정표와 따로 쓰는 초록 계열) ============ */
+    .pp-btn:hover { background: #f0fdf4; border-color: #bbf7d0; }
+    .pp-btn .bf-when { color: #15803d; }
+    .pp-btn.empty:hover { color: #15803d; }
+    .proposal-dlg input:focus, .proposal-dlg textarea:focus { border-color: #16a34a; }
+    .sc-chip.proposal { background: #dcfce7; color: #166534; }
+    .sc-ev.proposal, .scw-ev.proposal { background: #dcfce7; color: #166534; border-color: #16a34a; }
+    .sc-tip .sc-chip.proposal { background: #86efac; color: #14532d; }
+
     /* ============ 공고수집·메일 설정(통합관리 > 솔라피설정과 같은 구성) ============ */
     .set-wrap { width: 100%; padding-top: 6px; }            /* 위쪽 화면 전환 줄과 같은 폭을 쓴다 */
     .set-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 8px; padding: 0 4px; }
@@ -556,8 +566,12 @@
             <h2 class="page-title">입찰공고관리</h2>
             {% if can_settings %}<button type="button" class="title-gear" id="settingsGear" title="공고수집·메일 설정" aria-label="공고수집·메일 설정"><i class="fa-solid fa-gear"></i></button>{% endif %}
         </div>
-        <button type="button" class="btn small" id="scheduleBtn"
-                title="입찰 마감과 설명회 일정을 달력과 주간표로 봅니다"><i class="fa-regular fa-calendar-days"></i> 입찰일정표</button>
+        <div class="head-actions">
+            <button type="button" class="btn small" id="scheduleBtn"
+                    title="입찰 마감과 설명회 일정을 달력과 주간표로 봅니다"><i class="fa-regular fa-calendar-days"></i> 입찰일정표</button>
+            <button type="button" class="btn small" id="proposalScheduleBtn"
+                    title="제안접수 예정 일정을 달력과 주간표로 봅니다(입찰일정표와는 따로입니다)"><i class="fa-regular fa-calendar-check"></i> 접수일정표</button>
+        </div>
     </div>
 
     <div class="view-tabs" id="viewTabs">
@@ -638,6 +652,7 @@
                             <option value="">지역 (전체)</option>
                         </select></th>
                         <th class="sortable" data-sort="close" title="누르면 입찰 마감일시 순으로 정렬합니다">입찰 마감<span class="arrow">↕</span></th>
+                        <th class="sortable" data-sort="proposal" title="누르면 제안접수 날짜 순으로 정렬합니다(날짜가 없는 공고는 맨 뒤)">제안접수<span class="arrow">↕</span></th>
                         <th class="sortable" data-sort="briefing" title="누르면 설명회 날짜·시간 순으로 정렬합니다(설명회가 없는 공고는 맨 뒤)">설명회<span class="arrow">↕</span></th>
                         <th class="right">기초금액</th>
                         <th class="sortable" data-sort="winner" title="누르면 낙찰 업체 이름순으로 정렬합니다">
@@ -885,6 +900,62 @@
         </div>
     </div>
     <div class="sc-tip" id="scTip" role="tooltip"></div>
+
+    <!-- 접수일정표: 제안접수 예정 일정만 보는 큰 달력 + 주간표(입찰일정표와 완전히 따로) -->
+    <div class="dlg-back" id="proposalScheduleDlg" role="dialog" aria-modal="true" aria-labelledby="prTitle">
+        <div class="dlg schedule-dlg">
+            <div class="sc-head">
+                <h3 id="prTitle"><i class="fa-regular fa-calendar-check" style="color:#16a34a"></i> 접수일정표</h3>
+                <div class="sc-legend">
+                    <span class="sc-chip proposal">접수</span>제안접수 예정
+                    <span>· [제안접수] 칸에 날짜를 적은 공고만 나옵니다 · 학교명에 마우스를 올리면 자세한 내용이 나옵니다</span>
+                </div>
+                <span class="sc-status" id="prStatus" aria-live="polite"></span>
+                <button type="button" class="btn" id="prClose">닫기</button>
+            </div>
+            <div class="sc-body">
+                <section class="sc-month">
+                    <div class="sc-nav">
+                        <button type="button" class="btn" id="prPrevMonth" title="이전 달">◀</button>
+                        <h4 id="prMonthTitle"></h4>
+                        <button type="button" class="btn" id="prNextMonth" title="다음 달">▶</button>
+                        <button type="button" class="btn" id="prToday">오늘</button>
+                    </div>
+                    <div class="sc-weekdays"><div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div></div>
+                    <div class="sc-grid" id="prGrid"></div>
+                </section>
+                <aside class="sc-week">
+                    <div class="sc-nav">
+                        <button type="button" class="btn" id="prPrevWeek" title="이전 주">◀</button>
+                        <h4 id="prWeekTitle"></h4>
+                        <button type="button" class="btn" id="prNextWeek" title="다음 주">▶</button>
+                    </div>
+                    <div id="prWeek"></div>
+                </aside>
+            </div>
+        </div>
+    </div>
+    <div class="sc-tip" id="prTip" role="tooltip"></div>
+
+    <!-- 제안접수 날짜·담당자 창 -->
+    <div class="dlg-back" id="proposalDlg" role="dialog" aria-modal="true" aria-labelledby="proposalDlgTitle">
+        <div class="dlg briefing-dlg proposal-dlg">
+            <h3 id="proposalDlgTitle"><i class="fa-solid fa-file-import" style="color:#16a34a"></i> 제안접수</h3>
+            <div class="memo-target" id="proposalTarget"></div>
+            <div class="bf-grid">
+                <label>제안접수 예정 날짜<input type="date" id="proposalDate"></label>
+                <label>시간 <small>(선택)</small><input type="time" id="proposalTime"></label>
+            </div>
+            <label class="bf-manager-label">담당자 · 메모 <small id="proposalManagerCount">0 / {{ proposal_manager_max }}자</small><textarea id="proposalManager" rows="3" maxlength="{{ proposal_manager_max }}" placeholder="담당자 이름이나 접수 방법 등 간단한 메모"></textarea></label>
+            <div class="memo-meta"><span id="proposalUpdated"></span></div>
+            <div class="dlg-actions">
+                <button type="button" class="btn danger" id="proposalClear">지우기</button>
+                <span class="grow"></span>
+                <button type="button" class="btn" id="proposalCancel">취소</button>
+                <button type="button" class="btn primary" id="proposalSave">저장</button>
+            </div>
+        </div>
+    </div>
 
     <!-- 설명회 날짜·시간·담당자 창 -->
     <div class="dlg-back" id="briefingDlg" role="dialog" aria-modal="true" aria-labelledby="briefingDlgTitle">
@@ -1163,6 +1234,16 @@ function briefingCell(item) {
     return `<button type="button" class="bf-btn${item.briefing_none ? ' none' : ''}" data-briefing-for="${item.id}" title="${CAN_NOTE ? '누르면 설명회 정보를 고칩니다' : '누르면 설명회 정보를 봅니다'}">
         <span class="num bf-when">${esc(when) || '날짜 미정'}</span>${item.briefing_manager ? `<span class="sub bf-manager" title="${esc(item.briefing_manager)}">${esc(item.briefing_manager)}</span>` : ''}</button>`;
 }
+// 제안접수 칸: 예정 날짜와 담당자·메모를 두 줄로 보여 주고, 누르면 창에서 입력·수정한다(비어 있으면 [+ 입력]).
+function proposalCell(item) {
+    if (!item.proposal_date && !item.proposal_manager) {
+        return CAN_NOTE
+            ? `<button type="button" class="bf-btn pp-btn empty" data-proposal-for="${item.id}" title="제안접수 날짜·담당자 입력">+ 입력</button>`
+            : '<span class="sub">-</span>';
+    }
+    return `<button type="button" class="bf-btn pp-btn" data-proposal-for="${item.id}" title="${CAN_NOTE ? '누르면 제안접수 정보를 고칩니다' : '누르면 제안접수 정보를 봅니다'}">
+        <span class="num bf-when">${esc([item.proposal_date, item.proposal_time].filter(Boolean).join(' ')) || '날짜 미정'}</span>${item.proposal_manager ? `<span class="sub bf-manager" title="${esc(item.proposal_manager)}">${esc(item.proposal_manager)}</span>` : ''}</button>`;
+}
 function memoCell(item) {
     const has = Boolean(item.memo);
     if (!has && !CAN_NOTE) return '<span class="sub">-</span>';      // 보기만 하는 직원은 적힌 메모만 열어 본다
@@ -1403,7 +1484,7 @@ function renderNotices() {
             : HAS_ANY
             ? '조건에 맞는 공고가 없습니다.'
             : '아직 수집한 공고가 없습니다. 위쪽 [공고가져오기]를 누르면 최근 4주 공고를 바로 찾아옵니다.';
-        body.innerHTML = `<tr><td colspan="15"><div class="empty"><i class="fa-solid fa-inbox"></i>${text}</div></td></tr>`;
+        body.innerHTML = `<tr><td colspan="16"><div class="empty"><i class="fa-solid fa-inbox"></i>${text}</div></td></tr>`;
         updateBulkBar();
         return;
     }
@@ -1420,6 +1501,7 @@ function renderNotices() {
             <td data-label="지역" class="region-cell" title="${esc(item.demand_name)}">
                 <span class="num">${esc(item.region || '-')}</span>${item.school_label ? `<span class="sub school-name">${esc(item.school_label)}</span>` : ''}</td>
             <td data-label="입찰 마감">${closeCell(item)}</td>
+            <td data-label="제안접수" class="briefing-cell">${proposalCell(item)}</td>
             <td data-label="설명회" class="briefing-cell">${briefingCell(item)}</td>
             <td data-label="기초금액" class="right">${amountCell(item)}</td>
             <td data-label="결과" class="result-cell">${resultCell(item)}</td>
@@ -2008,6 +2090,177 @@ el('scheduleDlg').addEventListener('focusin', event => {
 });
 el('scheduleDlg').addEventListener('focusout', scTipHide);
 
+// ---- 제안접수: 날짜·담당자(메모)를 창에서 입력한다. 모두 비우고 저장하면 지워진다. ----
+let PROPOSAL_ITEM = null;
+function openProposal(item) {
+    PROPOSAL_ITEM = item;
+    el('proposalTarget').textContent = [item.school_label, item.title].filter(Boolean).join(' · ');
+    el('proposalDate').value = item.proposal_date || '';
+    el('proposalTime').value = item.proposal_time || '';
+    el('proposalManager').value = item.proposal_manager || '';
+    el('proposalDate').disabled = !CAN_NOTE;
+    el('proposalTime').disabled = !CAN_NOTE;
+    el('proposalManager').disabled = !CAN_NOTE;
+    updateProposalCount();
+    el('proposalUpdated').textContent = item.proposal_updated ? `마지막 저장: ${item.proposal_updated}` : '';
+    el('proposalClear').style.display = CAN_NOTE && (item.proposal_date || item.proposal_manager) ? '' : 'none';
+    el('proposalSave').style.display = CAN_NOTE ? '' : 'none';
+    el('proposalCancel').textContent = CAN_NOTE ? '취소' : '닫기';
+    el('proposalDlg').style.display = 'flex';
+    (CAN_NOTE ? el('proposalDate') : el('proposalCancel')).focus();
+}
+function closeProposal() { el('proposalDlg').style.display = 'none'; PROPOSAL_ITEM = null; }
+function updateProposalCount() {
+    const box = el('proposalManager');
+    el('proposalManagerCount').textContent = `${box.value.length} / ${box.maxLength}자`;
+}
+el('proposalManager').addEventListener('input', updateProposalCount);
+async function saveProposal(date, time, manager) {
+    const item = PROPOSAL_ITEM;
+    if (!item) return;
+    const data = await postJson(`/bid-notice/api/notices/${item.id}/proposal`, { date, time, manager });
+    item.proposal_date = data.proposal_date;
+    item.proposal_time = data.proposal_time;
+    item.proposal_manager = data.proposal_manager;
+    item.proposal_updated = data.proposal_updated;
+    const button = document.querySelector(`[data-proposal-for="${item.id}"]`);
+    if (button) button.closest('td').innerHTML = proposalCell(item);
+    closeProposal();
+}
+el('proposalCancel').addEventListener('click', closeProposal);
+el('proposalDlg').addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); }       // 적던 내용이 사라지지 않게 Esc로는 닫지 않는다
+    // 날짜 칸에서는 엔터로, 메모 칸(여러 줄)에서는 Ctrl+엔터로 저장한다.
+    if (event.key === 'Enter' && CAN_NOTE && (event.ctrlKey || event.metaKey || !['TEXTAREA', 'BUTTON'].includes(event.target.tagName))) { event.preventDefault(); el('proposalSave').click(); }
+});
+el('proposalSave').addEventListener('click', () => withSpinner(el('proposalSave'), '저장 중…',
+    () => saveProposal(el('proposalDate').value, el('proposalTime').value, el('proposalManager').value)));
+el('proposalClear').addEventListener('click', () => {
+    if (!confirm('이 공고의 제안접수 정보를 지울까요?')) return;
+    withSpinner(el('proposalClear'), '지우는 중…', () => saveProposal('', '', ''));
+});
+
+// ---- 접수일정표: 제안접수 예정만 보여 주는 달력(월) + 주간표. 입찰일정표와는 상태·창·API가 모두 따로다 ----
+let PR_ANCHOR = new Date();          // 고른 날: 이 날이 속한 달이 달력에, 이 날이 속한 주가 주간표에 나온다
+let PR_EVENTS = [];
+let PR_MONTH = '';
+let PR_SEQ = 0;
+
+async function prLoad() {
+    const start = scGridStart(PR_ANCHOR), end = addDays(start, scRows(PR_ANCHOR) * 7 - 1);
+    const seq = ++PR_SEQ;
+    el('prStatus').textContent = '불러오는 중…';
+    try {
+        const data = await api(`/bid-notice/api/proposal-schedule?start=${ymd(start)}&end=${ymd(end)}`);
+        if (seq !== PR_SEQ) return;
+        PR_EVENTS = data.events;
+        PR_MONTH = monthKey(PR_ANCHOR);
+        el('prStatus').textContent = '';
+    } catch (error) {
+        if (seq !== PR_SEQ) return;
+        PR_EVENTS = [];
+        el('prStatus').textContent = error.message;
+    }
+    prRender();
+}
+function prGo(date) {
+    PR_ANCHOR = date;
+    if (monthKey(date) === PR_MONTH) prRender(); else prLoad();
+}
+
+function prRender() {
+    const byDate = {};
+    PR_EVENTS.forEach((ev, index) => (byDate[ev.date] = byDate[ev.date] || []).push({ ev, index }));
+    const today = ymd(new Date()), picked = ymd(PR_ANCHOR);
+    const weekStart = addDays(PR_ANCHOR, -PR_ANCHOR.getDay()), weekEnd = addDays(weekStart, 6);
+    const inWeek = day => day >= ymd(weekStart) && day <= ymd(weekEnd);
+    el('prMonthTitle').textContent = `${PR_ANCHOR.getFullYear()}년 ${PR_ANCHOR.getMonth() + 1}월`;
+
+    const rows = scRows(PR_ANCHOR), limit = rows >= 6 ? 3 : 4;
+    const start = scGridStart(PR_ANCHOR);
+    let cells = '';
+    for (let index = 0; index < rows * 7; index++) {
+        const date = addDays(start, index), key = ymd(date), list = byDate[key] || [];
+        const classes = ['sc-cell', date.getDay() === 0 ? 'sun' : '', date.getDay() === 6 ? 'sat' : '',
+            date.getMonth() !== PR_ANCHOR.getMonth() ? 'other' : '', key === today ? 'today' : '',
+            key === picked ? 'selected' : (inWeek(key) ? 'inweek' : '')].filter(Boolean).join(' ');
+        const shown = list.slice(0, limit).map(({ ev, index: at }) =>
+            `<div class="sc-ev proposal" data-pev="${at}" tabindex="0"><b>접수</b>${ev.time ? `<i>${esc(ev.time)}</i>` : ''}<span>${esc(ev.school)}</span></div>`).join('');
+        cells += `<div class="${classes}" data-pday="${key}"><span class="sc-day">${date.getDate()}</span>${shown}${list.length > limit ? `<div class="sc-more">+${list.length - limit}건 더 보기</div>` : ''}</div>`;
+    }
+    el('prGrid').innerHTML = cells;
+
+    el('prWeekTitle').innerHTML = `주간접수일정표<small>${weekStart.getMonth() + 1}월 ${weekStart.getDate()}일 ~ ${weekEnd.getMonth() + 1}월 ${weekEnd.getDate()}일</small>`;
+    let week = '';
+    for (let offset = 0; offset < 7; offset++) {
+        const date = addDays(weekStart, offset), key = ymd(date), list = byDate[key] || [];
+        const items = list.map(({ ev, index }) =>
+            `<div class="scw-ev proposal" data-pev="${index}" tabindex="0"><span class="sc-chip proposal">제안접수</span><b>${esc(ev.time || '시간 미정')}</b><strong>${esc(ev.school)}</strong></div>`).join('');
+        const dayClass = date.getDay() === 0 ? 'sun' : date.getDay() === 6 ? 'sat' : '';
+        week += `<div class="scw-day ${key === today ? 'today' : ''} ${key === picked ? 'selected' : ''}">
+            <div class="scw-date ${dayClass}" data-pday="${key}">${date.getMonth() + 1}/${date.getDate()} <small>(${SC_WEEKDAYS[date.getDay()]})${key === today ? ' 오늘' : ''}</small><em>${list.length ? `접수 ${list.length}` : ''}</em></div>
+            ${items || '<div class="scw-none">일정 없음</div>'}</div>`;
+    }
+    el('prWeek').innerHTML = week;
+}
+
+function prTipHtml(ev) {
+    const rows = [['공고명', ev.title]];
+    if (ev.region) rows.push(['지역', [ev.region, ev.demand_name].filter(Boolean).join(' · ')]);
+    rows.push(['제안접수', [[ev.proposal_date, ev.proposal_time].filter(Boolean).join(' '), ev.proposal_manager && `담당 ${ev.proposal_manager}`].filter(Boolean).join(' · ')]);
+    if (ev.bid_close) rows.push(['입찰마감', ev.bid_close]);
+    const base = ev.base_amount ? won(ev.base_amount) : (ev.budget ? `${won(ev.budget)} (배정예산)` : '');
+    if (base) rows.push(['기초금액', base]);
+    const state = [ev.bid_type, ev.work_status].filter(Boolean).join(' · ');
+    if (state) rows.push(['구분·상태', state]);
+    if (ev.memo) rows.push(['메모', ev.memo]);
+    return `<div class="tip-head"><span class="sc-chip proposal">제안접수</span>${esc(ev.school)}</div>`
+        + rows.map(row => `<div class="tip-row"><em>${row[0]}</em><span>${esc(row[1])}</span></div>`).join('');
+}
+function prTipPlace(x, y) {
+    const tip = el('prTip');
+    const width = tip.offsetWidth, height = tip.offsetHeight;
+    tip.style.left = Math.max(8, Math.min(x + 16, window.innerWidth - width - 8)) + 'px';
+    tip.style.top = Math.max(8, (y + 18 + height > window.innerHeight - 8) ? y - height - 14 : y + 18) + 'px';
+}
+function prTipShow(target, x, y) {
+    const ev = PR_EVENTS[Number(target.dataset.pev)];
+    if (!ev) return;
+    el('prTip').innerHTML = prTipHtml(ev);
+    el('prTip').style.display = 'block';
+    prTipPlace(x, y);
+}
+function prTipHide() { el('prTip').style.display = 'none'; }
+
+function openProposalSchedule() {
+    PR_ANCHOR = new Date();
+    PR_MONTH = '';
+    el('proposalScheduleDlg').style.display = 'flex';
+    prLoad();
+}
+function closeProposalSchedule() { el('proposalScheduleDlg').style.display = 'none'; prTipHide(); }
+el('proposalScheduleBtn').addEventListener('click', openProposalSchedule);
+el('prClose').addEventListener('click', closeProposalSchedule);
+// 바깥을 눌러도 닫히지 않는다(닫기 버튼·Esc로만 닫는다)
+el('proposalScheduleDlg').addEventListener('click', event => {
+    const day = event.target.closest('[data-pday]');
+    if (day) { const [y, m, d] = day.dataset.pday.split('-').map(Number); prGo(new Date(y, m - 1, d)); }
+});
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && el('proposalScheduleDlg').style.display === 'flex') closeProposalSchedule(); });
+el('prPrevMonth').addEventListener('click', () => prGo(new Date(PR_ANCHOR.getFullYear(), PR_ANCHOR.getMonth() - 1, 1)));
+el('prNextMonth').addEventListener('click', () => prGo(new Date(PR_ANCHOR.getFullYear(), PR_ANCHOR.getMonth() + 1, 1)));
+el('prToday').addEventListener('click', () => prGo(new Date()));
+el('prPrevWeek').addEventListener('click', () => prGo(addDays(PR_ANCHOR, -7)));
+el('prNextWeek').addEventListener('click', () => prGo(addDays(PR_ANCHOR, 7)));
+el('proposalScheduleDlg').addEventListener('mouseover', event => { const target = event.target.closest('[data-pev]'); if (target) prTipShow(target, event.clientX, event.clientY); });
+el('proposalScheduleDlg').addEventListener('mousemove', event => { if (event.target.closest('[data-pev]') && el('prTip').style.display === 'block') prTipPlace(event.clientX, event.clientY); });
+el('proposalScheduleDlg').addEventListener('mouseout', event => { if (event.target.closest('[data-pev]')) prTipHide(); });
+el('proposalScheduleDlg').addEventListener('focusin', event => {
+    const target = event.target.closest('[data-pev]');
+    if (target) { const box = target.getBoundingClientRect(); prTipShow(target, box.left, box.bottom - 12); }
+});
+el('proposalScheduleDlg').addEventListener('focusout', prTipHide);
+
 // 첨부 받기: 서버가 나라장터에서 받아 압축파일로 묶어 바로 내려 준다(서버에 저장하지 않음).
 async function downloadFiles(button) {
     const item = pick(button.dataset.fileGet);
@@ -2049,12 +2302,13 @@ el('noticeBody').addEventListener('click', async event => {
     }
     if (button.dataset.memoFor) { openMemo(pick(button.dataset.memoFor)); return; }
     if (button.dataset.briefingFor) { openBriefing(pick(button.dataset.briefingFor)); return; }
+    if (button.dataset.proposalFor) { openProposal(pick(button.dataset.proposalFor)); return; }
     if (button.dataset.resultDetail) {
         // 상세 결과는 그 공고 바로 아래에 표 전체 폭의 줄로 펼친다(참가 업체 표가 넉넉히 보이게).
         const row = button.closest('tr'), next = row.nextElementSibling;
         if (next && next.dataset.detailFor === button.dataset.resultDetail) { next.remove(); return; }
         const item = pick(button.dataset.resultDetail);
-        row.insertAdjacentHTML('afterend', `<tr class="detail-row" data-detail-for="${item.id}"><td colspan="15"><div class="result-detail">${resultDetail(item)}</div></td></tr>`);
+        row.insertAdjacentHTML('afterend', `<tr class="detail-row" data-detail-for="${item.id}"><td colspan="16"><div class="result-detail">${resultDetail(item)}</div></td></tr>`);
         loadBidders(item);
         return;
     }
