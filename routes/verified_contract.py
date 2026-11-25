@@ -726,8 +726,98 @@ def _empty_value(value: object) -> bool:
         return False
 
 
+_TABLE_TAG_RE = re.compile(r"<table\b([^>]*)>", re.IGNORECASE)
+_TABLE_ROW_RE = re.compile(r"<tr\b[^>]*>.*?</tr>", re.IGNORECASE | re.DOTALL)
+_TABLE_CELL_RE = re.compile(r"<(td|th)\b([^>]*)>", re.IGNORECASE)
+_STYLE_ATTR_RE = re.compile(r"""\sstyle\s*=\s*(["'])(.*?)\1""", re.IGNORECASE | re.DOTALL)
+_WIDTH_ATTR_RE = re.compile(r"""\swidth\s*=\s*(["']?)([^"'\s>]*)\1""", re.IGNORECASE)
+_WIDTH_STYLE_RE = re.compile(r"(?<![\w-])width\s*:\s*([^;]*);?", re.IGNORECASE)
+
+
+def _drop_width(attrs: str) -> tuple[str, str]:
+    """속성 문자열에서 width(style·속성)를 빼고, 빼낸 값도 함께 돌려준다."""
+    found = ""
+    style_match = _STYLE_ATTR_RE.search(attrs)
+    if style_match:
+        style = style_match.group(2)
+        width_match = _WIDTH_STYLE_RE.search(style)
+        if width_match:
+            found = width_match.group(1).strip()
+            style = _WIDTH_STYLE_RE.sub("", style).strip()
+        replacement = f' style="{style}"' if style else ""
+        attrs = attrs[: style_match.start()] + replacement + attrs[style_match.end():]
+    attr_match = _WIDTH_ATTR_RE.search(attrs)
+    if attr_match:
+        found = found or attr_match.group(2).strip()
+        attrs = attrs[: attr_match.start()] + attrs[attr_match.end():]
+    return attrs, found
+
+
+def _px_width(value: str) -> float | None:
+    match = re.fullmatch(r"([\d.]+)\s*(px|pt)?", value.strip(), flags=re.IGNORECASE)
+    if not match:
+        return None
+    try:
+        number = float(match.group(1))
+    except ValueError:
+        return None
+    if match.group(2) and match.group(2).lower() == "pt":
+        number *= 96 / 72
+    return number if number > 0 else None
+
+
+def _with_width_percent(attrs: str, percent: float) -> str:
+    style_match = _STYLE_ATTR_RE.search(attrs)
+    if style_match:
+        style = style_match.group(2).strip()
+        merged = f"width:{percent}%;{style}" if style else f"width:{percent}%"
+        return attrs[: style_match.start()] + f' style="{merged}"' + attrs[style_match.end():]
+    return f'{attrs} style="width:{percent}%"'
+
+
+def _normalize_term_tables(html: str) -> str:
+    """양식 속 표가 페이지 폭을 채우고 [셀 너비]가 비율로 반영되게 정리한다.
+
+    표 전체에 px 너비가 박혀 있으면(편집기의 표 크기 조절 등) 셀 너비를 아무리 키워도
+    그 안에서만 나뉘어 좁게 보인다. 그래서 표 너비는 페이지 폭(100%)으로 맞추고,
+    한 줄의 모든 셀에 px(pt) 너비가 있으면 그 비율대로 %로 바꿔 용지 폭을 넘치지 않게 한다.
+    """
+    if "<table" not in html.lower():
+        return html
+
+    def fix_table(match):
+        attrs, _ = _drop_width(match.group(1))
+        return f"<table{_with_width_percent(attrs, 100)}>"
+
+    def fix_row(match):
+        row = match.group(0)
+        cells = list(_TABLE_CELL_RE.finditer(row))
+        if not cells:
+            return row
+        widths = []
+        for cell in cells:
+            px = _px_width(_drop_width(cell.group(2))[1])
+            if px is None:
+                return row
+            widths.append(px)
+        total = sum(widths)
+        pieces = []
+        last = 0
+        for cell, px in zip(cells, widths):
+            attrs = _with_width_percent(_drop_width(cell.group(2))[0], round(px * 100 / total, 1))
+            pieces.append(row[last:cell.start()])
+            pieces.append(f"<{cell.group(1)}{attrs}>")
+            last = cell.end()
+        pieces.append(row[last:])
+        return "".join(pieces)
+
+    result = _TABLE_TAG_RE.sub(fix_table, html)
+    return _TABLE_ROW_RE.sub(fix_row, result)
+
+
 def _render_terms(raw_html: str, values: dict[str, str]) -> str:
     result = _sanitize_contract_html(raw_html)
+    result = _normalize_term_tables(result)
     row_pattern = re.compile(r"<tr\b[^>]*>.*?</tr>", flags=re.IGNORECASE | re.DOTALL)
     for field in MONEY_FIELDS:
         if _empty_value(values.get(field)):
