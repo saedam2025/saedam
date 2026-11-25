@@ -616,6 +616,40 @@ def _company_snapshot(profile_id: str | None = None) -> dict:
     }
 
 
+def _localize_company_text(text: object, company_name: object, *, html: bool = False) -> str:
+    """양식·제목에 다른 등록 회사의 이름이 직접 적혀 있으면 이 계약의 회사명으로 바꾼다.
+
+    계약서 양식은 구분(예: 직원근로자)별로 하나라서, 양식에 회사명을 글자로 적어 두면
+    발송회사를 바꿔도 예전 회사명이 그대로 나온다. 양식관리의 [발송 회사]에 등록된
+    다른 회사의 이름만 골라 바꾸므로 학교명 같은 다른 글자는 건드리지 않는다.
+    """
+    source = str(text or "")
+    target = str(company_name or "").strip()
+    if not source or not target:
+        return source
+
+    def form(name: str) -> str:
+        return escape(name) if html else name
+
+    others = sorted(
+        {
+            str(profile.get("company_name", "")).strip()
+            for profile in _company_settings()["profiles"]
+        }
+        - {"", target},
+        key=len,
+        reverse=True,
+    )
+    others = [name for name in others if len(name) >= 3 and name not in target]
+    if not others:
+        return source
+    marker = "\x00COMPANY\x00"
+    result = source.replace(form(target), marker)
+    for name in others:
+        result = result.replace(form(name), marker)
+    return result.replace(marker, form(target))
+
+
 def _default_title(contract_type: str, company_name: str) -> str:
     mapping = {
         "방과후강사": f"{company_name} 위탁교육계약서",
@@ -642,7 +676,7 @@ def _contract_title(contract_type: str, company_name: str) -> str:
         "{{company.name}}",
     ):
         saved = saved.replace(marker, company_name)
-    return saved
+    return _localize_company_text(saved, company_name)
 
 
 def _read_terms(contract_type: str) -> tuple[str, str]:
@@ -963,6 +997,15 @@ def _row_for_view(row) -> dict:
         "비고4",
     ):
         item[field] = contract_data.get(field, "")
+    try:
+        company_snapshot = json.loads(item.get("company_snapshot_json") or "{}")
+    except (TypeError, ValueError):
+        company_snapshot = {}
+    if not isinstance(company_snapshot, dict):
+        company_snapshot = {}
+    item["company_name"] = str(company_snapshot.get("company_name") or "").strip()
+    item["company_profile_id"] = str(company_snapshot.get("profile_id") or "")
+    item["company_label"] = str(company_snapshot.get("label") or "").strip()
     item["주민번호"] = _decrypt_sensitive(item.pop("signer_rrn_encrypted", ""))
     item["은행"] = _decrypt_sensitive(item.pop("signer_bank_encrypted", ""))
     item["계좌번호"] = _decrypt_sensitive(item.pop("signer_account_encrypted", ""))
@@ -1248,6 +1291,16 @@ def _normalized_excel_records(frame: pd.DataFrame) -> list[dict[str, str]]:
     ]
 
 
+def _company_guide_text() -> str:
+    """엑셀 작성안내에 보여 줄 등록 회사 목록(기본 회사 표시)."""
+    settings = _company_settings()
+    lines = []
+    for profile in settings["profiles"]:
+        mark = " (기본 회사)" if profile["id"] == settings["active_profile_id"] else ""
+        lines.append(f"{profile.get('company_name', '')}{mark} — 구분명: {profile.get('label', '')}")
+    return "\n".join(lines)
+
+
 def _resolve_company_snapshot(value: object) -> dict:
     requested = str(value or "").strip()
     settings = _company_settings()
@@ -1529,6 +1582,8 @@ def create_contract():
     terms1, terms2 = _read_terms(contract_type)
     if not terms1.strip():
         return jsonify({"status": "error", "message": "선택한 계약구분의 1페이지 양식이 비어 있습니다."}), 400
+    terms1 = _localize_company_text(terms1, profile["company_name"], html=True)
+    terms2 = _localize_company_text(terms2, profile["company_name"], html=True)
 
     contract_data = {
         "계약구분": contract_type,
@@ -1694,7 +1749,6 @@ def _build_excel_workbook(*, include_samples: bool) -> Workbook:
     ]
     sheet.append(headers)
     if include_samples:
-        company_label = _company_profile().get("label", "기본 회사")
         # 계약구분별 샘플 1행씩 (열 순서는 위 headers 와 동일)
         sample_presets = {
             "방과후강사": [
@@ -1755,7 +1809,7 @@ def _build_excel_workbook(*, include_samples: bool) -> Workbook:
         ]
         for category in _categories():
             preset = sample_presets.get(category, default_preset)
-            sheet.append([category, *preset, company_label])
+            sheet.append([category, *preset, ""])
     header_fill = PatternFill("solid", fgColor="173F6A")
     for cell in sheet[1]:
         cell.fill = header_fill
@@ -1790,7 +1844,8 @@ def _build_excel_workbook(*, include_samples: bool) -> Workbook:
         ("필수 열", "계약구분, 성명, 핸드폰번호 또는 email 중 하나"),
         ("발송 방법", "핸드폰번호가 있으면 카카오 알림톡, 없고 email만 있으면 이메일로 계약링크 발송"),
         ("학교·업무", "수탁학교명, 부서명(담당업무·강의과목·직책)"),
-        ("회사정보", "비우면 현재 기본 회사정보 사용. 등록된 구분명·회사명도 입력 가능"),
+        ("회사정보", "비우면 현재 기본 회사로 계약서가 만들어집니다. 다른 회사로 만들 때만 회사 이름을 적습니다."),
+        ("등록된 회사", _company_guide_text()),
         ("민감정보 입력", "주민번호·은행·계좌번호는 계약자가 계약 작성 화면에서 직접 입력합니다."),
         ("민감정보 보관", "입력값은 서버에서 암호화하여 저장되며 엑셀에는 작성하지 않습니다."),
         ("대량발송", "업로드 후 목록에서 대상을 선택하고 '선택 계약링크 발송'을 누릅니다."),
@@ -1884,6 +1939,7 @@ def upload_excel():
         inserted = 0
         skipped = 0
         duplicated = 0
+        company_counts: dict[str, int] = {}
         errors = []
         seen_keys = set()
         terms_cache: dict[str, tuple[str, str]] = {}
@@ -1974,8 +2030,12 @@ def upload_excel():
                     "contract_data_json": json.dumps(contract_data, ensure_ascii=False),
                     "status": "draft",
                     "title_snapshot": _contract_title(contract_type, profile["company_name"]),
-                    "terms1_snapshot": terms1,
-                    "terms2_snapshot": terms2,
+                    "terms1_snapshot": _localize_company_text(
+                        terms1, profile["company_name"], html=True
+                    ),
+                    "terms2_snapshot": _localize_company_text(
+                        terms2, profile["company_name"], html=True
+                    ),
                     "company_snapshot_json": json.dumps(profile, ensure_ascii=False),
                     "agreement_snapshot_json": json.dumps(AGREEMENTS, ensure_ascii=False),
                     "invitation_token_hash": _token_hash(placeholder_token),
@@ -1993,6 +2053,9 @@ def upload_excel():
             )
             seen_keys.add(key)
             inserted += 1
+            company_counts[profile["company_name"]] = (
+                company_counts.get(profile["company_name"], 0) + 1
+            )
         conn.commit()
     except Exception:
         conn.rollback()
@@ -2011,6 +2074,10 @@ def upload_excel():
             }
         ), 400
     message = f"{inserted}명 등록 완료" + (f", {skipped}명 제외" if skipped else "")
+    if company_counts:
+        message += "\n계약 회사: " + ", ".join(
+            f"{name} {count}명" for name, count in company_counts.items()
+        )
     if duplicated:
         message += (
             f"\n\n⚠ {duplicated}명은 기존 서명대기/등록대기 계약과 동일한 조합(성명·계약구분·학교·부서)입니다."
@@ -2633,6 +2700,72 @@ def backup_part():
             f"_{start + 1}-{start + len(group)}.zip"
         ),
     )
+
+
+@verified_contract_bp.route(VC_KIND_PREFIX + "/admin/change-company", methods=["POST"])
+@_kind_menu_required
+@_csrf_required
+def change_contract_company():
+    """아직 서명하지 않은 계약의 계약 회사를 바꾼다(제목·양식 속 회사명·서명란 회사 반영)."""
+    data = request.get_json(silent=True) or {}
+    profile_id = str(data.get("profile_id", "")).strip()
+    raw_ids = data.get("ids")
+    if not isinstance(raw_ids, list) or not raw_ids or len(raw_ids) > 200:
+        return jsonify({"status": "error", "message": "회사를 바꿀 계약을 선택해 주세요."}), 400
+    try:
+        ids = sorted({int(value) for value in raw_ids})
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "message": "선택한 계약을 확인할 수 없습니다."}), 400
+    settings = _company_settings()
+    if not any(item["id"] == profile_id for item in settings["profiles"]):
+        return jsonify({"status": "error", "message": "선택한 회사를 찾을 수 없습니다."}), 404
+    snapshot = _company_snapshot(profile_id)
+    conn = get_db()
+    changed = 0
+    skipped = 0
+    try:
+        for contract_id in ids:
+            row = conn.execute(
+                f"SELECT * FROM {contract_table()} WHERE id=?", (contract_id,)
+            ).fetchone()
+            if not row or row["status"] not in {"draft", "pending"}:
+                skipped += 1
+                continue
+            update_verified_contract(
+                conn,
+                contract_id,
+                {
+                    "company_snapshot_json": json.dumps(snapshot, ensure_ascii=False),
+                    "title_snapshot": _contract_title(row["contract_type"], snapshot["company_name"]),
+                    "terms1_snapshot": _localize_company_text(
+                        row["terms1_snapshot"], snapshot["company_name"], html=True
+                    ),
+                    "terms2_snapshot": _localize_company_text(
+                        row["terms2_snapshot"], snapshot["company_name"], html=True
+                    ),
+                },
+            )
+            _record_event(
+                conn,
+                contract_id,
+                "COMPANY_CHANGED",
+                {"company_name": snapshot["company_name"], "profile_id": profile_id},
+            )
+            changed += 1
+        conn.commit()
+    finally:
+        conn.close()
+    if not changed:
+        return jsonify(
+            {
+                "status": "error",
+                "message": "서명 전(등록대기·서명대기) 계약만 회사를 바꿀 수 있습니다.",
+            }
+        ), 400
+    message = f"{changed}건의 계약 회사를 '{snapshot['company_name']}'(으)로 바꿨습니다."
+    if skipped:
+        message += f"\n서명이 끝났거나 취소된 {skipped}건은 바꾸지 않았습니다."
+    return jsonify({"status": "success", "message": message, "changed": changed})
 
 
 @verified_contract_bp.route(VC_KIND_PREFIX + "/admin/<int:contract_id>/resend", methods=["POST"])
@@ -3518,6 +3651,27 @@ def _logo_data_uri() -> str:
     return _LOGO_DATA_URI
 
 
+def _company_logo_data_uri(company: dict) -> str:
+    filename = os.path.basename(str(company.get("logo_filename", "")))
+    path = VERIFIED_LOGO_ROOT / filename if filename else None
+    if not path or not path.is_file():
+        return ""
+    mime, _ = mimetypes.guess_type(path.name)
+    return f"data:{mime or 'image/png'};base64,{base64.b64encode(read_decrypted(path)).decode('ascii')}"
+
+
+def _footer_logo_html(company: dict) -> str:
+    """계약서 맨 아래 로고: 그 계약 회사의 로고. 등록한 로고가 없으면 새담 계열 회사에만 새담 로고를 쓴다."""
+    name = str(company.get("company_name") or "").strip()
+    logo = _company_logo_data_uri(company)
+    if not logo and (not name or "새담" in name):
+        logo = _logo_data_uri()
+        name = name or "새담청소년교육문화원"
+    if not logo:
+        return ""
+    return f'<div class="footer-logo"><img src="{logo}" alt="{escape(name)}"></div>'
+
+
 def _display_phone(value: object) -> str:
     """계약서에 표시할 휴대폰번호를 010-1234-5678 형식으로 바꾼다."""
     try:
@@ -3614,7 +3768,7 @@ def _build_pdf(row, contract_data: dict, company: dict, signature_uri: str, sign
         <p>본인 인증 완료: {escape(_format_kst(row['verified_at']))}<br>
         전자서명 완료: {signed_at.astimezone(KST).strftime('%Y-%m-%d %H:%M:%S KST')}</p>
       </div>
-      <div class="footer-logo"><img src="{_logo_data_uri()}" alt="새담청소년교육문화원"></div>
+      {_footer_logo_html(company)}
     </body></html>
     """
     configuration = _pdf_configuration()
