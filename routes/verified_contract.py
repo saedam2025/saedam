@@ -25,6 +25,7 @@ import pdfkit
 from PyPDF2 import PdfReader, PdfWriter
 import pandas as pd
 from email.mime.application import MIMEApplication
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from cryptography.fernet import Fernet, InvalidToken
@@ -837,7 +838,7 @@ def _active_sender_row(conn):
     return row
 
 
-def _send_mail(to, subject: str, contents, attachments=None) -> None:
+def _send_mail(to, subject: str, contents, attachments=None, inline_images=None) -> None:
     """스마트명세서·인감증명서와 동일한 공유 발송계정(Gmail/ZeptoMail)으로 발송한다."""
     conn = get_db()
     try:
@@ -856,6 +857,11 @@ def _send_mail(to, subject: str, contents, attachments=None) -> None:
     message["To"] = to if isinstance(to, str) else ", ".join(to)
     message["Subject"] = subject
     message.attach(MIMEText(contents, "html", "utf-8"))
+    for cid, data, subtype in inline_images or []:
+        image = MIMEImage(data, _subtype=subtype)
+        image.add_header("Content-ID", f"<{cid}>")
+        image.add_header("Content-Disposition", "inline", filename=f"{cid}.{subtype}")
+        message.attach(image)
     if attachments:
         paths = attachments if isinstance(attachments, (list, tuple)) else [attachments]
         for item in paths:
@@ -1104,6 +1110,43 @@ def _invitation_html(row, invitation_url: str) -> str:
     """
 
 
+def _row_company(row) -> dict:
+    try:
+        value = json.loads(row["company_snapshot_json"] or "{}")
+    except (KeyError, IndexError, TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _mail_logo(company: dict) -> tuple[str, list]:
+    """안내메일 맨 아래 로고: (이미지 태그, 메일에 함께 넣을 인라인 이미지 목록).
+
+    그 계약 회사에 등록한 로고가 있으면 그것을 메일에 직접 넣고, 없으면 회사명에 '새담'이
+    들어간 회사에만 새담 로고를 쓴다. 다른 회사 메일에 새담 로고가 붙지 않도록 그 밖에는 로고를 뺀다.
+    """
+    name = str(company.get("company_name") or "").strip()
+    filename = os.path.basename(str(company.get("logo_filename", "")))
+    path = VERIFIED_LOGO_ROOT / filename if filename else None
+    style = 'style="display:block;margin:0 auto 9px;height:34px;width:auto;"'
+    if path and path.is_file():
+        try:
+            data = read_decrypted(path)
+        except Exception:
+            data = b""
+        subtype = (mimetypes.guess_type(path.name)[0] or "image/png").split("/")[-1]
+        if data and subtype in {"png", "jpeg", "gif", "webp"}:
+            return (
+                f'<img src="cid:companylogo" alt="{escape(name)}" {style}>',
+                [("companylogo", data, subtype)],
+            )
+    if not name or "새담" in name:
+        return (
+            f'<img src="{CONTRACT_PUBLIC_ORIGIN}/static/logo01.gif" alt="{escape(name)}" {style}>',
+            [],
+        )
+    return "", []
+
+
 def _void_notice_html(row, reason_label: str, has_attachment: bool = False) -> str:
     """폐기·변경계약 안내메일. 계약완료 안내메일과 같은 남색 문서 톤으로 맞춘다."""
     name = escape(row["signer_name"])
@@ -1111,7 +1154,7 @@ def _void_notice_html(row, reason_label: str, has_attachment: bool = False) -> s
     label = escape(reason_label)
     company = json.loads(row["company_snapshot_json"] or "{}") if "company_snapshot_json" in row.keys() else {}
     org_name = escape(str(company.get("company_name") or "(사)새담청소년교육문화원"))
-    logo_url = f"{CONTRACT_PUBLIC_ORIGIN}/static/logo01.gif"
+    logo_html = _mail_logo(company)[0]
     attachment_line = (
         "<br>· 첨부된 계약서 파일은 <b>효력을 잃은 계약서</b>이며, 어떤 계약이 처리되었는지"
         " 확인하실 수 있도록 참고용으로만 함께 보내 드립니다."
@@ -1168,9 +1211,8 @@ def _void_notice_html(row, reason_label: str, has_attachment: bool = False) -> s
 
 <tr><td style="padding:18px 20px 22px;border-top:1px solid #d7e0ea;text-align:center;
                background:#f6f8fb;border-radius:0 0 5px 5px;">
-    <img src="{logo_url}" alt="{org_name}"
-         style="display:block;margin:0 auto;height:34px;width:auto;">
-    <div style="margin-top:9px;color:#7b8aa0;font-size:11px;line-height:1.7;">
+    {logo_html}
+    <div style="margin-top:0;color:#7b8aa0;font-size:11px;line-height:1.7;">
         {org_name}<br>
         본 메일은 새담 인트라넷 인증전자계약에서 발송되었습니다.
     </div>
@@ -1185,7 +1227,7 @@ def _completion_mail_html(row, pdf_hash: str, company_name: str = "") -> str:
     name = escape(row["signer_name"])
     title = escape(row["title_snapshot"])
     org_name = escape(str(company_name or "(사)새담청소년교육문화원"))
-    logo_url = f"{CONTRACT_PUBLIC_ORIGIN}/static/logo01.gif"
+    logo_html = _mail_logo(_row_company(row))[0]
     return f"""<!DOCTYPE html>
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -1250,9 +1292,8 @@ def _completion_mail_html(row, pdf_hash: str, company_name: str = "") -> str:
 
 <tr><td style="padding:18px 20px 22px;border-top:1px solid #d7e0ea;text-align:center;
                background:#f6f8fb;border-radius:0 0 5px 5px;">
-    <img src="{logo_url}" alt="{org_name}"
-         style="display:block;margin:0 auto;height:34px;width:auto;">
-    <div style="margin-top:9px;color:#7b8aa0;font-size:11px;line-height:1.7;">
+    {logo_html}
+    <div style="margin-top:0;color:#7b8aa0;font-size:11px;line-height:1.7;">
         {org_name}<br>
         본 메일은 새담 인트라넷 인증전자계약에서 발송되었습니다.
     </div>
@@ -2414,12 +2455,14 @@ def bulk_void():
                             f"[전자계약 {reason_label} 안내] {row['title_snapshot']}",
                             _void_notice_html(row, reason_label, has_attachment=True),
                             attachments=mail_pdf_path,
+                            inline_images=_mail_logo(_row_company(row))[1],
                         )
                 else:
                     _send_mail(
                         row["signer_email"],
                         f"[전자계약 {reason_label} 안내] {row['title_snapshot']}",
                         _void_notice_html(row, reason_label),
+                        inline_images=_mail_logo(_row_company(row))[1],
                     )
                 mail_sent += 1
             except Exception as exc:
@@ -3975,6 +4018,7 @@ def complete_contract(token: str):
                     f"[계약완료] {row['title_snapshot']}",
                     _completion_mail_html(row, pdf_hash, company.get("company_name")),
                     attachments=mail_pdf_path,
+                    inline_images=_mail_logo(company)[1],
                 )
             mail_status, mail_error = "sent", ""
         except Exception as exc:
